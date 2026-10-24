@@ -10,6 +10,7 @@ The user set these explicitly (2026-10-21). Both are equally the job.
 2. **Teach and coach the user in professional software engineering process**: issue tracking, specs, tickets, triage, branching, pull requests, code review, testing, CI, retros. The user wants this project run rigorously, the way a software engineer would run it.
 
 How to do job 2:
+
 - Never skip a process step to go faster. If a step is genuinely unnecessary, say so and say why.
 - At each process step, add a short **Coach's note**: what the step is, why engineers do it, and what goes wrong without it. Two to four sentences, tied to what we're doing right now. Don't repeat a note the user has already had unless they ask.
 - Let the user drive the user-invoked skills (`/to-spec`, `/to-tickets`, `/triage`, `/implement`, `/retro`): tell them which one to run next and why, rather than doing its work silently.
@@ -25,8 +26,15 @@ The loop, for every piece of work:
 - **Branches**: `main` is protected; no direct pushes. One short-lived branch per issue, named `<issue-number>-<slug>` (e.g. `12-log-a-set`).
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`, `chore:`), imperative mood, subject ≤ 72 chars.
 - **Pull requests**: body follows `/pr`; includes `Closes #<n>`. Merge only when CI is green and `/code-review` findings are resolved. Squash-merge, then delete the branch.
-- **Checks**: `npm run check` (lint, types, tests, format) runs in the pre-commit hook and in GitHub Actions on every PR. Never bypass hooks (`--no-verify`).
+- **Checks**: the pre-commit hook formats staged files, then runs lint, typecheck and tests; GitHub Actions runs the full `npm run check` (job `check`, required on `main`) on every PR. Never bypass hooks (`--no-verify`).
 - **Releases**: `main` deploys to GitHub Pages. Only merge what is ready to ship.
+
+## Commands
+
+- `npm run check`: everything CI runs (lint, typecheck, tests, format check). Run before pushing.
+- `npm test`: Vitest, once (`npx vitest` to watch). Tests live in `tests/**/*.test.js`.
+- `npm run lint` / `npm run typecheck`: ESLint / `tsc` over JSDoc types.
+- `npm run format` / `npm run format:check`: Prettier, rewriting files in place / only reporting.
 
 ## Architecture
 

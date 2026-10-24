@@ -1,0 +1,18 @@
+{
+  // Type-check JSDoc-annotated JavaScript; never emit (ADR-0002: no build step).
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "es2022",
+    // nodenext requires explicit ".js" extensions, as the browser does with no bundler.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "skipLibCheck": true
+  },
+  // Tooling configs are included so the check has inputs before any app code exists.
+  "include": ["app/**/*.js", "tests/**/*.js", "*.config.js"],
+  "exclude": ["node_modules"]
+}
