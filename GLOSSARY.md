@@ -57,6 +57,13 @@ A non-warm-up set counted toward a muscle group's weekly volume (1 for primary, 
 The most recent workout containing that exercise; its sets are shown while logging.
 _Avoid_: Last session, previous
 
+**Superset**:
+Two or more exercises in a workout done alternately, one set of each per round, with rest only after each round. Usually a pair.
+_Avoid_: Circuit, paired set, giant set
+
+**Round**:
+One set of each exercise in a superset, done back to back.
+
 **Pinned note**:
 A note attached to an exercise, shown every time it is logged (seat height, grip).
 
