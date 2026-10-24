@@ -19,7 +19,7 @@ _Avoid_: Body part, muscle, body region
 The muscle groups an exercise mainly works / also works. A hard set counts 1 for each primary and 0.5 for each secondary.
 
 **Region**:
-One of four groupings of muscle groups used for colour and summaries: Push, Pull, Legs, Core.
+One of four groupings of muscle groups used for colour and summaries: Push (chest, front delts, side delts, triceps), Pull (rear delts, biceps, forearms, lats/upper back, traps), Legs (glutes, quads, hamstrings, adductors, calves), Core (abs, obliques, lower back).
 
 **Gym**:
 A named place the user trains, defined by the list of exercises available there (Work, Apartment, Home). Filters the exercise picker; does not change how weights compare.
