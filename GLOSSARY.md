@@ -51,7 +51,7 @@ How many more reps the user could have done at the end of a set. Optional per se
 _Avoid_: RPE
 
 **Hard set**:
-A non-warm-up set counted toward a muscle group's weekly volume (1 for primary, 0.5 for secondary).
+A non-warm-up set counted toward a muscle group's weekly volume (1 for primary, 0.5 for secondary). Strength sets and timed holds count; cardio never does, even though cardio exercises are tagged with the muscles they work.
 
 **Last workout** (for an exercise):
 The most recent workout containing that exercise; its sets are shown while logging.
@@ -86,7 +86,7 @@ One exercise in a routine day, with target sets, a rep range and an optional tar
 An immutable snapshot of a routine. Saving changes or accepting a proposal creates a new version; past workouts keep pointing at the version they followed.
 
 **Swap**:
-Replacing a slot's exercise for one workout with another available at the current gym that shares its primary muscle.
+Replacing a slot's exercise for one workout with another available at the current gym that shares its primary muscle and is the same kind of exercise: strength for strength, timed hold for timed hold, cardio for cardio.
 
 **Suggested weight**:
 The load the app proposes for an exercise's next working sets, computed without AI.
