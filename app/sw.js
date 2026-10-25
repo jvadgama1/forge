@@ -1,6 +1,8 @@
 // Service worker: keeps the app shell available with no signal.
-// Same-origin files and Google Fonts are served from cache while a fresh copy
-// is fetched in the background, so a deploy shows up on the next launch.
+// Same-origin files, Google Fonts and the pinned Firebase SDK are served from
+// cache while a fresh copy is fetched in the background, so a deploy shows up
+// on the next launch. Firestore and sign-in traffic is never cached here;
+// Firestore keeps its own offline cache.
 
 const CACHE = "forge-shell-v1";
 const SHELL = [
@@ -10,8 +12,11 @@ const SHELL = [
   "css/slab.css",
   "js/main.js",
   "js/dom.js",
+  "js/firebase-config.js",
+  "js/firebase-sdk.js",
+  "js/store/firestore-store.js",
   "js/core/forge.js",
-  "js/core/memory-store.js",
+  "js/store/memory-store.js",
   "js/core/muscle-groups.js",
   "js/core/seed-library.js",
   "js/core/types.js",
@@ -44,7 +49,9 @@ self.addEventListener("fetch", (event) => {
     event.request.method === "GET" &&
     (url.origin === self.location.origin ||
       url.hostname.endsWith("fonts.googleapis.com") ||
-      url.hostname.endsWith("fonts.gstatic.com"));
+      url.hostname.endsWith("fonts.gstatic.com") ||
+      (url.hostname === "www.gstatic.com" &&
+        url.pathname.startsWith("/firebasejs/")));
   if (!cacheable) return;
 
   event.respondWith(

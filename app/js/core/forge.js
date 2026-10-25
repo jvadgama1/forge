@@ -18,7 +18,10 @@ export function createForge({ store, library }) {
       /** @param {Exercise} e */
       const rank = (e) =>
         !muscleGroup || e.primary.includes(muscleGroup) ? 0 : 1;
-      const all = [...library, ...(await store.customExercises())];
+      const custom = /** @type {Exercise[]} */ (
+        await store.list("customExercises")
+      );
+      const all = [...library, ...custom];
       return all
         .filter((e) => e.name.toLowerCase().includes(text))
         .filter(

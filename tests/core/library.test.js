@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createForge } from "../../app/js/core/forge.js";
-import { createMemoryStore } from "../../app/js/core/memory-store.js";
+import { createMemoryStore } from "../../app/js/store/memory-store.js";
 
 /** @type {import("../../app/js/core/types.js").Exercise[]} */
 const library = [

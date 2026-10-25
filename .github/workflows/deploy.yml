@@ -23,6 +23,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # The Firebase emulators (npm run test:emulator) need Java.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
       - run: npm ci
       - run: npm run check
 

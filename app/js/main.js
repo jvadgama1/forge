@@ -1,14 +1,57 @@
 import { createForge } from "./core/forge.js";
-import { createMemoryStore } from "./core/memory-store.js";
 import { SEED_LIBRARY } from "./core/seed-library.js";
 import { MUSCLE_GROUPS, muscleGroup } from "./core/muscle-groups.js";
+import { createFirestoreStore } from "./store/firestore-store.js";
+import { firebaseApp, firebaseAuth, firestore } from "./firebase-sdk.js";
+import { FIREBASE_CONFIG } from "./firebase-config.js";
 import { h } from "./dom.js";
 
 /** @import { Exercise, ExerciseType, MuscleGroup } from "./core/types.js" */
+/** @import { User } from "firebase/auth" */
 
-const forge = createForge({
-  store: createMemoryStore(),
-  library: SEED_LIBRARY,
+const app = firebaseApp.initializeApp(FIREBASE_CONFIG);
+const auth = firebaseAuth.getAuth(app);
+// The persistent cache keeps data on the device and queues writes made with
+// no signal, syncing them when the connection returns (spec #3, story 5).
+const db = firestore.initializeFirestore(app, {
+  ignoreUndefinedProperties: true,
+  localCache: firestore.persistentLocalCache({
+    tabManager: firestore.persistentMultipleTabManager(),
+  }),
+});
+
+/** undefined until Firebase has checked for a saved session; null when signed out. */
+/** @type {User | null | undefined} */
+let user;
+/** @type {ReturnType<typeof createForge>} */
+let forge;
+
+/**
+ * Shows that a change didn't reach the server, so a lost set never goes unnoticed.
+ * @param {unknown} error
+ */
+function showSaveError(error) {
+  console.error("Forge: a change failed to save", error);
+  const alert = /** @type {HTMLElement} */ (document.getElementById("alert"));
+  alert.textContent =
+    "⚠ A change didn't save. Check you're signed in, then try again.";
+  alert.hidden = false;
+}
+
+firebaseAuth.onAuthStateChanged(auth, (signedIn) => {
+  user = signedIn;
+  if (signedIn) {
+    forge = createForge({
+      store: createFirestoreStore({
+        sdk: firestore,
+        db,
+        uid: signedIn.uid,
+        onError: showSaveError,
+      }),
+      library: SEED_LIBRARY,
+    });
+  }
+  render();
 });
 
 /** @type {Record<ExerciseType, string>} */
@@ -151,6 +194,8 @@ function libraryView() {
 }
 
 function moreView() {
+  const account = /** @type {User} */ (user);
+  const copied = h("span", { class: "label", "aria-live": "polite" });
   return screen(
     "More",
     h(
@@ -163,6 +208,71 @@ function moreView() {
         h("span", { "aria-hidden": "true" }, "→"),
       ),
     ),
+    h("h2", { class: "label section" }, "Account"),
+    h("p", { class: "account" }, account.email ?? "Signed in"),
+    h("p", { class: "label" }, "Account ID"),
+    h(
+      "p",
+      { class: "account-id" },
+      h("code", {}, account.uid),
+      h(
+        "button",
+        {
+          class: "chip",
+          type: "button",
+          onclick: async () => {
+            await navigator.clipboard.writeText(account.uid);
+            copied.textContent = "Copied";
+          },
+        },
+        "Copy",
+      ),
+      copied,
+    ),
+    h(
+      "button",
+      {
+        class: "button secondary",
+        type: "button",
+        onclick: () => firebaseAuth.signOut(auth),
+      },
+      "Sign out",
+    ),
+  );
+}
+
+function signInView() {
+  const status = h("p", { class: "lede", role: "status" });
+  return screen(
+    "Sign in",
+    h(
+      "p",
+      { class: "lede" },
+      "Your workouts sync between your phone and computer under your Google account.",
+    ),
+    h(
+      "button",
+      {
+        class: "button",
+        type: "button",
+        onclick: async () => {
+          status.textContent = "";
+          try {
+            await firebaseAuth.signInWithPopup(
+              auth,
+              new firebaseAuth.GoogleAuthProvider(),
+            );
+          } catch (error) {
+            const code = /** @type {{ code?: string }} */ (error).code;
+            if (code === "auth/popup-closed-by-user") return;
+            status.textContent = `Sign-in didn't finish (${code ?? "unknown error"}). Try again.`;
+          }
+        },
+      },
+      "Continue with Google",
+      h("span", { "aria-hidden": "true" }, "→"),
+    ),
+    status,
   );
 }
 
@@ -172,8 +282,20 @@ function placeholder(title, text) {
 }
 
 function render() {
+  const view = document.getElementById("view");
+  const tabs = /** @type {HTMLElement} */ (document.querySelector(".tabs"));
+  tabs.hidden = !user;
+  if (user === undefined) {
+    // Firebase is still checking for a saved session: show only the wordmark.
+    view?.replaceChildren(h("p", { class: "wordmark" }, "Forge"));
+    return;
+  }
+  if (user === null) {
+    view?.replaceChildren(signInView());
+    return;
+  }
   const route = routes[location.hash.slice(1)] ?? routes["/log"];
-  document.getElementById("view")?.replaceChildren(route.render());
+  view?.replaceChildren(route.render());
   for (const a of document.querySelectorAll(".tabs a")) {
     if (a.getAttribute("data-tab") === route.tab)
       a.setAttribute("aria-current", "page");
