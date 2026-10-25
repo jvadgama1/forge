@@ -31,8 +31,10 @@ The loop, for every piece of work:
 
 ## Commands
 
-- `npm run check`: everything CI runs (lint, typecheck, tests, format check). Run before pushing.
-- `npm test`: Vitest, once (`npx vitest` to watch). Tests live in `tests/**/*.test.js`.
+- `npm run check`: everything CI runs (lint, typecheck, unit and emulator tests, format check). Run before pushing.
+- `npm test`: unit tests with Vitest, once (`npx vitest` to watch). Tests live in `tests/**/*.test.js`.
+- `npm run test:emulator`: tests needing Firebase (store contract against Firestore, security rules) in `tests/**/*.emulator.test.js`. Starts the Auth and Firestore emulators under the `demo-forge` project, so nothing touches the real project. Needs Java 21 on PATH (`C:\Program Files\Microsoft\jdk-21.*`).
+- `npm run deploy:rules`: deploy `firestore.rules` to the real project (`forge-eb613`). Run after a rules change merges; uses the maintainer's Firebase CLI login.
 - `npm run lint` / `npm run typecheck`: ESLint / `tsc` over JSDoc types.
 - `npm run format` / `npm run format:check`: Prettier, rewriting files in place / only reporting.
 
@@ -50,7 +52,7 @@ The loop, for every piece of work:
 
 ## The user
 
-- Windows 11, PowerShell, Node 24 + npm, git, `gh`. Android phone.
+- Windows 11, PowerShell, Node 24 + npm, git, `gh`, Java 21 (Microsoft OpenJDK), Firebase CLI (via `npx`, logged in). Android phone.
 - Prefers to discuss design before big changes.
 
 ## Agent skills

@@ -8,22 +8,32 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:emulator": "firebase emulators:exec --only auth,firestore --project demo-forge \"vitest run --config vitest.emulator.config.js\"",
     "lint": "eslint .",
     "typecheck": "tsc",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run typecheck && npm test && npm run format:check",
+    "check": "npm run lint && npm run typecheck && npm test && npm run test:emulator && npm run format:check",
+    "deploy:rules": "firebase deploy --only firestore:rules --project forge-eb613",
     "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@firebase/rules-unit-testing": "6.0.0",
     "@types/node": "24.19.2",
     "eslint": "10.13.0",
+    "firebase": "13.0.0",
+    "firebase-tools": "15.33.0",
     "globals": "17.13.0",
     "husky": "9.1.7",
     "lint-staged": "17.6.0",
     "prettier": "3.9.10",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
+  },
+  "allowScripts": {
+    "@firebase/util": false,
+    "protobufjs": false,
+    "re2": false
   }
 }
