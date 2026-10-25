@@ -4,23 +4,25 @@ import * as sdk from "firebase/firestore";
 import { createFirestoreStore } from "../../app/js/store/firestore-store.js";
 import { describeStoreContract } from "./store-contract.js";
 import { clearFirestore, signedInFirestore } from "../emulator.js";
+import { OWNER_UID } from "../../app/js/firebase-config.js";
 
 /** @type {Awaited<ReturnType<typeof signedInFirestore>>} */
-let alice;
+let owner;
 
 beforeAll(async () => {
-  alice = await signedInFirestore("alice");
+  // The security rules admit only the owner's account.
+  owner = await signedInFirestore(OWNER_UID);
 });
 
 afterAll(async () => {
-  await deleteApp(alice.app);
+  await deleteApp(owner.app);
 });
 
 /** A fresh, empty Firestore store for each contract test. */
 async function freshStore() {
-  await sdk.waitForPendingWrites(alice.db);
+  await sdk.waitForPendingWrites(owner.db);
   await clearFirestore();
-  return createFirestoreStore({ sdk, db: alice.db, uid: alice.uid });
+  return createFirestoreStore({ sdk, db: owner.db, uid: owner.uid });
 }
 
 describeStoreContract("Firestore", freshStore);
@@ -32,7 +34,7 @@ describe("Firestore store", () => {
     await store.synced();
 
     // A second app instance has an empty cache, so this read must come from the server.
-    const reader = await signedInFirestore("alice");
+    const reader = await signedInFirestore(OWNER_UID);
     const readerStore = createFirestoreStore({
       sdk,
       db: reader.db,
@@ -48,10 +50,10 @@ describe("Firestore store", () => {
   it("reports a write the server rejects to onError instead of failing silently", async () => {
     await clearFirestore();
     const errors = /** @type {unknown[]} */ ([]);
-    // Writing under another user's root is refused by the security rules.
+    // Writing under another account's root is refused by the security rules.
     const store = createFirestoreStore({
       sdk,
-      db: alice.db,
+      db: owner.db,
       uid: "someone-else",
       onError: (error) => errors.push(error),
     });
