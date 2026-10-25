@@ -1,5 +1,7 @@
 /** @import { Exercise, MuscleGroup, Store } from "./types.js" */
 
+/** @typedef {ReturnType<typeof createForge>} Forge */
+
 /**
  * The Forge core: every phase 1 rule, with no DOM or Firestore inside.
  * @param {{ store: Store, library: Exercise[] }} deps
