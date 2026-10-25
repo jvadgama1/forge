@@ -2,6 +2,7 @@
 node_modules/
 coverage/
 .firebase/
+.shots/
 *.log
 
 # Secrets and personal data: never commit (ADR-0005)
