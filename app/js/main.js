@@ -3,7 +3,7 @@ import { SEED_LIBRARY } from "./core/seed-library.js";
 import { MUSCLE_GROUPS, muscleGroup } from "./core/muscle-groups.js";
 import { createFirestoreStore } from "./store/firestore-store.js";
 import { firebaseApp, firebaseAuth, firestore } from "./firebase-sdk.js";
-import { FIREBASE_CONFIG } from "./firebase-config.js";
+import { FIREBASE_CONFIG, OWNER_UID } from "./firebase-config.js";
 import { h } from "./dom.js";
 
 /** @import { Exercise, ExerciseType, MuscleGroup } from "./core/types.js" */
@@ -27,6 +27,13 @@ let user;
 let forge;
 
 /**
+ * The security rules refuse every account but the owner's (#9).
+ * @param {User | null | undefined} account
+ * @returns {account is User}
+ */
+const isOwner = (account) => account?.uid === OWNER_UID;
+
+/**
  * Shows that a change didn't reach the server, so a lost set never goes unnoticed.
  * @param {unknown} error
  */
@@ -40,7 +47,7 @@ function showSaveError(error) {
 
 firebaseAuth.onAuthStateChanged(auth, (signedIn) => {
   user = signedIn;
-  if (signedIn) {
+  if (isOwner(signedIn)) {
     forge = createForge({
       store: createFirestoreStore({
         sdk: firestore,
@@ -193,23 +200,14 @@ function libraryView() {
   return screen("Exercises", search, chips, count, list);
 }
 
-function moreView() {
-  const account = /** @type {User} */ (user);
+/**
+ * The signed-in account's uid with a Copy button: what the owner allowlist
+ * holds, so it stays visible even to an account that isn't on it (#9).
+ * @param {User} account
+ */
+function accountId(account) {
   const copied = h("span", { class: "label", "aria-live": "polite" });
-  return screen(
-    "More",
-    h(
-      "nav",
-      { class: "menu" },
-      h(
-        "a",
-        { href: "#/library" },
-        "Exercise library",
-        h("span", { "aria-hidden": "true" }, "→"),
-      ),
-    ),
-    h("h2", { class: "label section" }, "Account"),
-    h("p", { class: "account" }, account.email ?? "Signed in"),
+  return [
     h("p", { class: "label" }, "Account ID"),
     h(
       "p",
@@ -229,6 +227,26 @@ function moreView() {
       ),
       copied,
     ),
+  ];
+}
+
+function moreView() {
+  const account = /** @type {User} */ (user);
+  return screen(
+    "More",
+    h(
+      "nav",
+      { class: "menu" },
+      h(
+        "a",
+        { href: "#/library" },
+        "Exercise library",
+        h("span", { "aria-hidden": "true" }, "→"),
+      ),
+    ),
+    h("h2", { class: "label section" }, "Account"),
+    h("p", { class: "account" }, account.email ?? "Signed in"),
+    ...accountId(account),
     h(
       "button",
       {
@@ -276,6 +294,30 @@ function signInView() {
   );
 }
 
+/** Shown to a Google account that isn't the owner's (#9). */
+function notOwnerView() {
+  const account = /** @type {User} */ (user);
+  return screen(
+    "Not your Forge",
+    h(
+      "p",
+      { class: "lede" },
+      `This Forge belongs to someone else, so ${account.email ?? "this account"} can't see or save anything here. Sign out to use a different Google account.`,
+    ),
+    ...accountId(account),
+    h(
+      "button",
+      {
+        class: "button",
+        type: "button",
+        onclick: () => firebaseAuth.signOut(auth),
+      },
+      "Sign out",
+      h("span", { "aria-hidden": "true" }, "→"),
+    ),
+  );
+}
+
 /** @param {string} title @param {string} text */
 function placeholder(title, text) {
   return screen(title, h("p", { class: "lede" }, text));
@@ -284,7 +326,7 @@ function placeholder(title, text) {
 function render() {
   const view = document.getElementById("view");
   const tabs = /** @type {HTMLElement} */ (document.querySelector(".tabs"));
-  tabs.hidden = !user;
+  tabs.hidden = !isOwner(user);
   if (user === undefined) {
     // Firebase is still checking for a saved session: show only the wordmark.
     view?.replaceChildren(h("p", { class: "wordmark" }, "Forge"));
@@ -292,6 +334,10 @@ function render() {
   }
   if (user === null) {
     view?.replaceChildren(signInView());
+    return;
+  }
+  if (!isOwner(user)) {
+    view?.replaceChildren(notOwnerView());
     return;
   }
   const route = routes[location.hash.slice(1)] ?? routes["/log"];

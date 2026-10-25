@@ -9,3 +9,8 @@ export const FIREBASE_CONFIG = {
   messagingSenderId: "115267862432",
   appId: "1:115267862432:web:11f7a4111a75a44f64aec5",
 };
+
+// The one account allowed to use this Forge (#9). An opaque Firebase id, not
+// personal data. firestore.rules holds the same uid; the rules tests sign in
+// as this uid, so they fail if the two drift apart.
+export const OWNER_UID = "x98Yvmbfj6eBxKbsluJOC3HkcBJ3";

@@ -3,10 +3,9 @@
 // real Firebase project. Ports match firebase.json.
 import { initializeApp } from "firebase/app";
 import {
-  GoogleAuthProvider,
   connectAuthEmulator,
   getAuth,
-  signInWithCredential,
+  signInWithCustomToken,
 } from "firebase/auth";
 import {
   connectFirestoreEmulator,
@@ -28,26 +27,42 @@ export async function clearFirestore() {
 }
 
 /**
- * A separate Firebase app, signed in to the Auth emulator as a Google user,
- * with Firestore connected to the emulator. Each call has its own empty
- * local cache.
- * @param {string} sub The Google account's subject (stable per test user).
+ * A custom token for the Auth emulator, which accepts unsigned tokens, so a
+ * test can sign in as an exact uid (such as the owner's).
+ * @param {string} uid
  */
-export async function signedInFirestore(sub) {
+function unsignedCustomToken(uid) {
+  /** @param {object} part */
+  const encode = (part) =>
+    Buffer.from(JSON.stringify(part)).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    iss: "forge-tests",
+    sub: "forge-tests",
+    aud: "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",
+    iat: now,
+    exp: now + 3600,
+    uid,
+  };
+  return `${encode({ alg: "none", typ: "JWT" })}.${encode(claims)}.`;
+}
+
+/**
+ * A separate Firebase app, signed in to the Auth emulator as `uid`, with
+ * Firestore connected to the emulator. Each call has its own empty local
+ * cache.
+ * @param {string} uid
+ */
+export async function signedInFirestore(uid) {
   const app = initializeApp(
     { projectId: PROJECT_ID, apiKey: "demo-key" },
-    `${sub}-${Date.now()}-${Math.random()}`,
+    `${uid}-${Date.now()}-${Math.random()}`,
   );
   const auth = getAuth(app);
   connectAuthEmulator(auth, `http://${EMULATOR_HOST}:${AUTH_PORT}`, {
     disableWarnings: true,
   });
-  const { user } = await signInWithCredential(
-    auth,
-    GoogleAuthProvider.credential(
-      JSON.stringify({ sub, email: `${sub}@example.com` }),
-    ),
-  );
+  const { user } = await signInWithCustomToken(auth, unsignedCustomToken(uid));
   const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
   connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_PORT);
   return { app, db, uid: user.uid };

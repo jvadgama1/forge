@@ -41,7 +41,7 @@ The loop, for every piece of work:
 ## Architecture
 
 - PWA in plain HTML/CSS/JS ES modules, **no build step** (ADR-0002): the files in the repo are the files served. npm is for dev tooling only (Vitest, ESLint, Prettier, `tsc` checking JSDoc types).
-- Data in Firebase Firestore with Google sign-in (ADR-0001). The repo is public: **never commit personal data, credentials or service-account keys** (ADR-0005). Firebase web config is public by design; security rules do the protecting.
+- Data in Firebase Firestore with Google sign-in (ADR-0001). The repo is public: **never commit personal data, credentials or service-account keys** (ADR-0005). Firebase web config is public by design; security rules do the protecting. Only the owner's account may use the data: `OWNER_UID` in `app/js/firebase-config.js` and the allowlist in `firestore.rules` must match (the emulator tests sign in as that uid, so they fail if not).
 - Everything except coaching works without AI (ADR-0004). The coach runs on the user's Claude subscription via Claude Code (ADR-0003).
 
 ## UI conventions
