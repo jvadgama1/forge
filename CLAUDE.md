@@ -42,6 +42,7 @@ The loop, for every piece of work:
 
 - PWA in plain HTML/CSS/JS ES modules, **no build step** (ADR-0002): the files in the repo are the files served. npm is for dev tooling only (Vitest, ESLint, Prettier, `tsc` checking JSDoc types).
 - Data in Firebase Firestore with Google sign-in (ADR-0001). The repo is public: **never commit personal data, credentials or service-account keys** (ADR-0005). Firebase web config is public by design; security rules do the protecting. Only the owner's account may use the data: `OWNER_UID` in `app/js/firebase-config.js` and the allowlist in `firestore.rules` must match (the emulator tests sign in as that uid, so they fail if not).
+- App code in `app/js/`: `core/` is the Forge core (no DOM, no Firestore) behind the Store port; `store/` holds the Store implementations; `auth.js` owns Firebase setup and sign-in state; `screens/` has one module per screen. A new routed screen is its module, an import and a line in `main.js`'s route table, and an entry in `sw.js`'s `SHELL` list (a test enforces the last). Sign-in and "Not your Forge" aren't routed: `render()` picks them from the sign-in state.
 - Everything except coaching works without AI (ADR-0004). The coach runs on the user's Claude subscription via Claude Code (ADR-0003).
 
 ## UI conventions
