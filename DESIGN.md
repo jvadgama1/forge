@@ -45,8 +45,8 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 
 ## Suggested weights (no AI)
 
-- **Double progression**: when every working set reaches the top of the rep range, suggest the next increment (default +5 lb upper body, +10 lb lower body; per-exercise override). Missing the bottom of the range two sessions in a row → suggest hold or drop.
-- **After a break**: an exercise not done for 14+ days suggests about 90% of the last working weight for the first session back, then normal progression resumes.
+- **Double progression**: when every working set reaches the top of the rep range, suggest the next increment (default +5 lb upper body, +10 lb lower body; per-exercise override). Missing the bottom of the range in two workouts in a row with that exercise → suggest hold or drop.
+- **After a break**: an exercise not done for 14+ days suggests about 90% of the last working weight for the first workout back, then normal progression resumes.
 - The coach's accepted proposals can override targets.
 
 ## Dashboard
@@ -56,7 +56,7 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 - Hard sets per muscle per week against a 10–20 target band.
 - Front/back body heat map of weekly volume per muscle.
 - Calendar heat map of training days.
-- Volume (tonnage) per session and per week.
+- Volume (tonnage) per workout and per week.
 - Muscle-group split over time.
 - Every chart: hover shows the details behind each mark; click drills into the workouts.
 
