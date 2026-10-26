@@ -115,6 +115,10 @@ const errors = new Set();
 async function render(shot) {
   const context = await phoneContext();
   try {
+    // Read by the store stub as its starting documents.
+    await context.addInitScript((seed) => {
+      Object.assign(globalThis, { forgeShotSeed: seed });
+    }, shot.seed ?? {});
     const page = await context.newPage();
     page.on("pageerror", (error) => errors.add(`${shot.name}: ${error}`));
     await page.goto(`${ORIGIN}/?as=${shot.as}#${shot.route ?? "/log"}`);

@@ -7,12 +7,12 @@ export function logView() {
     h(
       "p",
       { class: "lede" },
-      "Workout logging lands with the next tickets. Meanwhile, browse the exercise library.",
+      "Workout logging lands with the next tickets. Meanwhile, browse your exercises.",
     ),
     h(
       "a",
-      { class: "button", href: "#/library" },
-      "Exercise library",
+      { class: "button", href: "#/exercises" },
+      "Exercises",
       h("span", { "aria-hidden": "true" }, "→"),
     ),
   );

@@ -294,6 +294,87 @@ a {
   overflow-wrap: anywhere;
 }
 
+/* Gyms (#10) */
+.field {
+  margin: 0 0 6px;
+}
+
+.gym-picker {
+  margin-bottom: 10px;
+}
+
+.inline {
+  display: flex;
+  gap: 8px;
+}
+
+.inline .search {
+  flex: 1;
+}
+
+.inline .chip {
+  min-height: var(--tap);
+}
+
+.count-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.count-row .count {
+  margin: 0;
+}
+
+.menu-end {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.add-gym {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* A tick box beside each exercise: the ✓ carries the meaning, not the colour. */
+.tick {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tick-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.tick input {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-content: center;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  border: 2px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+
+.tick input:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.tick input:checked::before {
+  content: "✓";
+  color: var(--accent-ink);
+  font: 900 18px/1 var(--font-mono);
+}
+
 /* A failed save: icon and words carry the meaning, the colour only reinforces it. */
 .alert {
   margin: 12px 16px 0;

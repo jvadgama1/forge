@@ -1,50 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createForge } from "../../app/js/core/forge.js";
 import { createMemoryStore } from "../../app/js/store/memory-store.js";
-
-/** @type {import("../../app/js/core/types.js").Exercise[]} */
-const library = [
-  {
-    id: "bench-press",
-    name: "Bench Press",
-    type: "weight-reps",
-    primary: ["chest"],
-    secondary: ["triceps", "front-delts"],
-    body: "upper",
-  },
-  {
-    id: "incline-db-press",
-    name: "Incline DB Press",
-    type: "weight-reps",
-    primary: ["chest"],
-    secondary: ["front-delts"],
-    body: "upper",
-  },
-  {
-    id: "lat-pulldown",
-    name: "Lat Pulldown",
-    type: "weight-reps",
-    primary: ["lats-upper-back"],
-    secondary: ["biceps"],
-    body: "upper",
-  },
-  {
-    id: "leg-press",
-    name: "Leg Press",
-    type: "weight-reps",
-    primary: ["quads"],
-    secondary: ["glutes"],
-    body: "lower",
-  },
-  {
-    id: "triceps-pushdown",
-    name: "Triceps Pushdown",
-    type: "weight-reps",
-    primary: ["triceps"],
-    secondary: [],
-    body: "upper",
-  },
-];
+import { library } from "./library-fixture.js";
 
 function forge() {
   return createForge({ store: createMemoryStore(), library });
