@@ -13,7 +13,12 @@ export default [
     languageOptions: { globals: globals.serviceworker },
   },
   {
-    files: ["*.config.js", "tests/**/*.js"],
+    files: ["*.config.js", "tests/**/*.js", "tools/**/*.js"],
+    ignores: ["tools/shots/stubs/**"],
     languageOptions: { globals: globals.node },
+  },
+  {
+    files: ["tools/shots/stubs/**/*.js"],
+    languageOptions: { globals: globals.browser },
   },
 ];

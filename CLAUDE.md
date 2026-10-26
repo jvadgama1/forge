@@ -47,7 +47,7 @@ The review is the plugin's two-axis `mattpocock-skills:code-review`, not the bui
 ## UI conventions
 
 - Look: "Slab" (see `DESIGN.md` § Look). Dark only. Bright, saturated colour on near-black; colour is never the only signal.
-- The user's colour sensitivity is reduced across all colours, and they're particular about visuals and wording: show UI changes before calling them done.
+- The user's colour sensitivity is reduced across all colours, and they're particular about visuals and wording: show UI changes before calling them done. `npm run shots -- <label>` photographs every screen at 390 × 844 with stubbed sign-in and no personal data (the shot list is `tools/shots/list.js`); `npm run shots:compare -- <a> <b>` checks a before run against an after run.
 - Validate any new chart palette with the dataviz skill's `validate_palette.js`.
 
 ## The user

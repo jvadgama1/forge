@@ -13,7 +13,7 @@
     "skipLibCheck": true
   },
   // Tooling configs are included so the check has inputs before any app code exists.
-  "include": ["app/**/*.js", "tests/**/*.js", "*.config.js"],
+  "include": ["app/**/*.js", "tests/**/*.js", "tools/**/*.js", "*.config.js"],
   // The service worker needs the "webworker" lib, which conflicts with "dom";
   // it stays linted but is not type-checked.
   "exclude": ["node_modules", "app/sw.js"]
