@@ -637,3 +637,13 @@ a {
   font: 900 56px/0.9 var(--font-display);
   font-variant-numeric: tabular-nums;
 }
+
+/* Undo the last set (#42): small, out of the thumb's way, right-aligned. */
+.undo {
+  display: block;
+  margin: 6px 0 4px auto;
+}
+
+.undo[hidden] {
+  display: none;
+}
