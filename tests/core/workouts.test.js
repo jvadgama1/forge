@@ -207,6 +207,48 @@ describe("load steppers", () => {
   });
 });
 
+describe("undoing the last set", () => {
+  it("removes the exercise's most recent set; the next set prefills from the one before", async () => {
+    const { f, id } = await started();
+    await f.addExercise(id, "bench-press");
+    await f.logSet(id, "bench-press", { load: 135, reps: 8 });
+    await f.logSet(id, "bench-press", { load: 1355, reps: 8 }); // a typo
+    const workout = await f.undoLastSet(id, "bench-press");
+    expect(workout.entries[0].sets.map((s) => s.load)).toEqual([135]);
+    expect(f.nextSet(workout, "bench-press")).toEqual({ load: 135, reps: 8 });
+  });
+
+  it("starts the next set empty after undoing the only one", async () => {
+    const { f, id } = await started();
+    await f.addExercise(id, "bench-press");
+    await f.logSet(id, "bench-press", { load: 135, reps: 8 });
+    const workout = await f.undoLastSet(id, "bench-press");
+    expect(f.nextSet(workout, "bench-press")).toBeUndefined();
+  });
+
+  it("is refused with no sets to undo, for an exercise not in play, or once the workout is finished", async () => {
+    const { f, id } = await started();
+    await f.addExercise(id, "bench-press");
+    await f.addExercise(id, "leg-press");
+    await expect(f.undoLastSet(id, "bench-press")).rejects.toThrow(
+      "No set to undo",
+    );
+    await f.logSet(id, "leg-press", { load: 270, reps: 10 });
+    await f.skipExercise(id, "leg-press");
+    await expect(f.undoLastSet(id, "leg-press")).rejects.toThrow(
+      "Add the exercise to the workout first",
+    );
+    await expect(f.undoLastSet(id, "lat-pulldown")).rejects.toThrow(
+      "Add the exercise to the workout first",
+    );
+    await f.logSet(id, "bench-press", { load: 135, reps: 8 });
+    await f.finishWorkout(id);
+    await expect(f.undoLastSet(id, "bench-press")).rejects.toThrow(
+      "That workout is finished",
+    );
+  });
+});
+
 describe("the next set", () => {
   it("starts empty, then from the previous set's load and reps", async () => {
     const { f, id } = await started();

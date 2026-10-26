@@ -88,6 +88,9 @@ export function workoutHeader({ workout, gymName, position }) {
   ];
 }
 
+/** @param {WorkoutSet} set as "135 lb × 8" */
+const setText = (set) => `${set.load} ${set.unit} × ${set.reps}`;
+
 /**
  * One logged set: number, load × reps, any flag, RIR and a tick.
  * @param {WorkoutSet} set
@@ -102,7 +105,7 @@ function setRow(set, index) {
     h(
       "span",
       { class: "set-what" },
-      `${set.load} ${set.unit} × ${set.reps}`,
+      setText(set),
       flag && h("span", { class: "label set-flag" }, flag),
     ),
     h(
@@ -254,6 +257,38 @@ export async function workoutScreen({
     h("span", { "aria-hidden": "true" }, "→"),
   );
 
+  // Undo the last set (#42): two taps, since the set is gone afterwards.
+  const last = sets.at(-1);
+  let armed = false;
+  const undo = h(
+    "button",
+    {
+      class: "chip undo",
+      type: "button",
+      hidden: !last,
+      onclick: async () => {
+        if (!last || undo.disabled) return;
+        if (!armed) {
+          armed = true;
+          undo.textContent = `Tap again to undo ${setText(last)}`;
+          return;
+        }
+        undo.disabled = true;
+        status.textContent = "";
+        try {
+          await forge.undoLastSet(workout.id, exerciseId);
+          onLogged();
+        } catch (error) {
+          status.textContent = /** @type {Error} */ (error).message;
+          armed = false;
+          undo.textContent = "Undo last set";
+          undo.disabled = false;
+        }
+      },
+    },
+    "Undo last set",
+  );
+
   const before = live[index - 1];
   const after = live[index + 1];
   /** @param {string} id */
@@ -309,6 +344,7 @@ export async function workoutScreen({
         h("span", { class: "set-what" }, "Now"),
       ),
     ),
+    undo,
     h(
       "div",
       { class: "entry" },

@@ -241,12 +241,27 @@ export function createForge({ store, library, now = () => new Date() }) {
       if (warmUp) logged.warmUp = true;
       if (drop) logged.drop = true;
       return changeWorkout(workoutId, (w) => {
-        if (w.finishedAt) throw new Error("That workout is finished");
-        if (!w.entries.some((e) => e.exerciseId === exerciseId && !e.skipped))
-          throw new Error("Add the exercise to the workout first");
+        inPlay(w, exerciseId);
         return changeEntry(w, exerciseId, (e) => ({
           ...e,
           sets: [...e.sets, logged],
+        }));
+      });
+    },
+
+    /**
+     * Removes an exercise's most recent set, to fix a mistyped one before
+     * full editing arrives (#42, #20).
+     * @param {string} workoutId
+     * @param {string} exerciseId
+     */
+    undoLastSet(workoutId, exerciseId) {
+      return changeWorkout(workoutId, (w) => {
+        if (!inPlay(w, exerciseId).sets.length)
+          throw new Error("No set to undo");
+        return changeEntry(w, exerciseId, (e) => ({
+          ...e,
+          sets: e.sets.slice(0, -1),
         }));
       });
     },
@@ -391,6 +406,22 @@ export function createForge({ store, library, now = () => new Date() }) {
     const trimmed = name.trim();
     if (!trimmed) throw new Error("A gym needs a name");
     return trimmed;
+  }
+
+  /**
+   * The exercise's entry, if sets can be logged or undone for it: the
+   * workout is in progress and the exercise is in it, not skipped.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   * @returns {WorkoutEntry}
+   */
+  function inPlay(workout, exerciseId) {
+    if (workout.finishedAt) throw new Error("That workout is finished");
+    const entry = workout.entries.find(
+      (e) => e.exerciseId === exerciseId && !e.skipped,
+    );
+    if (!entry) throw new Error("Add the exercise to the workout first");
+    return entry;
   }
 
   /**

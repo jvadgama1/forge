@@ -234,6 +234,26 @@ export const SHOTS = [
     },
   },
   {
+    name: "workout-undo-armed",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "Undo last set" }).click();
+    },
+  },
+  {
+    name: "workout-undone",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "Undo last set" }).click();
+      await page.getByRole("button", { name: /Tap again to undo/ }).click();
+      await page.getByRole("button", { name: /Log set 02/ }).waitFor();
+    },
+  },
+  {
     name: "workout-next",
     as: "owner",
     route: "/log/ex/lat-pulldown",
