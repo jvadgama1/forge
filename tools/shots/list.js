@@ -48,6 +48,123 @@ const GYMS = {
   settings: [{ id: "user", lastGymId: "gym-work" }],
 };
 
+/**
+ * Starts a freestyle workout at Work, adds Barbell Bench Press, logs 135 × 8,
+ * then steps reps up and logs 135 × 9 at RIR 2: the real screens end to end.
+ * @param {Page} page
+ */
+async function logTwoSets(page) {
+  await page.getByRole("button", { name: "Start freestyle" }).click();
+  await page.getByRole("link", { name: "Add exercise" }).click();
+  await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
+  await page.getByRole("textbox", { name: "Load in lb" }).fill("135");
+  await page.getByRole("textbox", { name: "Reps" }).fill("8");
+  await page.getByRole("button", { name: /Log set 01/ }).click();
+  await page.getByRole("button", { name: /Log set 02/ }).waitFor();
+  await page.getByRole("button", { name: "Increase reps" }).click();
+  await page.getByRole("button", { name: "2", exact: true }).click();
+  await page.getByRole("button", { name: /Log set 02/ }).click();
+  await page.getByRole("button", { name: /Log set 03/ }).waitFor();
+}
+
+/** A made-up workout in progress at Work: two bench sets logged, then two to go. */
+const WORKOUT = {
+  gyms: GYMS.gyms,
+  settings: [{ id: "user", lastGymId: "gym-work", workoutInProgress: "w-now" }],
+  workouts: [
+    {
+      id: "w-now",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:00:00.000Z",
+      gymId: "gym-work",
+      entries: [
+        {
+          exerciseId: "barbell-bench-press",
+          sets: [
+            {
+              load: 95,
+              unit: "lb",
+              reps: 10,
+              warmUp: true,
+              loggedAt: "2026-10-25T18:04:00.000Z",
+            },
+            {
+              load: 135,
+              unit: "lb",
+              reps: 8,
+              rir: 2,
+              loggedAt: "2026-10-25T18:08:00.000Z",
+            },
+          ],
+        },
+        { exerciseId: "lat-pulldown", sets: [] },
+        { exerciseId: "leg-press", skipped: true, sets: [] },
+      ],
+    },
+  ],
+};
+
+/** A workout just started, nothing added yet. */
+const WORKOUT_EMPTY = {
+  gyms: GYMS.gyms,
+  settings: [{ id: "user", lastGymId: "gym-work", workoutInProgress: "w-new" }],
+  workouts: [
+    {
+      id: "w-new",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:30:00.000Z",
+      gymId: "gym-work",
+      entries: [],
+    },
+  ],
+};
+
+/** A finished workout, with a note. */
+const WORKOUT_DONE = {
+  gyms: GYMS.gyms,
+  settings: [{ id: "user", lastGymId: "gym-work" }],
+  workouts: [
+    {
+      id: "w-done",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:00:00.000Z",
+      finishedAt: "2026-10-25T18:47:00.000Z",
+      gymId: "gym-work",
+      note: "Slept 5 hrs",
+      entries: [
+        {
+          exerciseId: "barbell-bench-press",
+          sets: [
+            {
+              load: 135,
+              unit: "lb",
+              reps: 8,
+              loggedAt: "2026-10-25T18:08:00.000Z",
+            },
+            {
+              load: 135,
+              unit: "lb",
+              reps: 7,
+              loggedAt: "2026-10-25T18:12:00.000Z",
+            },
+          ],
+        },
+        {
+          exerciseId: "lat-pulldown",
+          sets: [
+            {
+              load: 120,
+              unit: "lb",
+              reps: 10,
+              loggedAt: "2026-10-25T18:20:00.000Z",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 /** @type {Shot[]} */
 export const SHOTS = [
   { name: "checking", as: "checking" },
@@ -74,7 +191,7 @@ export const SHOTS = [
     // Re-rendering on navigation, tab highlight included (#27).
     name: "navigated",
     as: "owner",
-    route: "/log",
+    route: "/more",
     steps: async (page) => {
       await page.getByRole("link", { name: "Exercises", exact: true }).click();
       await page.getByRole("link", { name: "Stats", exact: true }).click();
@@ -104,6 +221,61 @@ export const SHOTS = [
     },
   },
   { name: "picker", as: "owner", route: "/exercises", seed: GYMS },
+  { name: "log-start", as: "owner", route: "/log", seed: GYMS },
+  { name: "workout", as: "owner", route: "/log", seed: WORKOUT },
+  {
+    name: "workout-choices",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "1", exact: true }).click();
+      await page.getByRole("button", { name: "Drop set" }).click();
+    },
+  },
+  {
+    name: "workout-next",
+    as: "owner",
+    route: "/log/ex/lat-pulldown",
+    seed: WORKOUT,
+  },
+  { name: "workout-empty", as: "owner", route: "/log", seed: WORKOUT_EMPTY },
+  {
+    name: "workout-list",
+    as: "owner",
+    route: "/log/exercises",
+    seed: WORKOUT,
+  },
+  { name: "workout-add", as: "owner", route: "/log/add", seed: WORKOUT },
+  {
+    name: "workout-done",
+    as: "owner",
+    route: "/log/done/w-done",
+    seed: WORKOUT_DONE,
+  },
+  { name: "workout-discarded", as: "owner", route: "/log/done", seed: GYMS },
+  {
+    // The whole flow through the real screens (#11).
+    name: "flow-logged",
+    as: "owner",
+    route: "/log",
+    seed: GYMS,
+    steps: logTwoSets,
+  },
+  {
+    name: "flow-finished",
+    as: "owner",
+    route: "/log",
+    seed: GYMS,
+    steps: async (page) => {
+      await logTwoSets(page);
+      await page
+        .getByRole("link", { name: /this workout's exercises/ })
+        .click();
+      await page.getByRole("button", { name: "Finish workout" }).click();
+      await page.getByRole("heading", { name: "Workout done" }).waitFor();
+    },
+  },
   {
     name: "picker-empty-gym",
     as: "owner",

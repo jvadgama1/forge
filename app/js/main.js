@@ -5,6 +5,9 @@ import { h } from "./dom.js";
 import { signInView } from "./screens/sign-in.js";
 import { notOwnerView } from "./screens/not-owner.js";
 import { logView } from "./screens/log.js";
+import { workoutListView } from "./screens/workout-list.js";
+import { workoutDoneView } from "./screens/workout-done.js";
+import { addExerciseView } from "./screens/add-exercise.js";
 import { exercisesView } from "./screens/exercises.js";
 import { gymsView } from "./screens/gyms.js";
 import { gymView } from "./screens/gym.js";
@@ -17,6 +20,11 @@ import { moreView } from "./screens/more.js";
 /** @type {Record<string, { tab: string, render: (context: ScreenContext) => Node }>} */
 const routes = {
   "/log": { tab: "log", render: logView },
+  "/log/ex/:id": { tab: "log", render: logView },
+  "/log/exercises": { tab: "log", render: workoutListView },
+  "/log/add": { tab: "log", render: addExerciseView },
+  "/log/done": { tab: "log", render: workoutDoneView },
+  "/log/done/:id": { tab: "log", render: workoutDoneView },
   "/exercises": { tab: "log", render: exercisesView },
   "/stats": {
     tab: "stats",
