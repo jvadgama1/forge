@@ -388,3 +388,252 @@ a {
 .alert[hidden] {
   display: none;
 }
+
+/* Logging (#11), after the Slab prototype */
+.workout-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.workout-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.workout-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.timer {
+  color: var(--secondary);
+  font: 700 16px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.exercise-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.exercise-name {
+  margin: 0;
+  font: 800 32px/1 var(--font-display);
+  text-transform: uppercase;
+}
+
+.sets {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sets li {
+  display: grid;
+  grid-template-columns: 36px 1fr auto 24px;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.set-no {
+  color: var(--muted);
+}
+
+.set-what {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.set-flag {
+  margin-left: 8px;
+}
+
+.set-done {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.sets .set-now {
+  border-bottom: 0;
+}
+
+.set-now .set-no,
+.set-now .set-what {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 6px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.entry-half {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0 12px;
+}
+
+.entry-half + .entry-half {
+  border-left: 2px solid var(--rule);
+}
+
+/* The number is the field: tap it to type. */
+.big-number {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 900 88px/0.9 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.big-number::placeholder {
+  color: var(--muted);
+}
+
+.entry-half .label {
+  margin: 2px 0 8px;
+  letter-spacing: 2px;
+}
+
+.steppers {
+  display: flex;
+  gap: 8px;
+}
+
+.steppers button {
+  width: 52px;
+  height: var(--tap);
+  border: 2px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: 800 20px var(--font-mono);
+}
+
+.rir {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.rir .chips {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 0;
+}
+
+.rir .chip {
+  height: 38px;
+  font-size: 14px;
+}
+
+/* RIR picks wear the coral secondary; the pressed fill and weight change too. */
+.rir .chip[aria-pressed="true"] {
+  border-color: var(--secondary);
+  background: var(--secondary);
+}
+
+.workout-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.workout-nav .chip,
+.workout-clock .chip {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+/* An exercise row that's a button, in the picker's add mode. */
+.pick {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.workout-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.workout-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workout-row-main .name {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.workout-row-main .skipped {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.workout-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.add-exercise,
+.start {
+  margin-top: 16px;
+}
+
+.note {
+  min-height: 64px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 20px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 2px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+
+.stat-value {
+  font: 900 56px/0.9 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}

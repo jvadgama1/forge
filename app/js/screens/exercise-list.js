@@ -1,11 +1,12 @@
 // Exercise-list pieces shared by the Exercises picker and a gym's page.
 import { MUSCLE_GROUPS, muscleGroup } from "../core/muscle-groups.js";
 import { h } from "../dom.js";
+import { countOf } from "./screen.js";
 
 /** @import { Exercise, ExerciseFilter, ExerciseType } from "../core/types.js" */
 
 /** @param {number} n */
-export const exerciseCount = (n) => `${n} exercise${n === 1 ? "" : "s"}`;
+export const exerciseCount = (n) => countOf(n, "exercise");
 
 /** @type {Record<ExerciseType, string>} */
 const TYPE_LABELS = {
@@ -46,11 +47,19 @@ export function exerciseSummary(e) {
 }
 
 /**
- * A row of chips where exactly one is pressed.
- * @template {string | undefined} T
- * @param {{ label: string, options: { value: T, text: string }[], selected: T, onChoose: (value: T) => void }} chips
+ * A row of chips where one is pressed. With `clearable`, tapping the pressed
+ * chip unpresses it and chooses nothing (`undefined`).
+ * @template {string | number | undefined} T
+ * @param {{ label: string, options: { value: T, text: string }[], selected: T | undefined, onChoose: (value: T | undefined) => void, clearable?: boolean }} chips
  */
-export function choiceChips({ label, options, selected, onChoose }) {
+export function choiceChips({
+  label,
+  options,
+  selected,
+  onChoose,
+  clearable = false,
+}) {
+  let current = selected;
   const group = h("div", {
     class: "chips",
     role: "group",
@@ -65,9 +74,13 @@ export function choiceChips({ label, options, selected, onChoose }) {
           type: "button",
           "aria-pressed": String(value === selected),
           onclick: (e) => {
+            current = clearable && current === value ? undefined : value;
             for (const c of group.children)
-              c.setAttribute("aria-pressed", String(c === e.currentTarget));
-            onChoose(value);
+              c.setAttribute(
+                "aria-pressed",
+                String(c === e.currentTarget && current !== undefined),
+              );
+            onChoose(current);
           },
         },
         text,

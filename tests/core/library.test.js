@@ -7,6 +7,26 @@ function forge() {
   return createForge({ store: createMemoryStore(), library });
 }
 
+describe("exercise by id", () => {
+  it("finds seeded and custom exercises, and nothing for an unknown id", async () => {
+    const custom = {
+      id: "custom-landmine-press",
+      name: "Landmine Press",
+      type: "weight-reps",
+      primary: ["front-delts"],
+      secondary: ["chest"],
+      body: "upper",
+    };
+    const f = createForge({
+      store: createMemoryStore({ customExercises: [custom] }),
+      library,
+    });
+    expect((await f.getExercise("leg-press"))?.name).toBe("Leg Press");
+    expect(await f.getExercise("custom-landmine-press")).toEqual(custom);
+    expect(await f.getExercise("no-such-exercise")).toBeUndefined();
+  });
+});
+
 describe("exercise library", () => {
   it("finds exercises whose name contains the search text, ignoring case", async () => {
     const results = await forge().searchExercises({ query: "PRESS" });

@@ -11,6 +11,15 @@ import { h } from "../dom.js";
  */
 
 /**
+ * A count with its noun: "1 set", "3 sets".
+ * @param {number} n
+ * @param {string} one
+ * @param {string} [many]
+ */
+export const countOf = (n, one, many = `${one}s`) =>
+  `${n} ${n === 1 ? one : many}`;
+
+/**
  * A screen: the wordmark, a big title and a rule, then its content.
  * @param {string} title
  * @param {(Node | string)[]} content

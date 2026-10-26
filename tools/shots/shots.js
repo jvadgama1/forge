@@ -22,8 +22,9 @@ const appDir = fileURLToPath(new URL("../../app/", import.meta.url));
 const stubDir = fileURLToPath(new URL("stubs/", import.meta.url));
 const outDir = runDir(label);
 
-// A made-up origin, answered from app/ below.
-const ORIGIN = "http://forge.test";
+// A made-up origin, answered from app/ below. https, because the app needs a
+// secure context (crypto.randomUUID makes every new id).
+const ORIGIN = "https://forge.test";
 
 /** @type {Record<string, string>} served path → stub file */
 const STUBS = {
@@ -42,6 +43,9 @@ const CONTENT_TYPES = {
 };
 
 const ATTEMPTS = 5;
+
+// "Now" inside every shot: 32 min 14 s into the seeded workout (list.js).
+const SHOT_TIME = "2026-10-25T18:32:14Z";
 
 /**
  * Waits for the page to finish: requests (fonts included) and web fonts.
@@ -120,6 +124,8 @@ async function render(shot) {
       Object.assign(globalThis, { forgeShotSeed: seed });
     }, shot.seed ?? {});
     const page = await context.newPage();
+    // A fixed "now", so the workout timer reads the same every run.
+    await page.clock.setFixedTime(new Date(SHOT_TIME));
     page.on("pageerror", (error) => errors.add(`${shot.name}: ${error}`));
     await page.goto(`${ORIGIN}/?as=${shot.as}#${shot.route ?? "/log"}`);
     await settle(page);
