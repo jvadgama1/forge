@@ -21,6 +21,27 @@
  */
 
 /**
+ * How a list of exercises is narrowed: by text in the name, and by muscle
+ * group.
+ * @typedef {{ query?: string, muscleGroup?: MuscleGroup }} ExerciseFilter
+ */
+
+/**
+ * A named place the user trains, defined by the exercises available there.
+ * @typedef {object} Gym
+ * @property {string} id
+ * @property {string} name
+ * @property {string[]} exerciseIds
+ */
+
+/**
+ * The user's settings: one document, id "user", created on first change.
+ * @typedef {object} Settings
+ * @property {"user"} id
+ * @property {string} [lastGymId] The gym last chosen (spec #3, story 8).
+ */
+
+/**
  * A stored document: plain JSON data with a string id, unique within its
  * collection. Only strings, numbers, booleans, null, arrays and plain objects:
  * dates and times are ISO 8601 strings (e.g. "2026-10-24", or a full

@@ -5,16 +5,19 @@ import { h } from "./dom.js";
 import { signInView } from "./screens/sign-in.js";
 import { notOwnerView } from "./screens/not-owner.js";
 import { logView } from "./screens/log.js";
-import { libraryView } from "./screens/library.js";
+import { exercisesView } from "./screens/exercises.js";
+import { gymsView } from "./screens/gyms.js";
+import { gymView } from "./screens/gym.js";
 import { placeholderView } from "./screens/placeholder.js";
 import { moreView } from "./screens/more.js";
 
 /** @import { ScreenContext } from "./screens/screen.js" */
 
+// A route ending in /:id matches any last segment, passed to the screen as `id`.
 /** @type {Record<string, { tab: string, render: (context: ScreenContext) => Node }>} */
 const routes = {
   "/log": { tab: "log", render: logView },
-  "/library": { tab: "log", render: libraryView },
+  "/exercises": { tab: "log", render: exercisesView },
   "/stats": {
     tab: "stats",
     render: () =>
@@ -25,7 +28,21 @@ const routes = {
     render: () => placeholderView("Coach", "The coach arrives in phase 3."),
   },
   "/more": { tab: "more", render: moreView },
+  "/gyms": { tab: "more", render: gymsView },
+  "/gyms/:id": { tab: "more", render: gymView },
 };
+
+/**
+ * The route for a hash path, and its id for a /:id route.
+ * @param {string} path
+ */
+function resolve(path) {
+  if (routes[path]) return { route: routes[path], id: undefined };
+  const cut = path.lastIndexOf("/");
+  const route = routes[`${path.slice(0, cut)}/:id`];
+  if (route) return { route, id: decodeURIComponent(path.slice(cut + 1)) };
+  return { route: routes["/log"], id: undefined };
+}
 
 const auth = startAuth({ onChange: render, onSaveError: showSaveError });
 
@@ -49,12 +66,13 @@ function render() {
     );
     return;
   }
-  const route = routes[location.hash.slice(1)] ?? routes["/log"];
+  const { route, id } = resolve(location.hash.slice(1));
   view?.replaceChildren(
     route.render({
       user: state.user,
       forge: state.forge,
       signOut: auth.signOut,
+      id,
     }),
   );
   for (const a of document.querySelectorAll(".tabs a")) {

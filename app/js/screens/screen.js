@@ -5,8 +5,9 @@ import { h } from "../dom.js";
 /** @import { Forge } from "../core/forge.js" */
 
 /**
- * What a signed-in screen is built from.
- * @typedef {{ user: User, forge: Forge, signOut: () => Promise<void> }} ScreenContext
+ * What a signed-in screen is built from; `id` is the last segment of a /:id
+ * route.
+ * @typedef {{ user: User, forge: Forge, signOut: () => Promise<void>, id: string | undefined }} ScreenContext
  */
 
 /**
