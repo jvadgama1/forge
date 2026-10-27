@@ -39,8 +39,8 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 - If a slot's exercise isn't at this gym, one-tap swaps offer exercises sharing its primary muscle at this gym. The logged exercise is what was actually done.
 - Add, skip or reorder exercises in a workout; changes apply to that workout unless saved to the routine.
 - Each exercise shows its **last workout** in one line (`Oct 14 · 135×10, 135×9, 135×8 · RIR 1`); tap for full history: every workout, a mini e1RM chart, records.
-- New sets prefill from the previous set; the first set from the last workout (or the suggestion), or a dash when there's neither. Big +/− steppers, tap a number to type, one tap on **LOG SET 03 →** to log.
-- While logging, the header names the gym as a plain label (`AT WORK`), and each exercise shows its region tag (`■ PUSH · CHEST`), as on every other screen.
+- New sets prefill from the previous set; the first set from the last workout (or the suggestion), or a dash when there's neither. Big +/− steppers, tap a number to type, one tap on `LOG SET n →` to log.
+- While logging, the header names the gym as a plain label (`AT WORK`), and each exercise shows its region tag (`■ PUSH · CHEST`), as in the exercise list.
 - Rest timer starts when a set is logged (optional, vibrates). New records get a small celebration.
 - **Supersets** (most exercises are done this way when the gym allows): pair exercises in one or two taps, or start from a routine day's planned pairs; pair, unpair and re-pair at any point. Logging a set jumps to the partner's next set with no rest; rest comes once per round, using the longer of the two rest defaults. Each set records its superset membership, so history stays truthful when a pair is broken. Screens are designed for single exercises and pairs; three or more is allowed.
 
