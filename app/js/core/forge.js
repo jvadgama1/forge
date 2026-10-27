@@ -1,4 +1,4 @@
-/** @import { Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -295,6 +295,68 @@ export function createForge({ store, library, now = () => new Date() }) {
     currentVersion,
 
     newSlot,
+
+    /**
+     * Adds a body weight entry (spec #3, story 56): any date up to today.
+     * @param {Omit<BodyWeightEntry, "id" | "loggedAt">} entry
+     * @returns {Promise<BodyWeightEntry>}
+     */
+    async addBodyWeight(entry) {
+      /** @type {BodyWeightEntry} */
+      const added = {
+        id: crypto.randomUUID(),
+        ...checkBodyWeight(entry),
+        loggedAt: now().toISOString(),
+      };
+      await store.put("bodyWeights", added);
+      return added;
+    },
+
+    /**
+     * Corrects a body weight entry (#18), keeping when it was logged, so it
+     * keeps its place among entries on one date.
+     * @param {string} id
+     * @param {Omit<BodyWeightEntry, "id" | "loggedAt">} entry
+     * @returns {Promise<BodyWeightEntry>}
+     */
+    async updateBodyWeight(id, entry) {
+      const saved = /** @type {BodyWeightEntry | undefined} */ (
+        await store.get("bodyWeights", id)
+      );
+      if (!saved) throw new Error("Body weight entry not found");
+      const updated = { ...saved, ...checkBodyWeight(entry) };
+      await store.put("bodyWeights", updated);
+      return updated;
+    },
+
+    /**
+     * Deletes a body weight entry (#18).
+     * @param {string} id
+     */
+    async deleteBodyWeight(id) {
+      await store.remove("bodyWeights", id);
+    },
+
+    listBodyWeights,
+
+    /**
+     * Today's date where the user is, YYYY-MM-DD, by the core's clock: the
+     * default and latest date a screen offers (#18).
+     */
+    today() {
+      return localDate(now());
+    },
+
+    /**
+     * The body weight on a date (spec #3, story 57): the latest entry on or
+     * before it, for bodyweight exercises' load (#19); none before the
+     * first entry.
+     * @param {string} date YYYY-MM-DD
+     * @returns {Promise<BodyWeightEntry | undefined>}
+     */
+    async bodyWeightOn(date) {
+      return (await listBodyWeights()).find((e) => e.date <= date);
+    },
 
     /**
      * Routines by name (#14).
@@ -768,6 +830,43 @@ export function createForge({ store, library, now = () => new Date() }) {
     return (await history(exerciseId)).find(
       (h) => h.workout.finishedAt && h.workout.id !== excluding,
     );
+  }
+
+  /**
+   * Body weight entries, newest first by date, then by when logged (#18).
+   * @returns {Promise<BodyWeightEntry[]>}
+   */
+  async function listBodyWeights() {
+    const entries = /** @type {BodyWeightEntry[]} */ (
+      await store.list("bodyWeights")
+    );
+    return entries.sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt),
+    );
+  }
+
+  /**
+   * A body weight entry that can be right (#18): a real date no later than
+   * today, and a load above 0 and under 1,000 in lb or kg. The bound catches
+   * a slipped decimal point (1816 for 181.6).
+   * @param {Omit<BodyWeightEntry, "id" | "loggedAt">} entry
+   */
+  function checkBodyWeight({ date, load, unit }) {
+    const [year, month, day] = date.split("-").map(Number);
+    const parsed = new Date(year, month - 1, day);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    )
+      throw new Error("Pick a date");
+    if (date > localDate(now()))
+      throw new Error("That date hasn't happened yet");
+    if (!(load > 0 && load < 1000))
+      throw new Error("Enter a weight above 0 and under 1,000");
+    if (unit !== "lb" && unit !== "kg") throw new Error("Pick lb or kg");
+    return { date, load, unit };
   }
 
   /**

@@ -15,6 +15,7 @@ import { gymView } from "./screens/gym.js";
 import { placeholderView } from "./screens/placeholder.js";
 import { routinesView } from "./screens/routines.js";
 import { routineView } from "./screens/routine.js";
+import { bodyWeightView } from "./screens/body-weight.js";
 import { moreView } from "./screens/more.js";
 
 /** @import { ScreenContext } from "./screens/screen.js" */
@@ -44,6 +45,7 @@ const routes = {
   "/gyms/:id": { tab: "more", render: gymView },
   "/routines": { tab: "more", render: routinesView },
   "/routines/:id": { tab: "more", render: routineView },
+  "/body-weight": { tab: "more", render: bodyWeightView },
 };
 
 /**

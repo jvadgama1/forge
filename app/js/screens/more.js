@@ -24,6 +24,12 @@ export function moreView({ user, signOut }) {
       ),
       h(
         "a",
+        { href: "#/body-weight" },
+        "Body weight",
+        h("span", { "aria-hidden": "true" }, "→"),
+      ),
+      h(
+        "a",
         { href: "#/exercises" },
         "Exercises",
         h("span", { "aria-hidden": "true" }, "→"),

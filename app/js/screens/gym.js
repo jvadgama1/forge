@@ -1,6 +1,6 @@
 import { h } from "../dom.js";
 import { exerciseFilter, exerciseSummary } from "./exercise-list.js";
-import { screen } from "./screen.js";
+import { screen, twoTapButton } from "./screen.js";
 
 /** @import { ExerciseFilter } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
@@ -81,24 +81,15 @@ export function gymView({ forge, id }) {
       );
     }
 
-    let armed = false;
-    const remove = h(
-      "button",
-      {
-        class: "button secondary",
-        type: "button",
-        onclick: async () => {
-          if (!armed) {
-            armed = true;
-            remove.textContent = `Tap again to delete ${savedName}`;
-            return;
-          }
-          await forge.deleteGym(gymId);
-          location.hash = "#/gyms";
-        },
+    const remove = twoTapButton({
+      className: "button secondary",
+      text: "Delete gym",
+      again: () => `Tap again to delete ${savedName}`,
+      act: async () => {
+        await forge.deleteGym(gymId);
+        location.hash = "#/gyms";
       },
-      "Delete gym",
-    );
+    });
 
     const page = screen(
       gym.name,

@@ -69,6 +69,13 @@
  */
 
 /**
+ * A dated body-weight reading (GLOSSARY: Body weight entry; #18). `loggedAt`
+ * orders two on one date: the one logged later is the latest, and an edit
+ * keeps its place.
+ * @typedef {Load & { id: string, date: string, loggedAt: string }} BodyWeightEntry
+ */
+
+/**
  * Which routine day to start (#14).
  * @typedef {{ routineId: string, dayId: string }} RoutineDayRef
  */

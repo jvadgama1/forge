@@ -5,22 +5,13 @@ import { h } from "../dom.js";
 import { muscleGroup } from "../core/muscle-groups.js";
 import { choiceChips } from "./exercise-list.js";
 import { endRest, restBar, startRest } from "./rest-timer.js";
-import { monthDay, pad2 } from "./screen.js";
+import { monthDay, pad2, typedNumber as typed } from "./screen.js";
 
 /** @import { Load, RecordKind, Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
 
 /** @param {number} rir 0–4, where 4 means "4 or more" */
 const rirLabel = (rir) => (rir === 4 ? "4+" : String(rir));
-
-/**
- * A typed number, forgiving a decimal comma ("2,5"); blank is no number.
- * @param {HTMLInputElement} field
- */
-function typed(field) {
-  const text = field.value.trim().replace(",", ".");
-  return text === "" ? Number.NaN : Number(text);
-}
 
 /**
  * Minutes and seconds since `startedAt`, as 32:14 (or 1:05:09 past an hour).
