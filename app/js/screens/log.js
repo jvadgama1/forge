@@ -43,6 +43,7 @@ export function logView({ forge, id }) {
             workout,
             title: await forge.workoutTitle(workout),
             gymName,
+            today: forge.today(),
           }),
           h("p", { class: "lede" }, "Add your first exercise."),
           h(
@@ -106,10 +107,11 @@ export function logView({ forge, id }) {
       );
     let gymId = current.id;
     const status = h("p", { class: "lede", role: "status" });
-    /** @param {RoutineDayRef} [from] */
-    const start = async (from) => {
+    const when = pastDate();
+    /** @param {RoutineDayRef} [day] */
+    const start = async (day) => {
       try {
-        await forge.startWorkout(gymId, from);
+        await forge.startWorkout(gymId, { day, date: when.date() });
         endRest(); // one left from an earlier workout
         show();
       } catch (error) {
@@ -128,6 +130,7 @@ export function logView({ forge, id }) {
           if (chosen !== undefined) gymId = chosen;
         },
       }),
+      ...when.nodes,
       ...routines,
       ...(routines.length
         ? [h("p", { class: "label section" }, "Freestyle")]
@@ -143,8 +146,49 @@ export function logView({ forge, id }) {
         h("span", { "aria-hidden": "true" }, "→"),
       ),
       status,
+      h(
+        "a",
+        { class: "chip past-link", href: "#/workouts" },
+        "Past workouts →",
+      ),
       ...(autoFinished ? [autoFinished] : []),
     );
+  }
+
+  /**
+   * "Earlier date": a chip that opens a date field, for logging a workout
+   * afterwards with its real date (#20; spec #3, story 55). Today unless
+   * it's on.
+   */
+  function pastDate() {
+    const today = forge.today();
+    const field = h("input", {
+      class: "search",
+      type: "date",
+      max: today,
+      value: today,
+      "aria-label": "Workout date",
+      hidden: true,
+    });
+    const chip = h(
+      "button",
+      {
+        class: "chip",
+        type: "button",
+        "aria-pressed": "false",
+        onclick: () => {
+          field.hidden = !field.hidden;
+          chip.setAttribute("aria-pressed", String(!field.hidden));
+        },
+      },
+      "Earlier date",
+    );
+    return {
+      nodes: [h("div", { class: "past-date" }, chip), field],
+      /** The date to start on, or none for today. */
+      date: () =>
+        field.hidden || field.value === today ? undefined : field.value,
+    };
   }
 
   /**

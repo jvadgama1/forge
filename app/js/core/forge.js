@@ -1,4 +1,4 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -208,14 +208,16 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Starts a workout at a gym, today: freestyle (spec #3, story 24), or
-     * from a routine day (story 23) with its slots laid out as the
-     * workout's exercises, at the routine's current version.
+     * Starts a workout at a gym: freestyle (spec #3, story 24), or from a
+     * routine `day` (story 23) with its slots laid out as the workout's
+     * exercises, at the routine's current version. Dated today, or a past
+     * `date` to log a workout afterwards (story 55), which then counts by
+     * that date.
      * @param {string} gymId
-     * @param {RoutineDayRef} [from]
+     * @param {{ day?: RoutineDayRef, date?: string }} [options]
      * @returns {Promise<Workout>}
      */
-    startWorkout(gymId, from) {
+    startWorkout(gymId, { day: from, date } = {}) {
       return inTurn(async () => {
         await finishIfAbandoned();
         if (await workoutInProgress())
@@ -224,7 +226,7 @@ export function createForge({ store, library, now = () => new Date() }) {
         /** @type {Workout} */
         const workout = {
           id: crypto.randomUUID(),
-          date: localDate(started),
+          date: date === undefined ? localDate(started) : checkPastDate(date),
           startedAt: started.toISOString(),
           gymId,
           entries: [],
@@ -359,6 +361,80 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
+     * Every workout, newest first by workout date (spec #3, story 53), the
+     * one in progress included.
+     * @returns {Promise<Workout[]>}
+     */
+    async listWorkouts() {
+      const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
+      return workouts.sort(byWorkoutDate);
+    },
+
+    /**
+     * Corrects a set of any workout, finished or not (spec #3, story 54),
+     * with the same checks as logging it; it keeps when it was logged.
+     * @param {string} workoutId
+     * @param {string} exerciseId
+     * @param {number} index the set's place, from 0
+     * @param {SetInput} set
+     */
+    editSet(workoutId, exerciseId, index, set) {
+      return changeWorkout(workoutId, (w) =>
+        changeEntry(w, exerciseId, (e) => {
+          const old = e.sets[index];
+          if (!old) throw new Error("No such set");
+          const sets = [...e.sets];
+          sets[index] = checkSet(set, old.loggedAt, old.unit);
+          return { ...e, sets };
+        }),
+      );
+    },
+
+    /**
+     * Deletes a set of any workout (spec #3, story 54). In a finished
+     * workout, an exercise left with no sets goes too, as finishing would
+     * have left it out.
+     * @param {string} workoutId
+     * @param {string} exerciseId
+     * @param {number} index the set's place, from 0
+     */
+    deleteSet(workoutId, exerciseId, index) {
+      return changeWorkout(workoutId, (w) => {
+        const changed = changeEntry(w, exerciseId, (e) => {
+          if (!e.sets[index]) throw new Error("No such set");
+          return { ...e, sets: e.sets.filter((_, i) => i !== index) };
+        });
+        return w.finishedAt
+          ? {
+              ...changed,
+              entries: changed.entries.filter((e) => e.sets.length > 0),
+            }
+          : changed;
+      });
+    },
+
+    /**
+     * Deletes a workout (spec #3, story 54). The one in progress can go
+     * too, so another can start.
+     * @param {string} workoutId
+     */
+    deleteWorkout(workoutId) {
+      return inTurn(async () => {
+        await store.remove("workouts", workoutId);
+        const changed = await settings();
+        if (
+          changed.workoutInProgress === workoutId ||
+          changed.autoFinished === workoutId
+        ) {
+          if (changed.workoutInProgress === workoutId)
+            delete changed.workoutInProgress;
+          if (changed.autoFinished === workoutId) delete changed.autoFinished;
+          await store.put("settings", changed);
+        }
+      });
+    },
+
+    /**
      * Routines by name (#14).
      * @returns {Promise<Routine[]>}
      */
@@ -421,11 +497,7 @@ export function createForge({ store, library, now = () => new Date() }) {
           (w) =>
             w.routine?.routineId === routineId && ids.includes(w.routine.dayId),
         )
-        .sort(
-          (a, b) =>
-            b.date.localeCompare(a.date) ||
-            b.startedAt.localeCompare(a.startedAt),
-        )[0];
+        .sort(byWorkoutDate)[0];
       const index = ids.indexOf(last?.routine?.dayId ?? "");
       return version.days[(index + 1) % version.days.length];
     },
@@ -536,21 +608,10 @@ export function createForge({ store, library, now = () => new Date() }) {
      * Loads are in lb until per-exercise units arrive (#21).
      * @param {string} workoutId
      * @param {string} exerciseId
-     * @param {{ load: number, reps: number, rir?: number, warmUp?: boolean, drop?: boolean }} set
+     * @param {SetInput} set
      */
-    async logSet(workoutId, exerciseId, { load, reps, rir, warmUp, drop }) {
-      if (!Number.isInteger(reps) || reps < 1)
-        throw new Error("Reps must be 1 or more");
-      if (!(load >= 0)) throw new Error("Load must be 0 or more");
-      if (rir !== undefined && !(Number.isInteger(rir) && rir >= 0 && rir <= 4))
-        throw new Error("RIR is 0 to 4");
-      if (warmUp && drop)
-        throw new Error("A set is a warm-up or a drop set, not both");
-      /** @type {WorkoutSet} */
-      const logged = { load, unit: "lb", reps, loggedAt: now().toISOString() };
-      if (rir !== undefined) logged.rir = rir;
-      if (warmUp) logged.warmUp = true;
-      if (drop) logged.drop = true;
+    async logSet(workoutId, exerciseId, set) {
+      const logged = checkSet(set, now().toISOString());
       return changeWorkout(workoutId, (w) => {
         inPlay(w, exerciseId);
         return changeEntry(w, exerciseId, (e) => ({
@@ -853,6 +914,19 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {Omit<BodyWeightEntry, "id" | "loggedAt">} entry
    */
   function checkBodyWeight({ date, load, unit }) {
+    checkPastDate(date);
+    if (!(load > 0 && load < 1000))
+      throw new Error("Enter a weight above 0 and under 1,000");
+    if (unit !== "lb" && unit !== "kg") throw new Error("Pick lb or kg");
+    return { date, load, unit };
+  }
+
+  /**
+   * A real calendar date no later than today (#18, #20): body weight and
+   * back-dated workouts can't be in the future.
+   * @param {string} date YYYY-MM-DD
+   */
+  function checkPastDate(date) {
     const [year, month, day] = date.split("-").map(Number);
     const parsed = new Date(year, month - 1, day);
     if (
@@ -863,10 +937,46 @@ export function createForge({ store, library, now = () => new Date() }) {
       throw new Error("Pick a date");
     if (date > localDate(now()))
       throw new Error("That date hasn't happened yet");
-    if (!(load > 0 && load < 1000))
-      throw new Error("Enter a weight above 0 and under 1,000");
-    if (unit !== "lb" && unit !== "kg") throw new Error("Pick lb or kg");
-    return { date, load, unit };
+    return date;
+  }
+
+  /**
+   * A set that can be right (spec #3, stories 29-32), as stored: whole reps
+   * of 1 or more, a load of 0 or more, RIR 0-4, and not both a warm-up and a
+   * drop set. Loads are in lb until per-exercise units arrive (#21).
+   * @param {SetInput} set
+   * @param {string} loggedAt
+   * @param {Load["unit"]} [unit]
+   * @returns {WorkoutSet}
+   */
+  function checkSet({ load, reps, rir, warmUp, drop }, loggedAt, unit = "lb") {
+    if (!Number.isInteger(reps) || reps < 1)
+      throw new Error("Reps must be 1 or more");
+    if (!(load >= 0)) throw new Error("Load must be 0 or more");
+    if (rir !== undefined && !(Number.isInteger(rir) && rir >= 0 && rir <= 4))
+      throw new Error("RIR is 0 to 4");
+    if (warmUp && drop)
+      throw new Error("A set is a warm-up or a drop set, not both");
+    return {
+      load,
+      unit,
+      reps,
+      ...withRir(rir),
+      ...(warmUp ? { warmUp: true } : {}),
+      ...(drop ? { drop: true } : {}),
+      loggedAt,
+    };
+  }
+
+  /**
+   * Newest first by workout date, then by start (#13, #20).
+   * @param {Workout} a
+   * @param {Workout} b
+   */
+  function byWorkoutDate(a, b) {
+    return (
+      b.date.localeCompare(a.date) || b.startedAt.localeCompare(a.startedAt)
+    );
   }
 
   /**
@@ -1058,11 +1168,7 @@ export function createForge({ store, library, now = () => new Date() }) {
           workout.entries.find((e) => e.exerciseId === exerciseId)?.sets ?? [],
       }))
       .filter((h) => h.sets.length > 0)
-      .sort(
-        (a, b) =>
-          b.workout.date.localeCompare(a.workout.date) ||
-          b.workout.startedAt.localeCompare(a.workout.startedAt),
-      );
+      .sort((a, b) => byWorkoutDate(a.workout, b.workout));
   }
 
   /**

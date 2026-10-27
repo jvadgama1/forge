@@ -12,6 +12,12 @@ export function moreView({ user, signOut }) {
       { class: "menu" },
       h(
         "a",
+        { href: "#/workouts" },
+        "Workouts",
+        h("span", { "aria-hidden": "true" }, "→"),
+      ),
+      h(
+        "a",
         { href: "#/gyms" },
         "Gyms",
         h("span", { "aria-hidden": "true" }, "→"),

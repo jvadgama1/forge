@@ -960,3 +960,45 @@ select.small-number {
   display: flex;
   gap: 6px;
 }
+
+/* Workouts (#20) */
+.workout-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workout-link-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.set-editable {
+  cursor: pointer;
+}
+
+/* Overrides the set row grid: the form stacks its fields. */
+.sets li.set-form {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.small-number.wide {
+  width: 72px;
+}
+
+.past-date {
+  margin-top: 12px;
+}
+
+.past-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 18px;
+  text-decoration: none;
+}

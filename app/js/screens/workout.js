@@ -43,16 +43,23 @@ function timer(startedAt) {
 /**
  * The header every workout screen shares: wordmark and gym, the workout's
  * name, its timer and the exercise count, which opens the workout's list.
- * @param {{ workout: Workout, title: string, gymName: string, position?: string }} header
- *   `title` is the routine day's name, or Freestyle (#14).
+ * @param {{ workout: Workout, title: string, gymName: string, today: string, position?: string }} header
+ *   `title` is the routine day's name, or Freestyle (#14). A workout dated
+ *   before `today` was back-dated, and the header says when (#20).
  */
-export function workoutHeader({ workout, title, gymName, position }) {
+export function workoutHeader({ workout, title, gymName, today, position }) {
   return [
     h(
       "div",
       { class: "workout-top" },
       h("p", { class: "wordmark" }, "Forge"),
-      h("span", { class: "label" }, `At ${gymName}`),
+      h(
+        "span",
+        { class: "label" },
+        workout.date === today
+          ? `At ${gymName}`
+          : `At ${gymName} · ${monthDay(workout.date)}`,
+      ),
     ),
     h(
       "div",
@@ -376,6 +383,7 @@ export async function workoutScreen({
       workout,
       title: await forge.workoutTitle(workout),
       gymName,
+      today: forge.today(),
       position: `${pad2(index + 1)}/${pad2(live.length)}`,
     }),
     h(
