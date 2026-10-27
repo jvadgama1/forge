@@ -68,6 +68,9 @@ _Avoid_: Circuit, paired set, giant set
 **Round**:
 One set of each exercise in a superset, done back to back.
 
+**Rest default**:
+How long to rest after a set of an exercise, which the rest timer counts down: 90 s unless set for the exercise.
+
 **Pinned note**:
 A note attached to an exercise, shown every time it is logged (seat height, grip).
 

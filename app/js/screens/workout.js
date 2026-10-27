@@ -4,12 +4,11 @@
 import { h } from "../dom.js";
 import { muscleGroup } from "../core/muscle-groups.js";
 import { choiceChips } from "./exercise-list.js";
+import { endRest, restBar, startRest } from "./rest-timer.js";
+import { pad2 } from "./screen.js";
 
 /** @import { Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
-
-/** @param {number} n */
-const pad2 = (n) => String(n).padStart(2, "0");
 
 /** @param {number} rir 0–4, where 4 means "4 or more" */
 const rirLabel = (rir) => (rir === 4 ? "4+" : String(rir));
@@ -246,6 +245,7 @@ export async function workoutScreen({
             warmUp: choice.flag === "warmUp",
             drop: choice.flag === "drop",
           });
+          startRest(forge.restAfterSet(exerciseId));
           onLogged();
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
@@ -277,6 +277,8 @@ export async function workoutScreen({
         status.textContent = "";
         try {
           await forge.undoLastSet(workout.id, exerciseId);
+          // The rest was for that set: it goes with it.
+          endRest();
           onLogged();
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
@@ -345,6 +347,7 @@ export async function workoutScreen({
       ),
     ),
     undo,
+    restBar(),
     h(
       "div",
       { class: "entry" },

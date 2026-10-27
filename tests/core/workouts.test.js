@@ -491,3 +491,11 @@ describe("an abandoned workout (#45)", () => {
     expect(await f.currentWorkout()).toBeUndefined();
   });
 });
+
+describe("rest after a set (#12)", () => {
+  it("is 90 seconds for a single exercise, by default", async () => {
+    const { f } = await started();
+    expect(f.restAfterSet("bench-press")).toBe(90);
+    expect(f.restAfterSet("leg-press")).toBe(90);
+  });
+});

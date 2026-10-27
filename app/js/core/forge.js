@@ -339,6 +339,17 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
+     * Seconds to rest after a set of the exercise: its rest default, 90 s
+     * (spec #3, story 38). Per-exercise defaults arrive with #21, rest
+     * within supersets with #17.
+     * @param {string} exerciseId
+     */
+    // eslint-disable-next-line no-unused-vars -- per exercise from #21
+    restAfterSet(exerciseId) {
+      return 90;
+    },
+
+    /**
      * What the next set of an exercise starts filled in with: the previous
      * set's load and reps (spec #3, story 28). The first set starts empty
      * until last workouts and suggestions arrive (#13, #15).

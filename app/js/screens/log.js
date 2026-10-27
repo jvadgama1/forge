@@ -1,5 +1,6 @@
 import { h } from "../dom.js";
 import { autoFinishedLine } from "./auto-finished.js";
+import { endRest } from "./rest-timer.js";
 import { choiceChips } from "./exercise-list.js";
 import { screen } from "./screen.js";
 import { workoutHeader, workoutScreen } from "./workout.js";
@@ -50,6 +51,7 @@ export function logView({ forge, id }) {
                 /** @type {HTMLButtonElement} */ (e.currentTarget).disabled =
                   true;
                 await forge.finishWorkout(workout.id);
+                endRest();
                 location.hash = "#/log/done";
               },
             },
@@ -113,6 +115,7 @@ export function logView({ forge, id }) {
           onclick: async () => {
             try {
               await forge.startWorkout(gymId);
+              endRest(); // one left from an earlier workout
               show();
             } catch (error) {
               status.textContent = /** @type {Error} */ (error).message;

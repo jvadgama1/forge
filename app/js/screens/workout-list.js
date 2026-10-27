@@ -1,4 +1,5 @@
 import { h } from "../dom.js";
+import { endRest } from "./rest-timer.js";
 import { countOf, screen } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
@@ -126,6 +127,7 @@ export function workoutListView({ forge }) {
               /** @type {HTMLButtonElement} */ (e.currentTarget).disabled =
                 true;
               const finished = await forge.finishWorkout(id);
+              endRest();
               location.hash = finished
                 ? `#/log/done/${finished.id}`
                 : "#/log/done";
