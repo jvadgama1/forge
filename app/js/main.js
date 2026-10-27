@@ -9,6 +9,7 @@ import { workoutListView } from "./screens/workout-list.js";
 import { workoutDoneView } from "./screens/workout-done.js";
 import { addExerciseView } from "./screens/add-exercise.js";
 import { exercisesView } from "./screens/exercises.js";
+import { historyView } from "./screens/history.js";
 import { gymsView } from "./screens/gyms.js";
 import { gymView } from "./screens/gym.js";
 import { placeholderView } from "./screens/placeholder.js";
@@ -25,6 +26,7 @@ const routes = {
   "/log/add": { tab: "log", render: addExerciseView },
   "/log/done": { tab: "log", render: workoutDoneView },
   "/log/done/:id": { tab: "log", render: workoutDoneView },
+  "/log/history/:id": { tab: "log", render: historyView },
   "/exercises": { tab: "log", render: exercisesView },
   "/stats": {
     tab: "stats",

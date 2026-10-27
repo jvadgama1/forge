@@ -693,3 +693,146 @@ a {
 .rest-actions .chip[hidden] {
   display: none;
 }
+
+/* Last workout (#13): the prototype's coral-edged line; the whole line opens
+   the history. */
+.last-workout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 2px 8px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--secondary);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.last-head {
+  grid-column: 1 / -1;
+  color: var(--secondary);
+}
+
+.last-sets {
+  font: 800 22px/1.1 var(--font-display);
+}
+
+.last-sets .label {
+  font-family: var(--font-mono);
+}
+
+.last-link {
+  color: var(--accent);
+  font: 700 11px var(--font-mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* A new record (#13): a lime strip with a star and words. */
+.record {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: 800 12px var(--font-mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* History (#13) */
+.back {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 4px;
+  text-decoration: none;
+}
+
+.reps-at-load {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.reps-at-load li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.history-workout {
+  margin-top: 14px;
+}
+
+.history-date {
+  margin: 0;
+  font: 800 20px var(--font-display);
+  text-transform: uppercase;
+}
+
+.history-date .label {
+  font-family: var(--font-mono);
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 6px;
+  touch-action: pan-y;
+}
+
+.chart:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.chart-grid {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.chart-axis {
+  fill: var(--muted);
+  font: 700 10px var(--font-mono);
+}
+
+.chart-value {
+  fill: var(--text);
+  font: 800 14px var(--font-display);
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* Square markers, as the prototype; the ground-coloured ring keeps them
+   readable where they sit on the line. */
+.chart-point {
+  fill: var(--accent);
+  stroke: var(--ground);
+  stroke-width: 2;
+}
+
+.chart-crosshair {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.chart-tip {
+  min-height: 1.5em;
+  margin: 4px 0 0;
+  color: var(--text);
+}
+
+.chart-tip strong {
+  font: 800 18px var(--font-display);
+}

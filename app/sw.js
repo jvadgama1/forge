@@ -21,6 +21,8 @@ const SHELL = [
   "js/screens/auto-finished.js",
   "js/screens/workout.js",
   "js/screens/rest-timer.js",
+  "js/screens/history.js",
+  "js/screens/e1rm-chart.js",
   "js/screens/workout-list.js",
   "js/screens/workout-done.js",
   "js/screens/add-exercise.js",

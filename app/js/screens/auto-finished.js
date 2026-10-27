@@ -1,6 +1,6 @@
 // The Log tab's one-time line about a workout finished automatically (#45):
 // "Sunday's workout was finished at 7:42 pm. 5 exercises, 18 sets."
-import { countOf, pad2 } from "./screen.js";
+import { MONTHS, countOf, pad2 } from "./screen.js";
 
 const WEEKDAYS = [
   "Sunday",
@@ -10,20 +10,6 @@ const WEEKDAYS = [
   "Thursday",
   "Friday",
   "Saturday",
-];
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
 ];
 
 /**
