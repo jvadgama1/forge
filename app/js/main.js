@@ -92,6 +92,14 @@ function render() {
 }
 
 window.addEventListener("hashchange", render);
+// Back from another app, a workout may have been abandoned meanwhile (#45).
+// Only then re-render: otherwise numbers typed but not logged would be lost.
+document.addEventListener("visibilitychange", async () => {
+  const { state } = auth;
+  if (document.visibilityState !== "visible" || state.status !== "signed-in")
+    return;
+  if (await state.forge.finishAbandonedWorkout()) render();
+});
 render();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");

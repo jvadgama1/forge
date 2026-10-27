@@ -1,4 +1,5 @@
 import { h } from "../dom.js";
+import { autoFinishedLine } from "./auto-finished.js";
 import { choiceChips } from "./exercise-list.js";
 import { screen } from "./screen.js";
 import { workoutHeader, workoutScreen } from "./workout.js";
@@ -67,9 +68,10 @@ export function logView({ forge, id }) {
   }
 
   async function startScreen() {
-    const [gyms, current] = await Promise.all([
+    const [gyms, current, autoFinished] = await Promise.all([
       forge.listGyms(),
       forge.currentGym(),
+      autoFinishedNote(),
     ]);
     if (!current)
       return screen(
@@ -85,6 +87,7 @@ export function logView({ forge, id }) {
           "Gyms",
           h("span", { "aria-hidden": "true" }, "→"),
         ),
+        ...(autoFinished ? [autoFinished] : []),
       );
     let gymId = current.id;
     const status = h("p", { class: "lede", role: "status" });
@@ -117,6 +120,25 @@ export function logView({ forge, id }) {
         h("span", { "aria-hidden": "true" }, "→"),
       ),
       status,
+      ...(autoFinished ? [autoFinished] : []),
+    );
+  }
+
+  /** A workout finished for the user since the last visit (#45), once. */
+  async function autoFinishedNote() {
+    const workout = await forge.takeAutoFinished();
+    if (!workout?.finishedAt) return null;
+    const { exercises, sets } = forge.summarize(workout);
+    return h(
+      "p",
+      { class: "lede" },
+      autoFinishedLine({
+        date: workout.date,
+        finishedAt: new Date(workout.finishedAt),
+        exercises,
+        sets,
+        now: new Date(),
+      }),
     );
   }
 }

@@ -34,6 +34,10 @@ All exercises the app knows: a seeded set of about 150 with muscle tags, plus th
 One training occasion on one date at one gym: an ordered list of exercises, each with its sets, plus an optional note.
 _Avoid_: Session, training, log
 
+**In progress** (of a workout):
+Started and not yet finished. It finishes when the user taps Finish, or by itself once **abandoned**: 3 hours after its last set (or its start, with no sets), timed at its last set. One with no sets is discarded instead.
+_Avoid_: Open, active
+
 **Set**:
 One effort at an exercise: a load and a count (reps, seconds, or time and distance), an optional RIR, and optional flags.
 

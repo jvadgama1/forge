@@ -165,6 +165,39 @@ const WORKOUT_DONE = {
   ],
 };
 
+/**
+ * A workout left in progress since Friday evening (#45): opening the Log tab
+ * finishes it at its last set, 7:42 pm local time.
+ */
+const local = (/** @type {number} */ hour, /** @type {number} */ minute) =>
+  new Date(2026, 9, 23, hour, minute).toISOString();
+const ABANDONED = {
+  gyms: GYMS.gyms,
+  settings: [{ id: "user", lastGymId: "gym-work", workoutInProgress: "w-fri" }],
+  workouts: [
+    {
+      id: "w-fri",
+      date: "2026-10-23",
+      startedAt: local(19, 0),
+      gymId: "gym-work",
+      entries: [
+        {
+          exerciseId: "barbell-bench-press",
+          sets: [
+            { load: 135, unit: "lb", reps: 8, loggedAt: local(19, 10) },
+            { load: 135, unit: "lb", reps: 7, loggedAt: local(19, 20) },
+          ],
+        },
+        {
+          exerciseId: "lat-pulldown",
+          sets: [{ load: 120, unit: "lb", reps: 10, loggedAt: local(19, 42) }],
+        },
+        { exerciseId: "leg-press", sets: [] },
+      ],
+    },
+  ],
+};
+
 /** @type {Shot[]} */
 export const SHOTS = [
   { name: "checking", as: "checking" },
@@ -222,6 +255,20 @@ export const SHOTS = [
   },
   { name: "picker", as: "owner", route: "/exercises", seed: GYMS },
   { name: "log-start", as: "owner", route: "/log", seed: GYMS },
+  { name: "log-auto-finished", as: "owner", route: "/log", seed: ABANDONED },
+  {
+    // Mentioned once: back on the Log tab, the line is gone (#45).
+    name: "log-auto-finished-gone",
+    as: "owner",
+    route: "/log",
+    seed: ABANDONED,
+    async steps(page) {
+      await page.getByText(/was finished at/).waitFor();
+      await page.getByRole("link", { name: "More", exact: true }).click();
+      await page.getByRole("link", { name: "Log", exact: true }).click();
+      await page.getByRole("button", { name: /Start freestyle/ }).waitFor();
+    },
+  },
   { name: "workout", as: "owner", route: "/log", seed: WORKOUT },
   {
     name: "workout-choices",

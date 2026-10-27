@@ -74,6 +74,8 @@
  * @property {string} [lastGymId] The gym last chosen (spec #3, story 8).
  * @property {string} [workoutInProgress] The unfinished workout's id, so it
  *   is found without listing every workout (spec #3, story 43).
+ * @property {string} [autoFinished] A workout finished automatically, not yet
+ *   mentioned on the Log tab (#45).
  */
 
 /**
