@@ -13,6 +13,8 @@ import { historyView } from "./screens/history.js";
 import { gymsView } from "./screens/gyms.js";
 import { gymView } from "./screens/gym.js";
 import { placeholderView } from "./screens/placeholder.js";
+import { routinesView } from "./screens/routines.js";
+import { routineView } from "./screens/routine.js";
 import { moreView } from "./screens/more.js";
 
 /** @import { ScreenContext } from "./screens/screen.js" */
@@ -40,6 +42,8 @@ const routes = {
   "/more": { tab: "more", render: moreView },
   "/gyms": { tab: "more", render: gymsView },
   "/gyms/:id": { tab: "more", render: gymView },
+  "/routines": { tab: "more", render: routinesView },
+  "/routines/:id": { tab: "more", render: routineView },
 };
 
 /**

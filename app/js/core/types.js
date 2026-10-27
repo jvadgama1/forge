@@ -63,8 +63,46 @@
  * @property {string} startedAt ISO 8601 timestamp.
  * @property {string} [finishedAt] ISO 8601 timestamp.
  * @property {string} gymId
+ * @property {WorkoutRoutine} [routine] The routine day it followed (#14).
  * @property {string} [note]
  * @property {WorkoutEntry[]} entries In workout order.
+ */
+
+/**
+ * The routine day a workout followed, at the version it followed (#14).
+ * @typedef {{ routineId: string, version: number, dayId: string }} WorkoutRoutine
+ */
+
+/**
+ * What a routine day plans for one exercise (GLOSSARY: Slot): target sets, a
+ * rep range and an optional target RIR.
+ * @typedef {object} Slot
+ * @property {string} exerciseId
+ * @property {number} sets
+ * @property {number} repMin
+ * @property {number} repMax
+ * @property {number} [rir] 0–4; 4 means "4 or more".
+ */
+
+/**
+ * One workout's worth of a routine, such as Push A (GLOSSARY: Routine day).
+ * @typedef {{ id: string, name: string, slots: Slot[] }} RoutineDay
+ */
+
+/**
+ * A routine day as an editor saves it: a new one has no id yet.
+ * @typedef {{ id?: string, name: string, slots: Slot[] }} RoutineDayDraft
+ */
+
+/**
+ * An immutable snapshot of a routine (GLOSSARY: Routine version).
+ * @typedef {{ number: number, savedAt: string, days: RoutineDay[] }} RoutineVersion
+ */
+
+/**
+ * A plan of routine days (GLOSSARY: Routine), with every version kept so past
+ * workouts stay linked to the one they followed (spec #3, story 21).
+ * @typedef {{ id: string, name: string, versions: RoutineVersion[] }} Routine
  */
 
 /**

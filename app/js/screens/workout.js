@@ -52,9 +52,10 @@ function timer(startedAt) {
 /**
  * The header every workout screen shares: wordmark and gym, the workout's
  * name, its timer and the exercise count, which opens the workout's list.
- * @param {{ workout: Workout, gymName: string, position?: string }} header
+ * @param {{ workout: Workout, title: string, gymName: string, position?: string }} header
+ *   `title` is the routine day's name, or Freestyle (#14).
  */
-export function workoutHeader({ workout, gymName, position }) {
+export function workoutHeader({ workout, title, gymName, position }) {
   return [
     h(
       "div",
@@ -65,7 +66,7 @@ export function workoutHeader({ workout, gymName, position }) {
     h(
       "div",
       { class: "workout-title" },
-      h("h1", { class: "title" }, "Freestyle"),
+      h("h1", { class: "title" }, title),
       h(
         "div",
         { class: "workout-clock" },
@@ -375,12 +376,14 @@ export async function workoutScreen({
   );
 
   const lastWorkout = await forge.lastWorkoutLine(exerciseId, workout.id);
+  const targets = await forge.targets(workout, exerciseId);
   const primary = exercise && muscleGroup(exercise.primary[0]);
   return h(
     "section",
     {},
     ...workoutHeader({
       workout,
+      title: await forge.workoutTitle(workout),
       gymName,
       position: `${pad2(index + 1)}/${pad2(live.length)}`,
     }),
@@ -396,6 +399,14 @@ export async function workoutScreen({
           )
         : null,
     ),
+    targets
+      ? h(
+          "p",
+          { class: "label targets" },
+          `Target ${targets.sets} × ${targets.repMin}–${targets.repMax}`,
+          targets.rir === undefined ? "" : ` · RIR ${rirLabel(targets.rir)}`,
+        )
+      : null,
     lastWorkout ? lastWorkoutLine(exerciseId, lastWorkout) : null,
     h(
       "ol",

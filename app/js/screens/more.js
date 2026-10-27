@@ -18,6 +18,12 @@ export function moreView({ user, signOut }) {
       ),
       h(
         "a",
+        { href: "#/routines" },
+        "Routines",
+        h("span", { "aria-hidden": "true" }, "→"),
+      ),
+      h(
+        "a",
         { href: "#/exercises" },
         "Exercises",
         h("span", { "aria-hidden": "true" }, "→"),

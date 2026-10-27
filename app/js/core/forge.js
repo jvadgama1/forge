@@ -1,4 +1,4 @@
-/** @import { Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Settings, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -208,11 +208,14 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Starts a freestyle workout at a gym, today (spec #3, story 24).
+     * Starts a workout at a gym, today: freestyle (spec #3, story 24), or
+     * from a routine day (story 23) with its slots laid out as the
+     * workout's exercises, at the routine's current version.
      * @param {string} gymId
+     * @param {{ routineId: string, dayId: string }} [from]
      * @returns {Promise<Workout>}
      */
-    startWorkout(gymId) {
+    startWorkout(gymId, from) {
       return inTurn(async () => {
         await finishIfAbandoned();
         if (await workoutInProgress())
@@ -226,6 +229,20 @@ export function createForge({ store, library, now = () => new Date() }) {
           gymId,
           entries: [],
         };
+        if (from) {
+          const version = (await routineById(from.routineId)).versions.at(-1);
+          const day = version?.days.find((d) => d.id === from.dayId);
+          if (!version || !day) throw new Error("That routine day is gone");
+          workout.routine = {
+            routineId: from.routineId,
+            version: version.number,
+            dayId: day.id,
+          };
+          workout.entries = day.slots.map((slot) => ({
+            exerciseId: slot.exerciseId,
+            sets: [],
+          }));
+        }
         await store.put("workouts", workout);
         // Its gym is now the one last trained at (story 8).
         await store.put("settings", {
@@ -266,12 +283,125 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @returns {Promise<Workout | undefined>} the finished workout, or
      *   undefined if it was discarded
      */
-    finishWorkout(workoutId) {
+    finishWorkout(workoutId, { saveToRoutine = false } = {}) {
       return inTurn(async () => {
         const workout = await workoutById(workoutId);
         if (workout.finishedAt) return workout; // a second tap on Finish
+        if (saveToRoutine) await saveDayAsDone(workout);
         return finish(workout, now());
       });
+    },
+
+    /**
+     * Routines by name (#14).
+     * @returns {Promise<Routine[]>}
+     */
+    async listRoutines() {
+      const routines = /** @type {Routine[]} */ (await store.list("routines"));
+      return routines.sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    /**
+     * @param {string} routineId
+     * @returns {Promise<Routine | undefined>}
+     */
+    async getRoutine(routineId) {
+      return /** @type {Routine | undefined} */ (
+        await store.get("routines", routineId)
+      );
+    },
+
+    /**
+     * Saves a routine (spec #3, stories 18-21): a new one at version 1, or a
+     * new version of an existing one when its days changed, keeping every
+     * earlier version as it was. A rename alone adds no version.
+     * @param {{ id?: string, name: string, days: RoutineDayDraft[] }} routine
+     * @returns {Promise<Routine>}
+     */
+    saveRoutine({ id, name, days }) {
+      return inTurn(async () => {
+        const trimmed = name.trim();
+        if (!trimmed) throw new Error("Give the routine a name");
+        const checked = await checkDays(days);
+        const existing = id === undefined ? undefined : await routineById(id);
+        return saveVersion(
+          {
+            id: existing?.id ?? crypto.randomUUID(),
+            name: trimmed,
+            versions: existing?.versions ?? [],
+          },
+          checked,
+        );
+      });
+    },
+
+    /**
+     * The routine day that comes next (spec #3, Rules): the day after the
+     * one done most recently at the routine's current version, wrapping
+     * around; the first day before any is done.
+     * @param {string} routineId
+     * @returns {Promise<RoutineDay | undefined>}
+     */
+    async nextRoutineDay(routineId) {
+      const version = (await routineById(routineId)).versions.at(-1);
+      if (!version?.days.length) return undefined;
+      const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
+      const last = workouts
+        .filter(
+          (w) =>
+            w.routine?.routineId === routineId &&
+            w.routine.version === version.number,
+        )
+        .sort(
+          (a, b) =>
+            b.date.localeCompare(a.date) ||
+            b.startedAt.localeCompare(a.startedAt),
+        )[0];
+      const index = version.days.findIndex(
+        (d) => d.id === last?.routine?.dayId,
+      );
+      return version.days[(index + 1) % version.days.length];
+    },
+
+    /**
+     * What a workout is called: its routine day's name, or Freestyle.
+     * @param {Workout} workout
+     */
+    async workoutTitle(workout) {
+      return (await plannedDay(workout))?.name ?? "Freestyle";
+    },
+
+    /**
+     * The exercise's targets in a routine workout (spec #3, story 23), from
+     * the version it followed; none for an exercise added on the day.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     * @returns {Promise<Omit<Slot, "exerciseId"> | undefined>}
+     */
+    async targets(workout, exerciseId) {
+      const slot = (await plannedDay(workout))?.slots.find(
+        (s) => s.exerciseId === exerciseId,
+      );
+      if (!slot) return undefined;
+      const { sets, repMin, repMax, rir } = slot;
+      return { sets, repMin, repMax, ...(rir === undefined ? {} : { rir }) };
+    },
+
+    /**
+     * Whether a routine workout's exercises differ from its day's plan: one
+     * added, skipped or moved (spec #3, stories 34-35), so finishing can
+     * offer to save them.
+     * @param {Workout | undefined} workout
+     */
+    async routineChanges(workout) {
+      const day = workout && (await plannedDay(workout));
+      if (!workout || !day) return false;
+      return (
+        JSON.stringify(day.slots.map((s) => s.exerciseId)) !==
+        JSON.stringify(
+          workout.entries.filter((e) => !e.skipped).map((e) => e.exerciseId),
+        )
+      );
     },
 
     /**
@@ -631,6 +761,140 @@ export function createForge({ store, library, now = () => new Date() }) {
   async function lastWorkout(exerciseId, excluding) {
     return (await history(exerciseId)).find(
       (h) => h.workout.finishedAt && h.workout.id !== excluding,
+    );
+  }
+
+  /**
+   * @param {string} routineId
+   * @returns {Promise<Routine>}
+   */
+  async function routineById(routineId) {
+    const routine = /** @type {Routine | undefined} */ (
+      await store.get("routines", routineId)
+    );
+    if (!routine) throw new Error("Routine not found");
+    return routine;
+  }
+
+  /**
+   * The routine day a workout followed, at its version; none for freestyle
+   * or a routine since deleted.
+   * @param {Workout} workout
+   */
+  async function plannedDay(workout) {
+    if (!workout.routine) return undefined;
+    const { routineId, version, dayId } = workout.routine;
+    const routine = /** @type {Routine | undefined} */ (
+      await store.get("routines", routineId)
+    );
+    return routine?.versions
+      .find((v) => v.number === version)
+      ?.days.find((d) => d.id === dayId);
+  }
+
+  /**
+   * Checked days in a fixed shape, so an unchanged routine compares equal:
+   * named days, each exercise once a day, targets that can be followed.
+   * @param {RoutineDayDraft[]} days
+   * @returns {Promise<RoutineDay[]>}
+   */
+  async function checkDays(days) {
+    const known = new Set(library.map((e) => e.id));
+    for (const e of await store.list("customExercises")) known.add(e.id);
+    return days.map((day) => {
+      const name = day.name.trim();
+      if (!name) throw new Error("Give each day a name");
+      const seen = new Set();
+      return {
+        id: day.id ?? crypto.randomUUID(),
+        name,
+        slots: day.slots.map(({ exerciseId, sets, repMin, repMax, rir }) => {
+          if (!known.has(exerciseId)) throw new Error("Unknown exercise");
+          if (seen.has(exerciseId))
+            throw new Error("An exercise appears once a day");
+          seen.add(exerciseId);
+          if (!(Number.isInteger(sets) && sets >= 1 && sets <= 20))
+            throw new Error("Target sets are 1 to 20");
+          if (!(
+            Number.isInteger(repMin) &&
+            Number.isInteger(repMax) &&
+            repMin >= 1 &&
+            repMin <= repMax &&
+            repMax <= 100
+          ))
+            throw new Error("The rep range runs from low to high, 1 to 100");
+          if (
+            rir !== undefined &&
+            !(Number.isInteger(rir) && rir >= 0 && rir <= 4)
+          )
+            throw new Error("Target RIR is 0 to 4");
+          return {
+            exerciseId,
+            sets,
+            repMin,
+            repMax,
+            ...(rir === undefined ? {} : { rir }),
+          };
+        }),
+      };
+    });
+  }
+
+  /**
+   * Stores the routine, adding a version when `days` differ from its latest
+   * (spec #3, story 21). Callers hold the turn.
+   * @param {Routine} routine
+   * @param {RoutineDay[]} days
+   */
+  async function saveVersion(routine, days) {
+    const latest = routine.versions.at(-1);
+    /** @type {Routine} */
+    const saved =
+      latest && JSON.stringify(latest.days) === JSON.stringify(days)
+        ? routine
+        : {
+            ...routine,
+            versions: [
+              ...routine.versions,
+              {
+                number: routine.versions.length + 1,
+                savedAt: now().toISOString(),
+                days,
+              },
+            ],
+          };
+    await store.put("routines", saved);
+    return saved;
+  }
+
+  /**
+   * Saves a workout's day as it was done (spec #3, story 35): its exercises
+   * in order, the planned ones keeping their targets and an added one
+   * targeting the working sets logged (3 if none) of 8-12 reps. The rest of
+   * the routine's current version stays as it is.
+   * @param {Workout} workout
+   */
+  async function saveDayAsDone(workout) {
+    const planned = await plannedDay(workout);
+    if (!workout.routine || !planned) return;
+    const routine = await routineById(workout.routine.routineId);
+    const latest = routine.versions.at(-1);
+    if (!latest?.days.some((d) => d.id === planned.id)) return;
+    /** @type {Slot[]} */
+    const slots = workout.entries
+      .filter((e) => !e.skipped)
+      .map(
+        (e) =>
+          planned.slots.find((s) => s.exerciseId === e.exerciseId) ?? {
+            exerciseId: e.exerciseId,
+            sets: e.sets.filter(working).length || 3,
+            repMin: 8,
+            repMax: 12,
+          },
+      );
+    await saveVersion(
+      routine,
+      latest.days.map((d) => (d.id === planned.id ? { ...d, slots } : d)),
     );
   }
 

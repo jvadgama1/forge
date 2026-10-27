@@ -39,7 +39,11 @@ export function logView({ forge, id }) {
         h(
           "section",
           {},
-          ...workoutHeader({ workout, gymName }),
+          ...workoutHeader({
+            workout,
+            title: await forge.workoutTitle(workout),
+            gymName,
+          }),
           h("p", { class: "lede" }, "Add your first exercise."),
           h(
             "a",
@@ -102,6 +106,17 @@ export function logView({ forge, id }) {
       );
     let gymId = current.id;
     const status = h("p", { class: "lede", role: "status" });
+    /** @param {{ routineId: string, dayId: string }} [from] */
+    const start = async (from) => {
+      try {
+        await forge.startWorkout(gymId, from);
+        endRest(); // one left from an earlier workout
+        show();
+      } catch (error) {
+        status.textContent = /** @type {Error} */ (error).message;
+      }
+    };
+    const routines = await routineStarts(start);
     return screen(
       "Start workout",
       h("p", { class: "label field" }, "Gym"),
@@ -113,20 +128,16 @@ export function logView({ forge, id }) {
           if (chosen !== undefined) gymId = chosen;
         },
       }),
+      ...routines,
+      ...(routines.length
+        ? [h("p", { class: "label section" }, "Freestyle")]
+        : []),
       h(
         "button",
         {
-          class: "button start",
+          class: routines.length ? "button secondary start" : "button start",
           type: "button",
-          onclick: async () => {
-            try {
-              await forge.startWorkout(gymId);
-              endRest(); // one left from an earlier workout
-              show();
-            } catch (error) {
-              status.textContent = /** @type {Error} */ (error).message;
-            }
-          },
+          onclick: () => start(),
         },
         "Start freestyle",
         h("span", { "aria-hidden": "true" }, "→"),
@@ -134,6 +145,49 @@ export function logView({ forge, id }) {
       status,
       ...(autoFinished ? [autoFinished] : []),
     );
+  }
+
+  /**
+   * Each routine with its days, the next one chosen (#14), and a button to
+   * start the chosen day.
+   * @param {(from: { routineId: string, dayId: string }) => void} start
+   * @returns {Promise<Node[]>}
+   */
+  async function routineStarts(start) {
+    const routines = await forge.listRoutines();
+    const blocks = await Promise.all(
+      routines.map(async (routine) => {
+        const days = routine.versions.at(-1)?.days ?? [];
+        const next = await forge.nextRoutineDay(routine.id);
+        if (!next) return [];
+        let chosen = next;
+        const button = h(
+          "button",
+          {
+            class: "button start",
+            type: "button",
+            onclick: () => start({ routineId: routine.id, dayId: chosen.id }),
+          },
+          h("span", {}, `Start ${next.name}`),
+          h("span", { "aria-hidden": "true" }, "→"),
+        );
+        return [
+          h("p", { class: "label section" }, routine.name),
+          choiceChips({
+            label: `${routine.name} day`,
+            options: days.map((d) => ({ value: d.id, text: d.name })),
+            selected: next.id,
+            onChoose: (dayId) => {
+              chosen = days.find((d) => d.id === dayId) ?? chosen;
+              const text = button.firstChild;
+              if (text) text.textContent = `Start ${chosen.name}`;
+            },
+          }),
+          button,
+        ];
+      }),
+    );
+    return blocks.flat();
   }
 
   /** A workout finished for the user since the last visit (#45). */

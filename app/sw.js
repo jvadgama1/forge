@@ -30,6 +30,8 @@ const SHELL = [
   "js/screens/exercise-list.js",
   "js/screens/gyms.js",
   "js/screens/gym.js",
+  "js/screens/routines.js",
+  "js/screens/routine.js",
   "js/screens/more.js",
   "js/screens/placeholder.js",
   "js/firebase-config.js",

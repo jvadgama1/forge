@@ -102,6 +102,10 @@ export function workoutListView({ forge }) {
     });
     note.value = workout.note ?? "";
     const noteStatus = h("span", { class: "label", "aria-live": "polite" });
+    // Changes to a routine day are kept only if asked (#14; spec #3, story 35).
+    const changed = await forge.routineChanges(workout);
+    const saveToRoutine = h("input", { type: "checkbox" });
+    const title = await forge.workoutTitle(workout);
 
     root.replaceChildren(
       screen(
@@ -117,6 +121,20 @@ export function workoutListView({ forge }) {
         ),
         h("p", { class: "label section" }, "Note ", noteStatus),
         note,
+        ...(changed
+          ? [
+              h(
+                "label",
+                { class: "tick save-changes" },
+                saveToRoutine,
+                h(
+                  "span",
+                  { class: "tick-body" },
+                  `Save these exercise changes to ${title}, as a new routine version`,
+                ),
+              ),
+            ]
+          : []),
         h(
           "button",
           {
@@ -126,7 +144,9 @@ export function workoutListView({ forge }) {
               // One tap finishes; a second while saving does nothing.
               /** @type {HTMLButtonElement} */ (e.currentTarget).disabled =
                 true;
-              const finished = await forge.finishWorkout(id);
+              const finished = await forge.finishWorkout(id, {
+                saveToRoutine: saveToRoutine.checked,
+              });
               endRest();
               location.hash = finished
                 ? `#/log/done/${finished.id}`
