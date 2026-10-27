@@ -119,3 +119,61 @@ describe("seeded exercise library", () => {
     }
   });
 });
+
+describe("exercises added for the maintainer's gyms (#39)", () => {
+  it("are in the library, tagged like their closest existing exercises", () => {
+    /** @type {import("../../app/js/core/types.js").Exercise[]} */
+    const added = [
+      {
+        id: "cable-squat",
+        name: "Cable Squat",
+        type: "weight-reps",
+        primary: ["quads"],
+        secondary: ["glutes", "adductors"],
+        body: "lower",
+      },
+      {
+        id: "db-deadlift",
+        name: "DB Deadlift",
+        type: "weight-reps",
+        primary: ["glutes", "hamstrings"],
+        secondary: ["lower-back", "quads", "traps", "forearms"],
+        body: "lower",
+      },
+      {
+        id: "cable-calf-raise",
+        name: "Cable Calf Raise",
+        type: "weight-reps",
+        primary: ["calves"],
+        secondary: [],
+        body: "lower",
+      },
+      {
+        id: "cable-chest-press",
+        name: "Cable Chest Press",
+        type: "weight-reps",
+        primary: ["chest"],
+        secondary: ["triceps", "front-delts"],
+        body: "upper",
+      },
+      {
+        id: "stability-ball-crunch",
+        name: "Stability Ball Crunch",
+        type: "bodyweight-reps",
+        primary: ["abs"],
+        secondary: [],
+        body: "upper",
+      },
+      {
+        id: "decline-crunch",
+        name: "Decline Crunch",
+        type: "bodyweight-reps",
+        primary: ["abs"],
+        secondary: [],
+        body: "upper",
+      },
+    ];
+    for (const exercise of added)
+      expect(SEED_LIBRARY.find((e) => e.id === exercise.id)).toEqual(exercise);
+  });
+});
