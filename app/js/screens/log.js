@@ -1,4 +1,5 @@
 import { h } from "../dom.js";
+import { autoFinishedLine } from "./auto-finished.js";
 import { choiceChips } from "./exercise-list.js";
 import { screen } from "./screen.js";
 import { workoutHeader, workoutScreen } from "./workout.js";
@@ -20,6 +21,9 @@ export function logView({ forge, id }) {
     const workout = await forge.currentWorkout();
     if (!workout) {
       root.replaceChildren(await startScreen());
+      // Mentioned once it's actually on screen (#45).
+      if (root.isConnected && root.querySelector("[data-auto-finished]"))
+        await forge.dismissAutoFinished();
       return;
     }
     const gymName = (await forge.getGym(workout.gymId))?.name ?? "this gym";
@@ -67,9 +71,10 @@ export function logView({ forge, id }) {
   }
 
   async function startScreen() {
-    const [gyms, current] = await Promise.all([
+    const [gyms, current, autoFinished] = await Promise.all([
       forge.listGyms(),
       forge.currentGym(),
+      autoFinishedNote(),
     ]);
     if (!current)
       return screen(
@@ -85,6 +90,7 @@ export function logView({ forge, id }) {
           "Gyms",
           h("span", { "aria-hidden": "true" }, "→"),
         ),
+        ...(autoFinished ? [autoFinished] : []),
       );
     let gymId = current.id;
     const status = h("p", { class: "lede", role: "status" });
@@ -117,6 +123,26 @@ export function logView({ forge, id }) {
         h("span", { "aria-hidden": "true" }, "→"),
       ),
       status,
+      ...(autoFinished ? [autoFinished] : []),
+    );
+  }
+
+  /** A workout finished for the user since the last visit (#45). */
+  async function autoFinishedNote() {
+    const mention = await forge.autoFinished();
+    const workout = mention?.workout;
+    if (!mention || !workout?.finishedAt) return null;
+    const { exercises, sets } = forge.summarize(workout);
+    return h(
+      "p",
+      { class: "lede", "data-auto-finished": true },
+      autoFinishedLine({
+        date: workout.date,
+        daysAgo: mention.daysAgo,
+        finishedAt: new Date(workout.finishedAt),
+        exercises,
+        sets,
+      }),
     );
   }
 }

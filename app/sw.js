@@ -18,6 +18,7 @@ const SHELL = [
   "js/screens/sign-in.js",
   "js/screens/not-owner.js",
   "js/screens/log.js",
+  "js/screens/auto-finished.js",
   "js/screens/workout.js",
   "js/screens/workout-list.js",
   "js/screens/workout-done.js",
