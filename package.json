@@ -23,6 +23,7 @@
     "@eslint/js": "10.0.1",
     "@firebase/rules-unit-testing": "6.0.0",
     "@types/node": "24.19.2",
+    "@types/pngjs": "6.0.5",
     "eslint": "10.13.0",
     "firebase": "13.0.0",
     "firebase-tools": "15.33.0",
@@ -30,6 +31,7 @@
     "husky": "9.1.7",
     "lint-staged": "17.6.0",
     "playwright-core": "1.64.0",
+    "pngjs": "7.0.0",
     "prettier": "3.9.10",
     "typescript": "7.0.2",
     "vitest": "5.0.5"

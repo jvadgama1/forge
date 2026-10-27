@@ -3,7 +3,7 @@
 // installed Microsoft Edge, so nothing downloads a browser. Sign-in and
 // Firestore are stubbed: no personal data reaches a shot (ADR-0005).
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { basename, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { SHOTS } from "./list.js";
@@ -20,7 +20,15 @@ if (!LABEL.test(label)) {
 
 const appDir = fileURLToPath(new URL("../../app/", import.meta.url));
 const stubDir = fileURLToPath(new URL("stubs/", import.meta.url));
+const fontDir = fileURLToPath(new URL("fonts/", import.meta.url));
 const outDir = runDir(label);
+
+// The app's fonts use `font-display: swap`, which paints a fallback first;
+// `block` draws text once, in its web font.
+const fontCss = (await readFile(join(fontDir, "fonts.css"), "utf8")).replaceAll(
+  "font-display: swap",
+  "font-display: block",
+);
 
 // A made-up origin, answered from app/ below. https, because the app needs a
 // secure context (crypto.randomUUID makes every new id).
@@ -97,15 +105,23 @@ async function phoneContext() {
       await route.fulfill({ status: 404 });
     }
   });
-  // The app's fonts use `font-display: swap`, which paints a fallback first;
-  // `block` draws text once, in its web font.
-  await context.route("https://fonts.googleapis.com/**", async (route) => {
-    const response = await route.fetch();
-    const css = (await response.text()).replaceAll(
-      "font-display: swap",
-      "font-display: block",
-    );
-    await route.fulfill({ response, body: css });
+  // The fonts come from a copy in fonts/, so text never depends on what the
+  // live font service sends (#37).
+  await context.route("https://fonts.googleapis.com/**", (route) =>
+    route.fulfill({ body: fontCss, contentType: "text/css" }),
+  );
+  await context.route("https://fonts.gstatic.com/**", async (route) => {
+    const file = basename(new URL(route.request().url()).pathname);
+    try {
+      await route.fulfill({
+        body: await readFile(join(fontDir, file)),
+        contentType: "font/woff2",
+      });
+    } catch {
+      // The app asked for a font the copy lacks: see fonts/README.md.
+      errors.add(`font file not in tools/shots/fonts: ${file}`);
+      await route.fulfill({ status: 404 });
+    }
   });
   return context;
 }
