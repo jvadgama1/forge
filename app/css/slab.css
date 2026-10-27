@@ -647,3 +647,49 @@ a {
 .undo[hidden] {
   display: none;
 }
+
+/* Rest timer (#12): a raised bar with a coral edge, like the prototype's
+   last-workout line; the words say which state it's in, not the colour. */
+.rest {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px 8px 12px;
+  border-left: 4px solid var(--secondary);
+  background: var(--surface);
+}
+
+.rest[hidden] {
+  display: none;
+}
+
+.rest-head {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rest-time {
+  color: var(--secondary);
+  font: 800 28px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.rest[data-done] {
+  border-left-color: var(--accent);
+}
+
+.rest[data-done] .rest-time {
+  color: var(--text);
+}
+
+.rest-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.rest-actions .chip[hidden] {
+  display: none;
+}

@@ -67,6 +67,26 @@ async function logTwoSets(page) {
   await page.getByRole("button", { name: /Log set 03/ }).waitFor();
 }
 
+/**
+ * Logs set 03 of the seeded workout, which starts a 90 s rest (#12), then
+ * moves the fixed clock on by `seconds` and waits for the bar to show it.
+ * @param {number} seconds
+ * @returns {(page: Page) => Promise<void>}
+ */
+const logThenRest = (seconds) => async (page) => {
+  await page.getByRole("button", { name: /Log set 03/ }).click();
+  await page.getByRole("button", { name: /Log set 04/ }).waitFor();
+  const now = await page.evaluate(() => Date.now());
+  await page.clock.setFixedTime(new Date(now + seconds * 1000));
+  const left = Math.max(0, 90 - seconds);
+  await page
+    .getByText(
+      `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`,
+      { exact: true },
+    )
+    .waitFor();
+};
+
 /** A made-up workout in progress at Work: two bench sets logged, then two to go. */
 const WORKOUT = {
   gyms: GYMS.gyms,
@@ -300,6 +320,31 @@ export const SHOTS = [
       await page.getByRole("button", { name: /Tap again to undo/ }).click();
       await page.getByRole("button", { name: /Log set 02/ }).waitFor();
     },
+  },
+  {
+    name: "rest",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: logThenRest(0),
+  },
+  {
+    name: "rest-paused",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await logThenRest(24)(page);
+      await page.getByRole("button", { name: "Pause" }).click();
+      await page.getByText("Paused", { exact: true }).waitFor();
+    },
+  },
+  {
+    name: "rest-over",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: logThenRest(91),
   },
   {
     name: "workout-next",

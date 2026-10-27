@@ -4,6 +4,7 @@
 import { h } from "../dom.js";
 import { muscleGroup } from "../core/muscle-groups.js";
 import { choiceChips } from "./exercise-list.js";
+import { restBar, startRest } from "./rest-timer.js";
 
 /** @import { Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
@@ -246,6 +247,7 @@ export async function workoutScreen({
             warmUp: choice.flag === "warmUp",
             drop: choice.flag === "drop",
           });
+          startRest(forge.restAfterSet(exerciseId));
           onLogged();
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
@@ -345,6 +347,7 @@ export async function workoutScreen({
       ),
     ),
     undo,
+    restBar(),
     h(
       "div",
       { class: "entry" },
