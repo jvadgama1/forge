@@ -1,6 +1,6 @@
 // The Log tab's one-time line about a workout finished automatically (#45):
 // "Sunday's workout was finished at 7:42 pm. 5 exercises, 18 sets."
-import { countOf } from "./screen.js";
+import { countOf, pad2 } from "./screen.js";
 
 const WEEKDAYS = [
   "Sunday",
@@ -60,6 +60,5 @@ export function autoFinishedLine({
  */
 function clockTime(time) {
   const hour = time.getHours() % 12 || 12;
-  const minute = String(time.getMinutes()).padStart(2, "0");
-  return `${hour}:${minute} ${time.getHours() < 12 ? "am" : "pm"}`;
+  return `${hour}:${pad2(time.getMinutes())} ${time.getHours() < 12 ? "am" : "pm"}`;
 }

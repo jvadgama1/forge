@@ -3,16 +3,14 @@
 // ends. Its state lives here, not in a screen, because logging a set redraws
 // the screen; it runs only while the app is open (spec #3).
 import { h } from "../dom.js";
-
-/** @param {number} n */
-const pad2 = (n) => String(n).padStart(2, "0");
+import { pad2 } from "./screen.js";
 
 /** Seconds added by one tap on +15 s. */
 const EXTEND = 15;
 
 /**
  * The rest in progress: when it ends, or, while paused, how long is left.
- * @type {{ endsAt: number, pausedLeft?: number, buzzed: boolean } | undefined}
+ * @type {{ endsAt: number, pausedLeft?: number, vibrated: boolean } | undefined}
  */
 let rest;
 /** @type {ReturnType<typeof setInterval> | undefined} */
@@ -29,17 +27,34 @@ function left() {
  * @param {number} seconds
  */
 export function startRest(seconds) {
-  rest = { endsAt: Date.now() + seconds * 1000, buzzed: false };
+  rest = { endsAt: Date.now() + seconds * 1000, vibrated: false };
+  run();
+}
+
+/** Ends the rest, if any: its set was undone, or its workout finished. */
+export function endRest() {
+  rest = undefined;
+  clearInterval(ticker);
+  redraw();
+}
+
+/** Ticks until the rest is over. */
+function run() {
   clearInterval(ticker);
   ticker = setInterval(tick, 250);
   redraw();
 }
 
-/** Each tick: buzz once at the end, if the app is in view, and redraw. */
+/**
+ * Redraws, and at the end vibrates once and stops ticking. Only if the app
+ * is in view: the timer runs only while the app is open (spec #3), and a
+ * buzz on coming back, long after, would mislead.
+ */
 function tick() {
   if (!rest) return;
-  if (!rest.buzzed && left() === 0) {
-    rest.buzzed = true;
+  if (left() === 0 && !rest.vibrated) {
+    rest.vibrated = true;
+    clearInterval(ticker);
     if (document.visibilityState === "visible")
       navigator.vibrate?.([300, 150, 300]);
   }
@@ -60,14 +75,11 @@ function extend() {
   if (!rest) return;
   if (rest.pausedLeft !== undefined) rest.pausedLeft += EXTEND * 1000;
   else rest.endsAt = Math.max(rest.endsAt, Date.now()) + EXTEND * 1000;
-  rest.buzzed = left() === 0;
-  redraw();
-}
-
-function dismiss() {
-  rest = undefined;
-  clearInterval(ticker);
-  redraw();
+  // Extended after it was over: it runs and vibrates again.
+  if (rest.vibrated) {
+    rest.vibrated = false;
+    run();
+  } else redraw();
 }
 
 /**
@@ -115,7 +127,7 @@ export function restBar() {
       more,
       h(
         "button",
-        { class: "chip", type: "button", onclick: dismiss },
+        { class: "chip", type: "button", onclick: endRest },
         "Dismiss",
       ),
     ),
@@ -131,7 +143,6 @@ export function restBar() {
     time.textContent = `${Math.floor(seconds / 60)}:${pad2(seconds % 60)}`;
     pause.textContent = paused ? "Resume" : "Pause";
     pause.hidden = done;
-    more.hidden = done;
     bar.toggleAttribute("data-done", done);
     return bar.isConnected;
   };

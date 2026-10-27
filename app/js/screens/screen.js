@@ -11,6 +11,12 @@ import { h } from "../dom.js";
  */
 
 /**
+ * Two digits: 3 → "03", for set numbers and clock times.
+ * @param {number} n
+ */
+export const pad2 = (n) => String(n).padStart(2, "0");
+
+/**
  * A count with its noun: "1 set", "3 sets".
  * @param {number} n
  * @param {string} one
