@@ -6,6 +6,7 @@ import { screen } from "./screen.js";
 import { workoutHeader, workoutScreen } from "./workout.js";
 
 /** @import { ScreenContext } from "./screen.js" */
+/** @import { RecordKind } from "../core/types.js" */
 
 /**
  * The Log tab (#11): the workout in progress, on the exercise asked for (a
@@ -18,7 +19,11 @@ export function logView({ forge, id }) {
   show();
   return root;
 
-  async function show() {
+  /**
+   * @param {RecordKind[]} [records] the records the set just logged beat
+   *   (#13), to celebrate once
+   */
+  async function show(records = []) {
     const workout = await forge.currentWorkout();
     if (!workout) {
       root.replaceChildren(await startScreen());
@@ -67,6 +72,7 @@ export function logView({ forge, id }) {
         workout,
         exerciseId,
         gymName,
+        records,
         onLogged: show,
       }),
     );

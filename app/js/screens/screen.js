@@ -10,6 +10,30 @@ import { h } from "../dom.js";
  * @typedef {{ user: User, forge: Forge, signOut: () => Promise<void>, id: string | undefined }} ScreenContext
  */
 
+export const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/**
+ * A workout date as DESIGN.md writes it: "2026-10-14" → "Oct 14".
+ * @param {string} date YYYY-MM-DD
+ */
+export function monthDay(date) {
+  const [, month, day] = date.split("-").map(Number);
+  return `${MONTHS[month - 1]} ${day}`;
+}
+
 /**
  * Two digits: 3 → "03", for set numbers and clock times.
  * @param {number} n

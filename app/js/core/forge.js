@@ -1,10 +1,83 @@
-/** @import { Exercise, ExerciseFilter, Gym, Settings, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { Exercise, ExerciseFilter, ExerciseInWorkout, Gym, RecordKind, Settings, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
 // A workout left this long after its last set (or its start, with no sets)
 // was abandoned, not paused: no real workout rests 3 hours (#45).
 const ABANDONED_AFTER = 3 * 60 * 60_000;
+
+// Records compare loads in kg, so a unit change doesn't fake one (spec #3).
+const KG_PER_LB = 0.45359237;
+
+/**
+ * A set's load in kg.
+ * @param {{ load: number, unit: "lb" | "kg" }} weighed
+ */
+const inKg = ({ load, unit }) => (unit === "kg" ? load : load * KG_PER_LB);
+
+/**
+ * The same load in either unit, to the gram: the key for reps at a load.
+ * @param {{ load: number, unit: "lb" | "kg" }} weighed
+ */
+const loadKey = (weighed) => Math.round(inKg(weighed) * 1000);
+
+/**
+ * Neither a warm-up nor a drop set (GLOSSARY: Working set).
+ * @param {WorkoutSet} set
+ */
+const working = (set) => !set.warmUp && !set.drop;
+
+/**
+ * Epley's estimated one-rep max (spec #3, Rules), in the set's unit: for
+ * working sets of 1 to 12 reps with a load.
+ * @param {WorkoutSet} set
+ * @returns {number | undefined}
+ */
+function e1rm(set) {
+  if (!working(set) || set.load <= 0 || set.reps < 1 || set.reps > 12)
+    return undefined;
+  return set.load * (1 + set.reps / 30);
+}
+
+/**
+ * Records from a set of sets (spec #3, Rules): the heaviest working load,
+ * the best e1RM (when `withE1rm`), and the most reps at each load, heaviest
+ * load first.
+ * @param {WorkoutSet[]} sets
+ * @param {boolean} withE1rm
+ */
+function recordsOf(sets, withE1rm) {
+  const done = sets.filter(working);
+  /** @type {{ load: number, unit: "lb" | "kg" } | undefined} */
+  let heaviest;
+  /** @type {{ set: WorkoutSet, value: number } | undefined} */
+  let bestE1rm;
+  /** @type {Map<number, { load: number, unit: "lb" | "kg", reps: number }>} */
+  const atLoad = new Map();
+  for (const set of done) {
+    if (!heaviest || inKg(set) > inKg(heaviest))
+      heaviest = { load: set.load, unit: set.unit };
+    const value = withE1rm ? e1rm(set) : undefined;
+    if (
+      value !== undefined &&
+      (!bestE1rm ||
+        inKg({ ...set, load: value }) >
+          inKg({ ...bestE1rm.set, load: bestE1rm.value }))
+    )
+      bestE1rm = { set, value };
+    const key = loadKey(set);
+    if ((atLoad.get(key)?.reps ?? 0) < set.reps)
+      atLoad.set(key, { load: set.load, unit: set.unit, reps: set.reps });
+  }
+  const repsAtLoad = [...atLoad.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([, r]) => r);
+  return {
+    ...(heaviest && { heaviest }),
+    ...(bestE1rm && { bestE1rm }),
+    repsAtLoad,
+  };
+}
 
 /**
  * The Forge core: every phase 1 rule, with no DOM or Firestore inside.
@@ -350,6 +423,75 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
+     * The exercise's last workout (spec #3, Rules): the most recent finished
+     * workout by workout date that has its sets, never `excluding` (the
+     * current one). A back-dated workout counts by its date, not when it was
+     * logged.
+     * @param {string} exerciseId
+     * @param {string} [excluding]
+     * @returns {Promise<ExerciseInWorkout | undefined>}
+     */
+    async lastWorkout(exerciseId, excluding) {
+      return (await history(exerciseId)).find(
+        (h) => h.workout.finishedAt && h.workout.id !== excluding,
+      );
+    },
+
+    history,
+
+    e1rm,
+
+    /**
+     * The exercise's records (spec #3, Rules), from its working sets.
+     * @param {string} exerciseId
+     */
+    async records(exerciseId) {
+      const sets = (await history(exerciseId)).flatMap((h) => h.sets);
+      return recordsOf(sets, await estimates(exerciseId));
+    },
+
+    /**
+     * The records the exercise's latest set in `workout` beats (spec #3,
+     * story 40), for the celebration: none for a warm-up or drop set, and
+     * none in the first workout with the exercise, where every better set
+     * would otherwise count. After that, the workout's earlier sets count
+     * too. Matching a record isn't beating it.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     * @returns {Promise<RecordKind[]>}
+     */
+    async recordsSetBy(workout, exerciseId) {
+      const sets = workout.entries.find(
+        (e) => e.exerciseId === exerciseId,
+      )?.sets;
+      const latest = sets?.at(-1);
+      if (!sets || !latest || !working(latest)) return [];
+      const others = (await history(exerciseId))
+        .filter((h) => h.workout.id !== workout.id)
+        .flatMap((h) => h.sets);
+      if (others.length === 0) return [];
+      const withE1rm = await estimates(exerciseId);
+      const before = recordsOf([...others, ...sets.slice(0, -1)], withE1rm);
+      if (!before.heaviest) return [];
+      /** @type {RecordKind[]} */
+      const beaten = [];
+      if (inKg(latest) > inKg(before.heaviest)) beaten.push("heaviest");
+      const estimate = withE1rm ? e1rm(latest) : undefined;
+      if (
+        estimate !== undefined &&
+        before.bestE1rm &&
+        inKg({ ...latest, load: estimate }) >
+          inKg({ ...before.bestE1rm.set, load: before.bestE1rm.value })
+      )
+        beaten.push("e1rm");
+      const atLoad = before.repsAtLoad.find(
+        (r) => loadKey(r) === loadKey(latest),
+      );
+      if (atLoad && latest.reps > atLoad.reps) beaten.push("reps");
+      return beaten;
+    },
+
+    /**
      * What the next set of an exercise starts filled in with: the previous
      * set's load and reps (spec #3, story 28). The first set starts empty
      * until last workouts and suggestions arrive (#13, #15).
@@ -443,6 +585,42 @@ export function createForge({ store, library, now = () => new Date() }) {
    * Alphabetically, so the order never shuffles (the maintainer's choice, #10).
    * @returns {Promise<Gym[]>}
    */
+  /**
+   * Every workout with sets of the exercise, newest first by workout date
+   * (spec #3, story 50), the one in progress included.
+   * @param {string} exerciseId
+   * @returns {Promise<ExerciseInWorkout[]>}
+   */
+  async function history(exerciseId) {
+    const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
+    return workouts
+      .map((workout) => ({
+        workout,
+        sets:
+          workout.entries.find((e) => e.exerciseId === exerciseId)?.sets ?? [],
+      }))
+      .filter((h) => h.sets.length > 0)
+      .sort(
+        (a, b) =>
+          b.workout.date.localeCompare(a.workout.date) ||
+          b.workout.startedAt.localeCompare(a.workout.startedAt),
+      );
+  }
+
+  /**
+   * Whether the exercise's sets have an e1RM: weight × reps only, until body
+   * weight arrives for bodyweight exercises (#18, #19).
+   * @param {string} exerciseId
+   */
+  async function estimates(exerciseId) {
+    const exercise =
+      library.find((e) => e.id === exerciseId) ??
+      /** @type {Exercise | undefined} */ (
+        await store.get("customExercises", exerciseId)
+      );
+    return exercise?.type === "weight-reps";
+  }
+
   async function listGyms() {
     const gyms = /** @type {Gym[]} */ (await store.list("gyms"));
     return gyms.sort((a, b) => a.name.localeCompare(b.name));

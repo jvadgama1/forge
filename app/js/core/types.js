@@ -68,6 +68,17 @@
  */
 
 /**
+ * One exercise's sets in one workout, for its last workout and history.
+ * @typedef {{ workout: Workout, sets: WorkoutSet[] }} ExerciseInWorkout
+ */
+
+/**
+ * A record a set can beat (GLOSSARY: Record): heaviest load, best e1RM, most
+ * reps at a load.
+ * @typedef {"heaviest" | "e1rm" | "reps"} RecordKind
+ */
+
+/**
  * The user's settings: one document, id "user", created on first change.
  * @typedef {object} Settings
  * @property {"user"} id

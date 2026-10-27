@@ -87,11 +87,56 @@ const logThenRest = (seconds) => async (page) => {
     .waitFor();
 };
 
-/** A made-up workout in progress at Work: two bench sets logged, then two to go. */
+/**
+ * A finished made-up workout of bench press sets, for history (#13).
+ * @param {string} date YYYY-MM-DD
+ * @param {Array<[load: number, reps: number, rir?: number]>} sets
+ */
+const benchDay = (date, sets) => ({
+  id: `w-${date}`,
+  date,
+  startedAt: `${date}T18:00:00.000Z`,
+  finishedAt: `${date}T19:00:00.000Z`,
+  gymId: "gym-work",
+  entries: [
+    {
+      exerciseId: "barbell-bench-press",
+      sets: sets.map(([load, reps, rir]) => ({
+        load,
+        unit: "lb",
+        reps,
+        ...(rir === undefined ? {} : { rir }),
+        loggedAt: `${date}T18:10:00.000Z`,
+      })),
+    },
+  ],
+});
+
+/** A made-up workout in progress at Work: two bench sets logged, then two to go, after four earlier bench workouts. */
 const WORKOUT = {
   gyms: GYMS.gyms,
   settings: [{ id: "user", lastGymId: "gym-work", workoutInProgress: "w-now" }],
   workouts: [
+    benchDay("2026-09-23", [
+      [125, 10],
+      [125, 9],
+      [125, 8],
+    ]),
+    benchDay("2026-09-30", [
+      [130, 10],
+      [130, 9],
+      [130, 8],
+    ]),
+    benchDay("2026-10-07", [
+      [130, 12],
+      [130, 11],
+      [130, 10],
+    ]),
+    benchDay("2026-10-14", [
+      [135, 10],
+      [135, 9],
+      [135, 8, 1],
+    ]),
     {
       id: "w-now",
       date: "2026-10-25",
@@ -319,6 +364,34 @@ export const SHOTS = [
       await page.getByRole("button", { name: "Undo last set" }).click();
       await page.getByRole("button", { name: /Tap again to undo/ }).click();
       await page.getByRole("button", { name: /Log set 02/ }).waitFor();
+    },
+  },
+  {
+    name: "history",
+    as: "owner",
+    route: "/log/history/barbell-bench-press",
+    seed: WORKOUT,
+  },
+  {
+    name: "history-tapped",
+    as: "owner",
+    route: "/log/history/barbell-bench-press",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await page.locator(".chart").focus();
+      await page.keyboard.press("ArrowLeft");
+      await page.locator(".chart-tip", { hasText: "Oct 14" }).waitFor();
+    },
+  },
+  {
+    name: "record",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await page.getByRole("textbox", { name: "Load in lb" }).fill("140");
+      await page.getByRole("button", { name: /Log set 03/ }).click();
+      await page.getByText(/New record/).waitFor();
     },
   },
   {
