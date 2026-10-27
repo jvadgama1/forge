@@ -914,3 +914,32 @@ select.small-number {
 .save-changes {
   margin-top: 16px;
 }
+
+/* Body weight (#18) */
+.weight-load {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weight-load .search {
+  flex: 1;
+  min-width: 0;
+}
+
+.weight-load .chips {
+  flex: none;
+  padding: 0;
+  overflow: visible;
+}
+
+.weight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.weight-edit {
+  flex: 1;
+}

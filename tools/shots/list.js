@@ -362,8 +362,37 @@ const ROUTINE_WORKOUT = {
   ],
 };
 
+/** Made-up body weight entries (#18). */
+const WEIGHTS = {
+  ...GYMS,
+  bodyWeights: [
+    ["2026-10-25", 181.6],
+    ["2026-10-21", 182.4],
+    ["2026-10-18", 182.1],
+    ["2026-10-14", 183.0],
+  ].map(([date, load]) => ({
+    id: `bw-${date}`,
+    date,
+    load,
+    unit: "lb",
+    loggedAt: `${date}T07:30:00.000Z`,
+  })),
+};
+
 /** @type {Shot[]} */
 export const SHOTS = [
+  { name: "body-weight-empty", as: "owner", route: "/body-weight", seed: GYMS },
+  { name: "body-weight", as: "owner", route: "/body-weight", seed: WEIGHTS },
+  {
+    name: "body-weight-edit",
+    as: "owner",
+    route: "/body-weight",
+    seed: WEIGHTS,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "Edit" }).nth(1).click();
+      await page.getByRole("button", { name: "Cancel" }).waitFor();
+    },
+  },
   { name: "routines", as: "owner", route: "/routines", seed: ROUTINE },
   { name: "routine", as: "owner", route: "/routines/r-ppl", seed: ROUTINE },
   {

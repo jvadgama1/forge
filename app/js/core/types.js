@@ -69,6 +69,16 @@
  */
 
 /**
+ * A dated body-weight reading (GLOSSARY: Body weight entry; #18).
+ * @typedef {object} BodyWeight
+ * @property {string} id
+ * @property {string} date Local date, YYYY-MM-DD.
+ * @property {number} load
+ * @property {"lb" | "kg"} unit
+ * @property {string} loggedAt ISO 8601 timestamp: orders two on one date.
+ */
+
+/**
  * Which routine day to start (#14).
  * @typedef {{ routineId: string, dayId: string }} RoutineDayRef
  */
