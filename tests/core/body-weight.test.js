@@ -77,14 +77,33 @@ describe("body weight entries (#18)", () => {
     ).rejects.toThrow("That date hasn't happened yet");
     await expect(
       f.addBodyWeight({ date: "2026-10-25", load: 0, unit: "lb" }),
-    ).rejects.toThrow("Body weight is more than 0 and under 1,000");
+    ).rejects.toThrow("Enter a weight above 0 and under 1,000");
     await expect(
       f.addBodyWeight({ date: "2026-10-25", load: Number.NaN, unit: "kg" }),
-    ).rejects.toThrow("Body weight is more than 0 and under 1,000");
+    ).rejects.toThrow("Enter a weight above 0 and under 1,000");
   });
 });
 
 describe("body weight on a date (#18)", () => {
+  it("counts the entry logged later as the latest on a date, even after an earlier one is edited", async () => {
+    const { f, later } = setup();
+    const first = await f.addBodyWeight({
+      date: "2026-10-20",
+      load: 183,
+      unit: "lb",
+    });
+    later(1);
+    await f.addBodyWeight({ date: "2026-10-21", load: 182, unit: "lb" });
+    later(1);
+    // The first entry is moved onto the 21st: the one logged later still wins.
+    await f.updateBodyWeight(first.id, {
+      date: "2026-10-21",
+      load: 183.5,
+      unit: "lb",
+    });
+    expect((await f.bodyWeightOn("2026-10-21"))?.load).toBe(182);
+  });
+
   it("is the latest entry on or before the date", async () => {
     const { f, later } = setup();
     await f.addBodyWeight({ date: "2026-10-01", load: 185, unit: "lb" });

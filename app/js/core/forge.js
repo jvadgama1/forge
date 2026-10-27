@@ -1,4 +1,4 @@
-/** @import { BodyWeight, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -298,11 +298,11 @@ export function createForge({ store, library, now = () => new Date() }) {
 
     /**
      * Adds a body weight entry (spec #3, story 56): any date up to today.
-     * @param {Omit<BodyWeight, "id" | "loggedAt">} entry
-     * @returns {Promise<BodyWeight>}
+     * @param {Omit<BodyWeightEntry, "id" | "loggedAt">} entry
+     * @returns {Promise<BodyWeightEntry>}
      */
     async addBodyWeight(entry) {
-      /** @type {BodyWeight} */
+      /** @type {BodyWeightEntry} */
       const added = {
         id: crypto.randomUUID(),
         ...checkBodyWeight(entry),
@@ -313,13 +313,14 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Corrects a body weight entry (#18).
+     * Corrects a body weight entry (#18), keeping when it was logged, so it
+     * keeps its place among entries on one date.
      * @param {string} id
-     * @param {Omit<BodyWeight, "id" | "loggedAt">} entry
-     * @returns {Promise<BodyWeight>}
+     * @param {Omit<BodyWeightEntry, "id" | "loggedAt">} entry
+     * @returns {Promise<BodyWeightEntry>}
      */
     async updateBodyWeight(id, entry) {
-      const saved = /** @type {BodyWeight | undefined} */ (
+      const saved = /** @type {BodyWeightEntry | undefined} */ (
         await store.get("bodyWeights", id)
       );
       if (!saved) throw new Error("Body weight entry not found");
@@ -329,6 +330,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
+     * Deletes a body weight entry (#18).
      * @param {string} id
      */
     async deleteBodyWeight(id) {
@@ -338,11 +340,19 @@ export function createForge({ store, library, now = () => new Date() }) {
     listBodyWeights,
 
     /**
+     * Today's date where the user is, YYYY-MM-DD, by the core's clock: the
+     * default and latest date a screen offers (#18).
+     */
+    today() {
+      return localDate(now());
+    },
+
+    /**
      * The body weight on a date (spec #3, story 57): the latest entry on or
      * before it, for bodyweight exercises' load (#19); none before the
      * first entry.
      * @param {string} date YYYY-MM-DD
-     * @returns {Promise<BodyWeight | undefined>}
+     * @returns {Promise<BodyWeightEntry | undefined>}
      */
     async bodyWeightOn(date) {
       return (await listBodyWeights()).find((e) => e.date <= date);
@@ -824,10 +834,10 @@ export function createForge({ store, library, now = () => new Date() }) {
 
   /**
    * Body weight entries, newest first by date, then by when logged (#18).
-   * @returns {Promise<BodyWeight[]>}
+   * @returns {Promise<BodyWeightEntry[]>}
    */
   async function listBodyWeights() {
-    const entries = /** @type {BodyWeight[]} */ (
+    const entries = /** @type {BodyWeightEntry[]} */ (
       await store.list("bodyWeights")
     );
     return entries.sort(
@@ -837,9 +847,10 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * A body weight entry that can be right: a real date no later than today,
-   * and a load above 0 and under 1,000 in lb or kg.
-   * @param {Omit<BodyWeight, "id" | "loggedAt">} entry
+   * A body weight entry that can be right (#18): a real date no later than
+   * today, and a load above 0 and under 1,000 in lb or kg. The bound catches
+   * a slipped decimal point (1816 for 181.6).
+   * @param {Omit<BodyWeightEntry, "id" | "loggedAt">} entry
    */
   function checkBodyWeight({ date, load, unit }) {
     const [year, month, day] = date.split("-").map(Number);
@@ -853,7 +864,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     if (date > localDate(now()))
       throw new Error("That date hasn't happened yet");
     if (!(load > 0 && load < 1000))
-      throw new Error("Body weight is more than 0 and under 1,000");
+      throw new Error("Enter a weight above 0 and under 1,000");
     if (unit !== "lb" && unit !== "kg") throw new Error("Pick lb or kg");
     return { date, load, unit };
   }

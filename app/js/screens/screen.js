@@ -41,6 +41,54 @@ export function monthDay(date) {
 export const pad2 = (n) => String(n).padStart(2, "0");
 
 /**
+ * A typed number, forgiving a decimal comma ("2,5"); blank is no number, so
+ * the core refuses it with a message.
+ * @param {HTMLInputElement} field
+ */
+export function typedNumber(field) {
+  const text = field.value.trim().replace(",", ".");
+  return text === "" ? Number.NaN : Number(text);
+}
+
+/**
+ * A date as a list shows it: "Oct 25", with the year when it isn't this
+ * year's ("Dec 28, 2025"), so a list across New Year reads right.
+ * @param {string} date YYYY-MM-DD
+ * @param {string} today YYYY-MM-DD
+ */
+export const listDate = (date, today) =>
+  date.slice(0, 4) === today.slice(0, 4)
+    ? monthDay(date)
+    : `${monthDay(date)}, ${date.slice(0, 4)}`;
+
+/**
+ * A button that acts on its second tap, since what it does can't be undone
+ * (#10, #18): the first tap says, in words, what a second tap will do.
+ * @param {{ className: string, text: string, again: () => string, act: () => unknown }} button
+ */
+export function twoTapButton({ className, text, again, act }) {
+  let armed = false;
+  const button = h(
+    "button",
+    {
+      class: className,
+      type: "button",
+      onclick: async () => {
+        if (!armed) {
+          armed = true;
+          button.textContent = again();
+          return;
+        }
+        button.disabled = true;
+        await act();
+      },
+    },
+    text,
+  );
+  return button;
+}
+
+/**
  * A count with its noun: "1 set", "3 sets".
  * @param {number} n
  * @param {string} one

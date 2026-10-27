@@ -943,3 +943,20 @@ select.small-number {
 .weight-edit {
   flex: 1;
 }
+
+.weight-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.weight-main .name {
+  font: 800 20px var(--font-display);
+  text-transform: uppercase;
+}
+
+.weight-actions {
+  display: flex;
+  gap: 6px;
+}

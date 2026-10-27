@@ -1,27 +1,37 @@
 import { h } from "../dom.js";
 import { choiceChips } from "./exercise-list.js";
-import { monthDay, pad2, screen } from "./screen.js";
+import { listDate, screen, twoTapButton, typedNumber } from "./screen.js";
 
-/** @import { BodyWeight } from "../core/types.js" */
+/** @import { BodyWeightEntry } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
-/** Today where the user is, as YYYY-MM-DD: the date field's default. */
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+/**
+ * A line for a refusal from the core, hidden until there is one.
+ * @returns {HTMLParagraphElement & { say: (message: string) => void }}
+ */
+function statusLine() {
+  const line = h("p", { class: "lede", role: "status", hidden: true });
+  return Object.assign(line, {
+    /** @param {string} message */
+    say: (message) => {
+      line.textContent = message;
+      line.hidden = message === "";
+    },
+  });
 }
 
 /**
- * The fields of an entry: date, load and unit.
+ * The fields of an entry: date (no later than `today`), load and unit.
  * @param {{ date: string, load?: number, unit: "lb" | "kg" }} start
+ * @param {string} today YYYY-MM-DD
  */
-function entryFields({ date, load, unit }) {
+function entryFields({ date, load, unit }, today) {
   const chosen = { unit };
   const dateField = h("input", {
     class: "search",
     type: "date",
     value: date,
-    max: today(),
+    max: today,
     "aria-label": "Date",
   });
   const loadField = h("input", {
@@ -48,7 +58,7 @@ function entryFields({ date, load, unit }) {
     /** The entry as typed; the core says what's wrong with it. */
     read: () => ({
       date: dateField.value,
-      load: Number(loadField.value.trim().replace(",", ".") || Number.NaN),
+      load: typedNumber(loadField),
       unit: chosen.unit,
     }),
   };
@@ -66,16 +76,12 @@ export function bodyWeightView({ forge }) {
 
   async function show() {
     const entries = await forge.listBodyWeights();
-    const fields = entryFields({
-      date: today(),
-      unit: entries[0]?.unit ?? "lb",
-    });
-    const status = h("p", { class: "lede", role: "status" });
-    const list = h(
-      "ul",
-      { class: "list weights" },
-      ...entries.map((entry) => entryRow(entry)),
+    const today = forge.today();
+    const fields = entryFields(
+      { date: today, unit: entries[0]?.unit ?? "lb" },
+      today,
     );
+    const status = statusLine();
     root.replaceChildren(
       screen(
         "Body weight",
@@ -85,12 +91,12 @@ export function bodyWeightView({ forge }) {
             class: "add-form",
             onsubmit: async (e) => {
               e.preventDefault();
-              status.textContent = "";
+              status.say("");
               try {
                 await forge.addBodyWeight(fields.read());
                 show();
               } catch (error) {
-                status.textContent = /** @type {Error} */ (error).message;
+                status.say(/** @type {Error} */ (error).message);
               }
             },
           },
@@ -103,53 +109,50 @@ export function bodyWeightView({ forge }) {
           ),
         ),
         status,
-        entries.length ? list : h("p", { class: "lede" }, "No entries yet."),
+        entries.length
+          ? h(
+              "ul",
+              { class: "list" },
+              ...entries.map((entry) => entryRow(entry, today)),
+            )
+          : h("p", { class: "lede" }, "No entries yet."),
       ),
     );
   }
 
   /**
-   * One entry: its date and weight, with Edit and Delete (two taps).
-   * @param {BodyWeight} entry
+   * One entry: its weight and date, with Edit and a two-tap Delete.
+   * @param {BodyWeightEntry} entry
+   * @param {string} today
    */
-  function entryRow(entry) {
+  function entryRow(entry, today) {
     const row = h("li", { class: "weight-row" });
-    let armed = false;
-    const remove = h(
-      "button",
-      {
-        class: "chip",
-        type: "button",
-        onclick: async () => {
-          if (!armed) {
-            armed = true;
-            remove.textContent = "Tap again to delete";
-            return;
-          }
-          await forge.deleteBodyWeight(entry.id);
-          show();
-        },
-      },
-      "Delete",
-    );
     const view = () =>
       row.replaceChildren(
         h(
           "div",
-          { class: "workout-row-main" },
+          { class: "weight-main" },
           h("span", { class: "name" }, `${entry.load} ${entry.unit}`),
-          h("span", { class: "label" }, monthDay(entry.date)),
+          h("span", { class: "label" }, listDate(entry.date, today)),
         ),
         h(
           "div",
-          { class: "workout-row-actions" },
+          { class: "weight-actions" },
           h("button", { class: "chip", type: "button", onclick: edit }, "Edit"),
-          remove,
+          twoTapButton({
+            className: "chip",
+            text: "Delete",
+            again: () => "Tap again to delete",
+            act: async () => {
+              await forge.deleteBodyWeight(entry.id);
+              show();
+            },
+          }),
         ),
       );
     function edit() {
-      const fields = entryFields(entry);
-      const status = h("p", { class: "lede", role: "status" });
+      const fields = entryFields(entry, today);
+      const status = statusLine();
       row.replaceChildren(
         h(
           "form",
@@ -157,18 +160,19 @@ export function bodyWeightView({ forge }) {
             class: "add-form weight-edit",
             onsubmit: async (e) => {
               e.preventDefault();
+              status.say("");
               try {
                 await forge.updateBodyWeight(entry.id, fields.read());
                 show();
               } catch (error) {
-                status.textContent = /** @type {Error} */ (error).message;
+                status.say(/** @type {Error} */ (error).message);
               }
             },
           },
           ...fields.nodes,
           h(
             "div",
-            { class: "workout-row-actions" },
+            { class: "weight-actions" },
             h("button", { class: "chip", type: "submit" }, "Save"),
             h(
               "button",

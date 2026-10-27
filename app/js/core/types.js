@@ -69,13 +69,10 @@
  */
 
 /**
- * A dated body-weight reading (GLOSSARY: Body weight entry; #18).
- * @typedef {object} BodyWeight
- * @property {string} id
- * @property {string} date Local date, YYYY-MM-DD.
- * @property {number} load
- * @property {"lb" | "kg"} unit
- * @property {string} loggedAt ISO 8601 timestamp: orders two on one date.
+ * A dated body-weight reading (GLOSSARY: Body weight entry; #18). `loggedAt`
+ * orders two on one date: the one logged later is the latest, and an edit
+ * keeps its place.
+ * @typedef {Load & { id: string, date: string, loggedAt: string }} BodyWeightEntry
  */
 
 /**
