@@ -21,6 +21,9 @@ export function logView({ forge, id }) {
     const workout = await forge.currentWorkout();
     if (!workout) {
       root.replaceChildren(await startScreen());
+      // Mentioned once it's actually on screen (#45).
+      if (root.isConnected && root.querySelector("[data-auto-finished]"))
+        await forge.dismissAutoFinished();
       return;
     }
     const gymName = (await forge.getGym(workout.gymId))?.name ?? "this gym";
@@ -124,20 +127,21 @@ export function logView({ forge, id }) {
     );
   }
 
-  /** A workout finished for the user since the last visit (#45), once. */
+  /** A workout finished for the user since the last visit (#45). */
   async function autoFinishedNote() {
-    const workout = await forge.takeAutoFinished();
-    if (!workout?.finishedAt) return null;
+    const mention = await forge.autoFinished();
+    const workout = mention?.workout;
+    if (!mention || !workout?.finishedAt) return null;
     const { exercises, sets } = forge.summarize(workout);
     return h(
       "p",
-      { class: "lede" },
+      { class: "lede", "data-auto-finished": true },
       autoFinishedLine({
         date: workout.date,
+        daysAgo: mention.daysAgo,
         finishedAt: new Date(workout.finishedAt),
         exercises,
         sets,
-        now: new Date(),
       }),
     );
   }

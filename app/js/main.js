@@ -52,7 +52,13 @@ function resolve(path) {
   return { route: routes["/log"], id: undefined };
 }
 
-const auth = startAuth({ onChange: render, onSaveError: showSaveError });
+const auth = startAuth({
+  onChange: () => {
+    render();
+    finishAbandoned();
+  },
+  onSaveError: showSaveError,
+});
 
 function render() {
   const view = document.getElementById("view");
@@ -92,13 +98,18 @@ function render() {
 }
 
 window.addEventListener("hashchange", render);
-// Back from another app, a workout may have been abandoned meanwhile (#45).
-// Only then re-render: otherwise numbers typed but not logged would be lost.
-document.addEventListener("visibilitychange", async () => {
+/**
+ * Finishes a workout abandoned while the app was closed or away (#45), on
+ * whatever screen it opens to. Only then re-render: otherwise numbers typed
+ * but not logged would be lost.
+ */
+async function finishAbandoned() {
   const { state } = auth;
-  if (document.visibilityState !== "visible" || state.status !== "signed-in")
-    return;
+  if (state.status !== "signed-in") return;
   if (await state.forge.finishAbandonedWorkout()) render();
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") finishAbandoned();
 });
 render();
 

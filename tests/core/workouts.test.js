@@ -11,6 +11,7 @@ function setup() {
   const store = createMemoryStore();
   let clock = new Date(2026, 9, 25, 18, 0); // 25 Oct 2026, 18:00 local
   return {
+    store,
     forge: () => createForge({ store, library, now: () => clock }),
     /** @param {number} hour @param {number} minute @param {number} [day] of Oct 2026 */
     at: (hour, minute, day = 25) => {
@@ -426,23 +427,58 @@ describe("an abandoned workout (#45)", () => {
     const reopened = forge();
     expect(await reopened.currentWorkout()).toBeUndefined();
     expect(await reopened.getWorkout(id)).toBeUndefined();
-    expect(await reopened.takeAutoFinished()).toBeUndefined();
+    expect(await reopened.autoFinished()).toBeUndefined();
   });
 
-  it("is mentioned once", async () => {
+  it("is mentioned until the mention is dismissed, with how many days ago it was", async () => {
     const { forge, id, at } = await withSets();
     at(22, 0);
     const reopened = forge();
     await reopened.currentWorkout();
-    expect((await reopened.takeAutoFinished())?.id).toBe(id);
-    expect(await reopened.takeAutoFinished()).toBeUndefined();
-    expect(await forge().takeAutoFinished()).toBeUndefined();
+    const mention = await reopened.autoFinished();
+    expect(mention?.workout.id).toBe(id);
+    expect(mention?.daysAgo).toBe(0);
+    expect((await forge().autoFinished())?.workout.id).toBe(id); // after a reload
+    await reopened.dismissAutoFinished();
+    expect(await reopened.autoFinished()).toBeUndefined();
+    expect(await forge().autoFinished()).toBeUndefined();
+  });
+
+  it("counts days ago by calendar date", async () => {
+    const { forge, at } = await withSets();
+    at(0, 5, 27); // Tuesday, just after midnight
+    const reopened = forge();
+    await reopened.currentWorkout();
+    expect((await reopened.autoFinished())?.daysAgo).toBe(2);
   });
 
   it("isn't mentioned when finished by tapping Finish", async () => {
     const { f, id } = await withSets();
     await f.finishWorkout(id);
-    expect(await f.takeAutoFinished()).toBeUndefined();
+    expect(await f.autoFinished()).toBeUndefined();
+  });
+
+  it("keeps a finish already recorded, even if still marked in progress", async () => {
+    const { f, id, at, store } = await withSets();
+    at(18, 30);
+    await f.finishWorkout(id);
+    // The settings write after Finish was lost: still marked in progress.
+    await store.put("settings", { id: "user", workoutInProgress: id });
+    at(23, 0);
+    expect(await f.currentWorkout()).toBeUndefined();
+    expect(await f.finishAbandonedWorkout()).toBe(false);
+    expect(new Date((await f.getWorkout(id))?.finishedAt ?? "")).toEqual(
+      new Date(2026, 9, 25, 18, 30),
+    );
+    expect(await f.autoFinished()).toBeUndefined();
+  });
+
+  it("isn't reported finished when its document is gone", async () => {
+    const { forge, store } = setup();
+    await store.put("settings", { id: "user", workoutInProgress: "gone" });
+    const f = forge();
+    expect(await f.finishAbandonedWorkout()).toBe(false);
+    expect(await f.currentWorkout()).toBeUndefined();
   });
 
   it("is caught when the app comes back to the foreground", async () => {

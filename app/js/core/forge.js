@@ -141,6 +141,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      */
     startWorkout(gymId) {
       return inTurn(async () => {
+        await finishIfAbandoned();
         if (await workoutInProgress())
           throw new Error("A workout is already in progress");
         const started = now();
@@ -163,8 +164,17 @@ export function createForge({ store, library, now = () => new Date() }) {
       });
     },
 
-    /** @returns {Promise<Workout | undefined>} */
-    currentWorkout: () => inTurn(workoutInProgress),
+    /**
+     * The workout in progress, once any abandoned one is finished (#45), so
+     * it never reopens.
+     * @returns {Promise<Workout | undefined>}
+     */
+    currentWorkout() {
+      return inTurn(async () => {
+        await finishIfAbandoned();
+        return workoutInProgress();
+      });
+    },
 
     /**
      * @param {string} workoutId
@@ -192,33 +202,42 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Finishes the workout in progress if it was abandoned (#45), for when
-     * the app comes back to the foreground; opening it is covered by
-     * `currentWorkout`.
+     * Finishes the workout in progress if it was abandoned (#45): for when
+     * the app opens or comes back to the foreground, on any screen.
      * @returns {Promise<boolean>} whether one was finished or discarded
      */
     finishAbandonedWorkout() {
-      return inTurn(async () => {
-        if ((await settings()).workoutInProgress === undefined) return false;
-        return !(await workoutInProgress());
-      });
+      return inTurn(finishIfAbandoned);
     },
 
     /**
-     * The workout last finished automatically (#45), once: the Log tab
-     * mentions it a single time.
-     * @returns {Promise<Workout | undefined>}
+     * The workout last finished automatically (#45), to mention on the Log
+     * tab until `dismissAutoFinished`, with how many calendar days ago it
+     * was dated.
+     * @returns {Promise<{ workout: Workout, daysAgo: number } | undefined>}
      */
-    takeAutoFinished() {
+    async autoFinished() {
+      const { autoFinished: id } = await settings();
+      if (id === undefined) return undefined;
+      const workout = /** @type {Workout | undefined} */ (
+        await store.get("workouts", id)
+      );
+      if (!workout) return undefined;
+      const [year, month, day] = workout.date.split("-").map(Number);
+      const today = now();
+      const days =
+        Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
+        Date.UTC(year, month - 1, day);
+      return { workout, daysAgo: Math.round(days / 86_400_000) };
+    },
+
+    /** The auto-finished workout has been mentioned (#45): once is enough. */
+    dismissAutoFinished() {
       return inTurn(async () => {
         const changed = await settings();
-        const id = changed.autoFinished;
-        if (id === undefined) return undefined;
+        if (changed.autoFinished === undefined) return;
         delete changed.autoFinished;
         await store.put("settings", changed);
-        return /** @type {Workout | undefined} */ (
-          await store.get("workouts", id)
-        );
       });
     },
 
@@ -485,8 +504,9 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * The unfinished workout, if any: it survives closing the app (spec #3,
-   * story 43). One abandoned is finished first, so it never reopens (#45).
+   * The workout in progress, if any: it survives closing the app (spec #3,
+   * story 43). One already finished isn't, even if still marked so (the
+   * settings write after Finish failed, say).
    * @returns {Promise<Workout | undefined>}
    */
   async function workoutInProgress() {
@@ -495,12 +515,21 @@ export function createForge({ store, library, now = () => new Date() }) {
     const workout = /** @type {Workout | undefined} */ (
       await store.get("workouts", id)
     );
-    if (!workout) return undefined;
+    return workout?.finishedAt ? undefined : workout;
+  }
+
+  /**
+   * Finishes the workout in progress if it was abandoned (#45), at the time
+   * of its last set. Callers hold the turn.
+   * @returns {Promise<boolean>} whether one was finished or discarded
+   */
+  async function finishIfAbandoned() {
+    const workout = await workoutInProgress();
+    if (!workout) return false;
     const lastActive = lastActivity(workout);
-    if (now().getTime() - lastActive.getTime() < ABANDONED_AFTER)
-      return workout;
+    if (now().getTime() - lastActive.getTime() < ABANDONED_AFTER) return false;
     await finish(workout, lastActive, { auto: true });
-    return undefined;
+    return true;
   }
 
   /**
@@ -536,10 +565,10 @@ export function createForge({ store, library, now = () => new Date() }) {
     if (finished) await store.put("workouts", finished);
     else await store.remove("workouts", workout.id);
     const changed = await settings();
-    if (changed.workoutInProgress === workout.id)
-      delete changed.workoutInProgress;
+    const inProgress = changed.workoutInProgress === workout.id;
+    if (inProgress) delete changed.workoutInProgress;
     if (finished && auto) changed.autoFinished = workout.id;
-    await store.put("settings", changed);
+    if (inProgress || (finished && auto)) await store.put("settings", changed);
     return finished;
   }
 

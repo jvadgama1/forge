@@ -165,12 +165,13 @@ const WORKOUT_DONE = {
   ],
 };
 
+/** A local time on Friday 23 Oct 2026. */
+const local = (/** @type {number} */ hour, /** @type {number} */ minute) =>
+  new Date(2026, 9, 23, hour, minute).toISOString();
 /**
  * A workout left in progress since Friday evening (#45): opening the Log tab
  * finishes it at its last set, 7:42 pm local time.
  */
-const local = (/** @type {number} */ hour, /** @type {number} */ minute) =>
-  new Date(2026, 9, 23, hour, minute).toISOString();
 const ABANDONED = {
   gyms: GYMS.gyms,
   settings: [{ id: "user", lastGymId: "gym-work", workoutInProgress: "w-fri" }],

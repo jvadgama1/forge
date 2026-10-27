@@ -29,23 +29,26 @@ const MONTHS = [
 /**
  * @param {object} finished
  * @param {string} finished.date The workout's local date, YYYY-MM-DD.
+ * @param {number} finished.daysAgo Calendar days since that date.
  * @param {Date} finished.finishedAt
  * @param {number} finished.exercises
  * @param {number} finished.sets
- * @param {Date} finished.now
  */
-export function autoFinishedLine({ date, finishedAt, exercises, sets, now }) {
+export function autoFinishedLine({
+  date,
+  daysAgo,
+  finishedAt,
+  exercises,
+  sets,
+}) {
   const [year, month, day] = date.split("-").map(Number);
   const dated = new Date(year, month - 1, day);
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  // Calendar days apart; rounding absorbs a daylight-saving hour.
-  const daysAgo = Math.round((today.getTime() - dated.getTime()) / 86_400_000);
   const whose =
     daysAgo === 0
       ? "Today's workout"
       : daysAgo === 1
         ? "Yesterday's workout"
-        : daysAgo < 7
+        : daysAgo > 1 && daysAgo < 7
           ? `${WEEKDAYS[dated.getDay()]}'s workout`
           : `Your ${day} ${MONTHS[month - 1]} workout`;
   return `${whose} was finished at ${clockTime(finishedAt)}. ${countOf(exercises, "exercise")}, ${countOf(sets, "set")}.`;
