@@ -264,8 +264,133 @@ const ABANDONED = {
   ],
 };
 
+/** A made-up three-day routine (#14), saved once. */
+const PPL = {
+  id: "r-ppl",
+  name: "PPL Hypertrophy",
+  versions: [
+    {
+      number: 1,
+      savedAt: "2026-10-01T18:00:00.000Z",
+      days: [
+        {
+          id: "d-push",
+          name: "Push A",
+          slots: [
+            {
+              exerciseId: "barbell-bench-press",
+              sets: 3,
+              repMin: 6,
+              repMax: 10,
+              rir: 2,
+            },
+            { exerciseId: "incline-db-press", sets: 3, repMin: 8, repMax: 12 },
+            { exerciseId: "triceps-pushdown", sets: 3, repMin: 10, repMax: 15 },
+          ],
+        },
+        {
+          id: "d-pull",
+          name: "Pull A",
+          slots: [
+            {
+              exerciseId: "lat-pulldown",
+              sets: 4,
+              repMin: 8,
+              repMax: 12,
+              rir: 1,
+            },
+            { exerciseId: "seated-cable-row", sets: 3, repMin: 8, repMax: 12 },
+          ],
+        },
+        {
+          id: "d-legs",
+          name: "Legs A",
+          slots: [
+            { exerciseId: "leg-press", sets: 4, repMin: 10, repMax: 15 },
+            { exerciseId: "leg-extension", sets: 3, repMin: 12, repMax: 15 },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+/** Push A done on Oct 23, so Pull A is next. */
+const ROUTINE = {
+  gyms: GYMS.gyms,
+  settings: [{ id: "user", lastGymId: "gym-work" }],
+  routines: [PPL],
+  workouts: [
+    {
+      ...benchDay("2026-10-23", [[135, 8]]),
+      routine: { routineId: "r-ppl", version: 1, dayId: "d-push" },
+    },
+  ],
+};
+
+/** Pull A in progress, with an exercise added on the day. */
+const ROUTINE_WORKOUT = {
+  ...ROUTINE,
+  settings: [
+    { id: "user", lastGymId: "gym-work", workoutInProgress: "w-pull" },
+  ],
+  workouts: [
+    ...ROUTINE.workouts,
+    {
+      id: "w-pull",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:00:00.000Z",
+      gymId: "gym-work",
+      routine: { routineId: "r-ppl", version: 1, dayId: "d-pull" },
+      entries: [
+        {
+          exerciseId: "lat-pulldown",
+          sets: [
+            {
+              load: 120,
+              unit: "lb",
+              reps: 10,
+              rir: 2,
+              loggedAt: "2026-10-25T18:05:00.000Z",
+            },
+          ],
+        },
+        { exerciseId: "seated-cable-row", sets: [] },
+        { exerciseId: "cable-fly", sets: [] },
+      ],
+    },
+  ],
+};
+
 /** @type {Shot[]} */
 export const SHOTS = [
+  { name: "routines", as: "owner", route: "/routines", seed: ROUTINE },
+  { name: "routine", as: "owner", route: "/routines/r-ppl", seed: ROUTINE },
+  {
+    name: "routine-pick",
+    as: "owner",
+    route: "/routines/r-ppl",
+    seed: ROUTINE,
+    steps: async (page) => {
+      await page
+        .getByRole("button", { name: /Add exercise to Pull A/ })
+        .click();
+      await page.getByRole("heading", { name: "Add to Pull A" }).waitFor();
+    },
+  },
+  { name: "log-routines", as: "owner", route: "/log", seed: ROUTINE },
+  {
+    name: "routine-workout",
+    as: "owner",
+    route: "/log",
+    seed: ROUTINE_WORKOUT,
+  },
+  {
+    name: "routine-finish",
+    as: "owner",
+    route: "/log/exercises",
+    seed: ROUTINE_WORKOUT,
+  },
   { name: "checking", as: "checking" },
   { name: "sign-in", as: "signed-out" },
   { name: "not-owner", as: "not-owner" },
