@@ -71,7 +71,7 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 
 ## Look: "Slab" (chosen 2026-10-21)
 
-Bold editorial, from the style prototype (direction C): https://claude.ai/artifact/5NAGs3dJNCtG1kbNZ2Ncbd
+Bold editorial, from the style prototype (direction C): https://claude.ai/artifact/5NAGs3dJNCtG1kbNZ2Ncbd. Its two Slab boards, with a picture of each, are kept in [`docs/design/prototype/`](docs/design/prototype/).
 
 - Ground `#121212`, raised surface `#1c1c1c`, rules `#2a2a2a` / `#333333`, square corners (2–4 px).
 - Type: Big Shoulders Display (headings, big numerals, uppercase) + JetBrains Mono (labels, tables, body).
