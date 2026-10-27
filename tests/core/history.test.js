@@ -51,6 +51,35 @@ async function withHistory(/** @type {Workout[]} */ ...workouts) {
 }
 
 describe("last workout (#13)", () => {
+  it("shows its date, working sets and the last working set's RIR", async () => {
+    const { f } = await withHistory(
+      past("a", "2026-10-14", [
+        set(95, 10, { warmUp: true }),
+        set(135, 10),
+        set(135, 8, { rir: 1 }),
+        set(115, 12, { drop: true }),
+      ]),
+    );
+    expect(await f.lastWorkoutLine("bench-press")).toEqual({
+      date: "2026-10-14",
+      sets: [
+        { load: 135, unit: "lb", reps: 10 },
+        { load: 135, unit: "lb", reps: 8 },
+      ],
+      rir: 1,
+    });
+  });
+
+  it("says when it had only warm-ups", async () => {
+    const { f } = await withHistory(
+      past("a", "2026-10-14", [set(95, 10, { warmUp: true })]),
+    );
+    expect(await f.lastWorkoutLine("bench-press")).toEqual({
+      date: "2026-10-14",
+      sets: [],
+    });
+  });
+
   it("is the most recent finished workout by workout date that has the exercise", async () => {
     const { f } = await withHistory(
       past("a", "2026-10-14", [set(135, 8)]),
@@ -85,6 +114,17 @@ describe("last workout (#13)", () => {
 });
 
 describe("history (#13)", () => {
+  it("orders workouts on the same date by start time", async () => {
+    const { f } = await withHistory(
+      past("am", "2026-10-14", [set(135, 8)], "2026-10-14T08:00:00.000Z"),
+      past("pm", "2026-10-14", [set(135, 9)], "2026-10-14T18:00:00.000Z"),
+    );
+    expect((await f.history("bench-press")).map((h) => h.workout.id)).toEqual([
+      "pm",
+      "am",
+    ]);
+  });
+
   it("lists every workout with the exercise, newest first, the one in progress included", async () => {
     const { f } = await withHistory(
       past("old", "2026-10-01", [set(125, 8)]),
@@ -101,20 +141,68 @@ describe("history (#13)", () => {
   });
 });
 
-describe("e1RM (#13)", () => {
+describe("e1RM trend (#13)", () => {
+  /** @param {WorkoutSet[]} sets one workout's sets @returns the trend's one value */
+  const e1rmOf = async (sets) => {
+    const { f } = await withHistory(past("a", "2026-10-14", sets));
+    return (await f.e1rmTrend("bench-press")).points[0]?.value;
+  };
+
   it("is Epley's estimate for working sets of 1 to 12 reps", async () => {
-    const { f } = await withHistory();
-    expect(f.e1rm(set(100, 10))).toBeCloseTo(133.33, 2); // 100 × (1 + 10/30)
-    expect(f.e1rm(set(225, 1))).toBeCloseTo(232.5, 2); // 225 × (1 + 1/30)
-    expect(f.e1rm(set(60, 12))).toBeCloseTo(84, 2); // 60 × 1.4
+    expect(await e1rmOf([set(100, 10)])).toBeCloseTo(133.33, 2); // 100 × (1 + 10/30)
+    expect(await e1rmOf([set(225, 1)])).toBeCloseTo(232.5, 2); // 225 × (1 + 1/30)
+    expect(await e1rmOf([set(60, 12)])).toBeCloseTo(84, 2); // 60 × 1.4
   });
 
   it("isn't defined past 12 reps, for warm-up or drop sets, or with no load", async () => {
-    const { f } = await withHistory();
-    expect(f.e1rm(set(60, 13))).toBeUndefined();
-    expect(f.e1rm(set(100, 10, { warmUp: true }))).toBeUndefined();
-    expect(f.e1rm(set(100, 10, { drop: true }))).toBeUndefined();
-    expect(f.e1rm(set(0, 10))).toBeUndefined();
+    expect(await e1rmOf([set(60, 13)])).toBeUndefined();
+    expect(await e1rmOf([set(100, 10, { warmUp: true })])).toBeUndefined();
+    expect(await e1rmOf([set(100, 10, { drop: true })])).toBeUndefined();
+    expect(await e1rmOf([set(0, 10)])).toBeUndefined();
+  });
+
+  it("gives each workout's best, oldest first", async () => {
+    const { f } = await withHistory(
+      past("b", "2026-10-14", [set(135, 10), set(140, 5)]), // 180, 163.3
+      past("a", "2026-10-07", [set(130, 10)]), // 173.3
+    );
+    const trend = await f.e1rmTrend("bench-press");
+    expect(trend.unit).toBe("lb");
+    expect(trend.points.map((p) => [p.workoutId, p.date])).toEqual([
+      ["a", "2026-10-07"],
+      ["b", "2026-10-14"],
+    ]);
+    expect(trend.points[1].value).toBeCloseTo(180, 2);
+  });
+
+  it("is in the unit of the latest workout, comparing across units in kg", async () => {
+    const { f } = await withHistory(
+      past("a", "2026-10-07", [set(100, 10)]), // 133.33 lb = 60.48 kg
+      past("b", "2026-10-14", [
+        set(60, 10, { unit: "kg" }), // 80 kg
+        set(130, 10), // 173.33 lb = 78.62 kg: less, though the number is bigger
+      ]),
+    );
+    const trend = await f.e1rmTrend("bench-press");
+    expect(trend.unit).toBe("kg");
+    expect(trend.points[0].value).toBeCloseTo(60.48, 2);
+    expect(trend.points[1].value).toBeCloseTo(80, 2);
+  });
+
+  it("is empty for an exercise without e1RM (not weight × reps)", async () => {
+    const { f, store } = await withHistory({
+      ...past("a", "2026-10-14", []),
+      entries: [{ exerciseId: "dips", sets: [set(0, 12), set(25, 8)] }],
+    });
+    await store.put("customExercises", {
+      id: "dips",
+      name: "Dips",
+      type: "bodyweight-reps",
+      primary: ["chest", "triceps"],
+      secondary: [],
+      body: "upper",
+    });
+    expect((await f.e1rmTrend("dips")).points).toEqual([]);
   });
 });
 
@@ -142,6 +230,23 @@ describe("records (#13)", () => {
     ]);
   });
 
+  it("compare loads across units in kg", async () => {
+    const { f } = await withHistory(
+      past("a", "2026-10-07", [set(150, 8), set(132.3, 9)]),
+      past("b", "2026-10-14", [
+        set(70, 5, { unit: "kg" }), // 154.3 lb: heavier than 150 lb
+        set(60, 11, { unit: "kg" }), // the same load as 132.3 lb, to 100 g
+      ]),
+    );
+    const records = await f.records("bench-press");
+    expect(records.heaviest).toEqual({ load: 70, unit: "kg" });
+    expect(records.repsAtLoad).toEqual([
+      { load: 70, unit: "kg", reps: 5 },
+      { load: 150, unit: "lb", reps: 8 },
+      { load: 60, unit: "kg", reps: 11 },
+    ]);
+  });
+
   it("are empty for an exercise never done", async () => {
     const { f } = await withHistory();
     expect(await f.records("bench-press")).toEqual({ repsAtLoad: [] });
@@ -157,7 +262,7 @@ describe("a set that sets a record (#13)", () => {
     const work = await env.f.createGym("Work");
     const w = await env.f.startWorkout(work.id);
     await env.f.addExercise(w.id, "bench-press");
-    /** @param {{ load: number, reps: number, warmUp?: boolean }} s */
+    /** @param {{ load: number, reps: number, warmUp?: boolean, drop?: boolean }} s */
     const log = async (s) => {
       const workout = await env.f.logSet(w.id, "bench-press", s);
       return env.f.recordsSetBy(workout, "bench-press");
@@ -176,10 +281,24 @@ describe("a set that sets a record (#13)", () => {
     expect(await log({ load: 135, reps: 11 })).toEqual(["e1rm", "reps"]);
   });
 
-  it("isn't flagged when it only matches a record, or is a warm-up", async () => {
+  it("isn't flagged when it only matches a record, or is a warm-up or drop set", async () => {
     const { log } = await logging();
     expect(await log({ load: 135, reps: 10 })).toEqual([]);
     expect(await log({ load: 200, reps: 5, warmUp: true })).toEqual([]);
+    expect(await log({ load: 200, reps: 5, drop: true })).toEqual([]);
+  });
+
+  it("isn't flagged when earlier workouts had only warm-ups", async () => {
+    const { f } = await withHistory(
+      past("a", "2026-10-14", [set(95, 10, { warmUp: true })]),
+    );
+    const work = await f.createGym("Work");
+    const w = await f.startWorkout(work.id);
+    await f.addExercise(w.id, "bench-press");
+    for (const reps of [8, 10]) {
+      const workout = await f.logSet(w.id, "bench-press", { load: 135, reps });
+      expect(await f.recordsSetBy(workout, "bench-press")).toEqual([]);
+    }
   });
 
   it("isn't flagged in the first workout with the exercise, even beating an earlier set", async () => {

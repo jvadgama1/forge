@@ -7,7 +7,7 @@ import { choiceChips } from "./exercise-list.js";
 import { endRest, restBar, startRest } from "./rest-timer.js";
 import { monthDay, pad2 } from "./screen.js";
 
-/** @import { ExerciseInWorkout, RecordKind, Workout, WorkoutSet } from "../core/types.js" */
+/** @import { Load, RecordKind, Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
 
 /** @param {number} rir 0–4, where 4 means "4 or more" */
@@ -87,8 +87,11 @@ export function workoutHeader({ workout, gymName, position }) {
   ];
 }
 
+/** @param {Load} load as "135 lb" */
+export const loadText = ({ load, unit }) => `${load} ${unit}`;
+
 /** @param {WorkoutSet} set as "135 lb × 8" */
-const setText = (set) => `${set.load} ${set.unit} × ${set.reps}`;
+const setText = (set) => `${loadText(set)} × ${set.reps}`;
 
 /**
  * One logged set: number, load × reps, any flag, RIR and a tick.
@@ -117,66 +120,58 @@ export function setRow(set, index) {
 }
 
 /**
- * The exercise's last workout on one line (spec #3, story 25), as DESIGN.md
- * writes it: its date and the last working set's RIR, then each working set,
- * so it's what to beat. Tapping it opens the full history (#13).
+ * The exercise's last workout on one line (spec #3, story 25), in DESIGN.md's
+ * order (date, each working set, RIR) and the Slab prototype's coral-edged
+ * card. Tapping it opens the full history (#13).
  * @param {string} exerciseId
- * @param {ExerciseInWorkout} last
+ * @param {NonNullable<Awaited<ReturnType<Forge["lastWorkoutLine"]>>>} last
  */
-function lastWorkoutLine(exerciseId, { workout, sets }) {
-  const working = sets.filter((s) => !s.warmUp && !s.drop);
-  const shown = working.length ? working : sets;
-  const rir = shown.at(-1)?.rir;
+function lastWorkoutLine(exerciseId, { date, sets, rir }) {
   return h(
     "a",
     {
       class: "last-workout",
       href: `#/log/history/${encodeURIComponent(exerciseId)}`,
     },
-    h(
-      "span",
-      { class: "label last-head" },
-      [
-        "Last",
-        monthDay(workout.date),
-        rir === undefined ? "" : `RIR ${rirLabel(rir)}`,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-    ),
+    h("span", { class: "label last-head" }, `Last · ${monthDay(date)}`),
     h(
       "span",
       { class: "last-sets" },
-      shown.map((s) => `${s.load}×${s.reps}`).join(", "),
+      sets.length
+        ? sets.map((s) => `${s.load}×${s.reps}`).join(", ")
+        : "Warm-ups only",
+      rir === undefined
+        ? null
+        : h("span", { class: "label" }, ` · RIR ${rirLabel(rir)}`),
     ),
     h("span", { class: "last-link" }, "History →"),
   );
 }
 
-/** What each record is called in the celebration. */
-const RECORD_NAMES = {
-  heaviest: "heaviest load",
-  e1rm: "best e1RM",
-  reps: "most reps at",
-};
+/**
+ * What the celebration calls a record the set beat.
+ * @param {RecordKind} record
+ * @param {WorkoutSet} set the set that beat it
+ */
+const recordName = (record, set) =>
+  record === "heaviest"
+    ? "heaviest load"
+    : record === "e1rm"
+      ? "best e1RM"
+      : `most reps at ${loadText(set)}`;
 
 /**
  * A small celebration for a set that beat a record (spec #3, story 40):
  * a star and the record's name, so it isn't colour alone.
  * @param {RecordKind[]} records
- * @param {WorkoutSet | undefined} set the set that beat them
+ * @param {WorkoutSet} set the set that beat them
  */
 function celebration(records, set) {
-  const names = records.map((r) =>
-    r === "reps" && set
-      ? `most reps at ${set.load} ${set.unit}`
-      : RECORD_NAMES[r],
-  );
   return h(
     "p",
     { class: "record", role: "status" },
     h("span", { "aria-hidden": "true" }, "★ "),
-    `New record: ${names.join(", ")}`,
+    `New record: ${records.map((r) => recordName(r, set)).join(", ")}`,
   );
 }
 
@@ -379,7 +374,7 @@ export async function workoutScreen({
       : h("a", { class: "chip", href: "#/log/add" }, "Add exercise →"),
   );
 
-  const lastDone = await forge.lastWorkout(exerciseId, workout.id);
+  const lastWorkout = await forge.lastWorkoutLine(exerciseId, workout.id);
   const primary = exercise && muscleGroup(exercise.primary[0]);
   return h(
     "section",
@@ -401,7 +396,7 @@ export async function workoutScreen({
           )
         : null,
     ),
-    lastDone ? lastWorkoutLine(exerciseId, lastDone) : null,
+    lastWorkout ? lastWorkoutLine(exerciseId, lastWorkout) : null,
     h(
       "ol",
       { class: "sets", "aria-label": "Sets logged" },
@@ -413,7 +408,7 @@ export async function workoutScreen({
         h("span", { class: "set-what" }, "Now"),
       ),
     ),
-    records.length ? celebration(records, sets.at(-1)) : null,
+    records.length && last ? celebration(records, last) : null,
     undo,
     restBar(),
     h(

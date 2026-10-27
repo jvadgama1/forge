@@ -716,7 +716,10 @@ a {
 
 .last-sets {
   font: 800 22px/1.1 var(--font-display);
-  font-variant-numeric: tabular-nums;
+}
+
+.last-sets .label {
+  font-family: var(--font-mono);
 }
 
 .last-link {
@@ -828,5 +831,8 @@ a {
   min-height: 1.5em;
   margin: 4px 0 0;
   color: var(--text);
-  font-variant-numeric: tabular-nums;
+}
+
+.chart-tip strong {
+  font: 800 18px var(--font-display);
 }

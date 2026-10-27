@@ -384,6 +384,18 @@ export const SHOTS = [
     },
   },
   {
+    name: "history-workouts",
+    as: "owner",
+    route: "/log/history/barbell-bench-press",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await page
+        .getByRole("heading", { name: "Workouts" })
+        .scrollIntoViewIfNeeded();
+      await page.evaluate(() => globalThis.scrollBy(0, 400));
+    },
+  },
+  {
     name: "record",
     as: "owner",
     route: "/log",

@@ -68,6 +68,11 @@
  */
 
 /**
+ * A load with its unit, as entered (spec #3: loads are stored as entered).
+ * @typedef {{ load: number, unit: "lb" | "kg" }} Load
+ */
+
+/**
  * One exercise's sets in one workout, for its last workout and history.
  * @typedef {{ workout: Workout, sets: WorkoutSet[] }} ExerciseInWorkout
  */
