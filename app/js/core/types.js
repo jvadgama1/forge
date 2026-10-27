@@ -69,12 +69,17 @@
  */
 
 /**
+ * Which routine day to start (#14).
+ * @typedef {{ routineId: string, dayId: string }} RoutineDayRef
+ */
+
+/**
  * The routine day a workout followed, at the version it followed (#14).
  * @typedef {{ routineId: string, version: number, dayId: string }} WorkoutRoutine
  */
 
 /**
- * What a routine day plans for one exercise (GLOSSARY: Slot): target sets, a
+ * One exercise in a routine day (GLOSSARY: Slot): target sets, a
  * rep range and an optional target RIR.
  * @typedef {object} Slot
  * @property {string} exerciseId
@@ -100,7 +105,7 @@
  */
 
 /**
- * A plan of routine days (GLOSSARY: Routine), with every version kept so past
+ * A named, versioned set of routine days (GLOSSARY: Routine), every version kept so past
  * workouts stay linked to the one they followed (spec #3, story 21).
  * @typedef {{ id: string, name: string, versions: RoutineVersion[] }} Routine
  */

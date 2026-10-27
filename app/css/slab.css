@@ -334,7 +334,7 @@ a {
   gap: 14px;
 }
 
-.add-gym {
+.add-form {
   display: grid;
   gap: 10px;
   margin-top: 20px;
@@ -746,7 +746,7 @@ a {
 .back {
   display: inline-flex;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 14px;
   text-decoration: none;
 }
 

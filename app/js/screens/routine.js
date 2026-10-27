@@ -1,6 +1,7 @@
 import { h } from "../dom.js";
 import { exercisesView } from "./exercises.js";
-import { monthDay, screen } from "./screen.js";
+import { versionText } from "./routines.js";
+import { screen } from "./screen.js";
 
 /** @import { RoutineDayDraft } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
@@ -42,7 +43,7 @@ export function routineView({ forge, id }) {
       return;
     }
     const routineId = routine.id;
-    const latest = routine.versions.at(-1);
+    const latest = forge.currentVersion(routine);
     /** @type {RoutineDayDraft[]} */
     const days = structuredClone(latest?.days ?? []);
     const names = new Map(
@@ -59,9 +60,7 @@ export function routineView({ forge, id }) {
     const version = h(
       "p",
       { class: "label" },
-      latest
-        ? `Version ${latest.number} · saved ${monthDay(latest.savedAt.slice(0, 10))}`
-        : "Not saved yet",
+      latest ? versionText(latest) : "Not saved yet",
     );
     const body = h("div", { class: "routine-days" });
     const status = h("p", { class: "lede", role: "status" });
@@ -97,13 +96,14 @@ export function routineView({ forge, id }) {
                 name: name.value,
                 days,
               });
-              const now = saved.versions.at(-1);
-              status.textContent = `Saved as version ${now?.number}`;
+              const current = forge.currentVersion(saved);
+              if (!current) return;
+              status.textContent = `Saved as version ${current.number}`;
               const title = page.querySelector(".title");
               if (title) title.textContent = saved.name;
-              version.textContent = `Version ${now?.number} · saved ${monthDay(now?.savedAt.slice(0, 10) ?? "")}`;
+              version.textContent = versionText(current);
               // New days now have ids: keep editing the saved version.
-              days.splice(0, days.length, ...structuredClone(now?.days ?? []));
+              days.splice(0, days.length, ...structuredClone(current.days));
               draw();
             } catch (error) {
               status.textContent = /** @type {Error} */ (error).message;
@@ -287,23 +287,11 @@ export function routineView({ forge, id }) {
         title: `Add to ${day.name}`,
         onPick: (exercise) => {
           if (!day.slots.some((s) => s.exerciseId === exercise.id))
-            day.slots.push({
-              exerciseId: exercise.id,
-              sets: 3,
-              repMin: 8,
-              repMax: 12,
-            });
+            day.slots.push(forge.newSlot(exercise.id));
           back();
         },
+        onBack: back,
       });
-      picker.insertBefore(
-        h(
-          "button",
-          { class: "chip back", type: "button", onclick: back },
-          "← Back",
-        ),
-        picker.children[3] ?? null,
-      );
       root.replaceChildren(picker);
       window.scrollTo(0, 0);
     }

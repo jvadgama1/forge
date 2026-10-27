@@ -116,14 +116,18 @@ describe("saving a routine (#14)", () => {
     );
     await expect(
       f.saveRoutine({ name: "R", days: [{ name: "", slots: [] }] }),
-    ).rejects.toThrow("Give each day a name");
-    await expect(save({ sets: 0 })).rejects.toThrow("Target sets are 1 to 20");
-    await expect(save({ repMin: 12, repMax: 8 })).rejects.toThrow(
-      "The rep range runs from low to high, 1 to 100",
+    ).rejects.toThrow("Each day needs a name");
+    await expect(save({ sets: 0 })).rejects.toThrow(
+      "Day, Bench Press: target sets are 1 to 20",
     );
-    await expect(save({ rir: 5 })).rejects.toThrow("Target RIR is 0 to 4");
+    await expect(save({ repMin: 12, repMax: 8 })).rejects.toThrow(
+      "Day, Bench Press: the rep range runs from low to high, 1 to 100",
+    );
+    await expect(save({ rir: 5 })).rejects.toThrow(
+      "Day, Bench Press: target RIR is 0 to 4",
+    );
     await expect(save({ exerciseId: "nope" })).rejects.toThrow(
-      "Unknown exercise",
+      "Day: unknown exercise",
     );
     await expect(
       f.saveRoutine({
@@ -138,7 +142,7 @@ describe("saving a routine (#14)", () => {
           },
         ],
       }),
-    ).rejects.toThrow("An exercise appears once a day");
+    ).rejects.toThrow("Day: Bench Press appears twice");
   });
 });
 
@@ -231,7 +235,7 @@ describe("the next routine day (#14)", () => {
     expect((await env.f.nextRoutineDay(env.routine.id))?.name).toBe("Push A");
   });
 
-  it("counts only the routine's current version", async () => {
+  it("carries on across a new version", async () => {
     const env = await withRoutine();
     env.on(20);
     await doDay(env, 0);
@@ -239,8 +243,29 @@ describe("the next routine day (#14)", () => {
     await env.f.saveRoutine({
       id: env.routine.id,
       name: "PPL",
-      days: [...v1.days, { name: "Legs A", slots: [] }],
+      days: [
+        ...v1.days,
+        {
+          name: "Legs A",
+          slots: [{ exerciseId: "leg-press", sets: 3, repMin: 8, repMax: 12 }],
+        },
+      ],
     });
+    expect((await env.f.nextRoutineDay(env.routine.id))?.name).toBe("Pull A");
+  });
+
+  it("skips past a day since removed, to the routine's latest day done", async () => {
+    const env = await withRoutine();
+    env.on(20);
+    await doDay(env, 0); // Push A
+    env.on(22);
+    await doDay(env, 1); // Pull A, then removed
+    await env.f.saveRoutine({
+      id: env.routine.id,
+      name: "PPL",
+      days: [env.routine.versions[0].days[0]],
+    });
+    // Push A is the latest day still in the routine: next wraps to it.
     expect((await env.f.nextRoutineDay(env.routine.id))?.name).toBe("Push A");
   });
 });
@@ -262,20 +287,60 @@ describe("saving a workout's changes to its routine (#14)", () => {
     expect(await f.routineChanges(await f.getWorkout(w.id))).toBe(false);
   });
 
-  it("finds an added, skipped or moved exercise", async () => {
+  it("finds an added exercise", async () => {
     const { f, w } = await pushDay();
     await f.addExercise(w.id, "leg-press");
     expect(await f.routineChanges(await f.getWorkout(w.id))).toBe(true);
-    const again = await pushDay();
-    await again.f.skipExercise(again.w.id, "triceps-pushdown");
-    expect(
-      await again.f.routineChanges(await again.f.getWorkout(again.w.id)),
-    ).toBe(true);
-    const moved = await pushDay();
-    await moved.f.moveExercise(moved.w.id, "triceps-pushdown", 0);
-    expect(
-      await moved.f.routineChanges(await moved.f.getWorkout(moved.w.id)),
-    ).toBe(true);
+  });
+
+  it("finds a skipped exercise", async () => {
+    const { f, w } = await pushDay();
+    await f.skipExercise(w.id, "triceps-pushdown");
+    expect(await f.routineChanges(await f.getWorkout(w.id))).toBe(true);
+  });
+
+  it("finds a moved exercise", async () => {
+    const { f, w } = await pushDay();
+    await f.moveExercise(w.id, "triceps-pushdown", 0);
+    expect(await f.routineChanges(await f.getWorkout(w.id))).toBe(true);
+  });
+
+  it("keeps targets changed in the routine since the workout started", async () => {
+    const { f, w, routine, push } = await pushDay();
+    // Mid-workout, the routine's bench target changes to 8-12.
+    await f.saveRoutine({
+      id: routine.id,
+      name: "PPL",
+      days: [
+        {
+          ...push,
+          slots: [{ ...push.slots[0], repMin: 8, repMax: 12 }, push.slots[1]],
+        },
+        routine.versions[0].days[1],
+      ],
+    });
+    await f.addExercise(w.id, "leg-press");
+    await f.finishWorkout(w.id, { saveToRoutine: true });
+    const latest = (await f.getRoutine(routine.id))?.versions.at(-1);
+    expect(latest?.number).toBe(3);
+    expect(latest?.days[0].slots.map((s) => [s.exerciseId, s.repMin])).toEqual([
+      ["bench-press", 8],
+      ["triceps-pushdown", 10],
+      ["leg-press", 8],
+    ]);
+  });
+
+  it("offers nothing to save once the day is removed from the routine", async () => {
+    const { f, w, routine } = await pushDay();
+    await f.saveRoutine({
+      id: routine.id,
+      name: "PPL",
+      days: [routine.versions[0].days[1]],
+    });
+    await f.addExercise(w.id, "leg-press");
+    expect(await f.routineChanges(await f.getWorkout(w.id))).toBe(false);
+    await f.finishWorkout(w.id, { saveToRoutine: true });
+    expect((await f.getRoutine(routine.id))?.versions).toHaveLength(2);
   });
 
   it("is off by default: finishing leaves the routine as it was", async () => {

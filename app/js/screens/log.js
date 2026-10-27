@@ -6,7 +6,7 @@ import { screen } from "./screen.js";
 import { workoutHeader, workoutScreen } from "./workout.js";
 
 /** @import { ScreenContext } from "./screen.js" */
-/** @import { RecordKind } from "../core/types.js" */
+/** @import { RecordKind, RoutineDayRef } from "../core/types.js" */
 
 /**
  * The Log tab (#11): the workout in progress, on the exercise asked for (a
@@ -106,7 +106,7 @@ export function logView({ forge, id }) {
       );
     let gymId = current.id;
     const status = h("p", { class: "lede", role: "status" });
-    /** @param {{ routineId: string, dayId: string }} [from] */
+    /** @param {RoutineDayRef} [from] */
     const start = async (from) => {
       try {
         await forge.startWorkout(gymId, from);
@@ -150,15 +150,16 @@ export function logView({ forge, id }) {
   /**
    * Each routine with its days, the next one chosen (#14), and a button to
    * start the chosen day.
-   * @param {(from: { routineId: string, dayId: string }) => void} start
+   * @param {(from: RoutineDayRef) => void} start
    * @returns {Promise<Node[]>}
    */
   async function routineStarts(start) {
     const routines = await forge.listRoutines();
     const blocks = await Promise.all(
       routines.map(async (routine) => {
-        const days = routine.versions.at(-1)?.days ?? [];
+        const days = forge.currentVersion(routine)?.days ?? [];
         const next = await forge.nextRoutineDay(routine.id);
+        // A routine with no days yet has nothing to start.
         if (!next) return [];
         let chosen = next;
         const button = h(
@@ -172,7 +173,11 @@ export function logView({ forge, id }) {
           h("span", { "aria-hidden": "true" }, "→"),
         );
         return [
-          h("p", { class: "label section" }, routine.name),
+          h(
+            "p",
+            { class: "label section" },
+            `${routine.name} · Next: ${next.name}`,
+          ),
           choiceChips({
             label: `${routine.name} day`,
             options: days.map((d) => ({ value: d.id, text: d.name })),

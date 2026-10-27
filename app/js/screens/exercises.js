@@ -13,10 +13,11 @@ import { screen } from "./screen.js";
 /**
  * The exercise picker: the current gym's exercises, preselecting the gym
  * used last, with "Show all" for the whole library (#10). With `onPick`,
- * tapping an exercise chooses it (adding one to a workout, #11).
- * @param {Pick<ScreenContext, "forge"> & { title?: string, onPick?: (exercise: Exercise) => void }} context
+ * tapping an exercise chooses it (adding one to a workout, #11); with
+ * `onBack`, a Back button returns without choosing (a routine day, #14).
+ * @param {Pick<ScreenContext, "forge"> & { title?: string, onPick?: (exercise: Exercise) => void, onBack?: () => void }} context
  */
-export function exercisesView({ forge, title = "Exercises", onPick }) {
+export function exercisesView({ forge, title = "Exercises", onPick, onBack }) {
   /** @type {ExerciseFilter} */
   const filter = {};
   /** @type {Gym[]} */
@@ -117,6 +118,15 @@ export function exercisesView({ forge, title = "Exercises", onPick }) {
   start();
   return screen(
     title,
+    ...(onBack
+      ? [
+          h(
+            "button",
+            { class: "chip back", type: "button", onclick: onBack },
+            "← Back",
+          ),
+        ]
+      : []),
     gymPicker,
     ...exerciseFilter(filter, refresh),
     h("div", { class: "count-row" }, count, showAllChip),

@@ -1,11 +1,19 @@
 import { h } from "../dom.js";
-import { countOf, screen } from "./screen.js";
+import { countOf, monthDay, screen } from "./screen.js";
 
+/** @import { RoutineVersion } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
 /**
+ * A routine version as the routine screens name it: "Version 2 · saved Oct 14".
+ * @param {RoutineVersion} version
+ */
+export const versionText = (version) =>
+  `Version ${version.number} · saved ${monthDay(version.savedAt.slice(0, 10))}`;
+
+/**
  * The routines, each with its days and version, and a field to add one
- * (#14). Adding a routine opens it, to plan its days.
+ * (#14). Adding a routine opens it, to add its days.
  * @param {Pick<ScreenContext, "forge">} context
  */
 export function routinesView({ forge }) {
@@ -22,7 +30,7 @@ export function routinesView({ forge }) {
   forge.listRoutines().then((routines) => {
     menu.replaceChildren(
       ...routines.map((routine) => {
-        const latest = routine.versions.at(-1);
+        const latest = forge.currentVersion(routine);
         return h(
           "a",
           { href: `#/routines/${routine.id}` },
@@ -33,7 +41,12 @@ export function routinesView({ forge }) {
             h(
               "span",
               { class: "label" },
-              `${countOf(latest?.days.length ?? 0, "day")} · v${latest?.number ?? 1}`,
+              [
+                countOf(latest?.days.length ?? 0, "day"),
+                latest ? `version ${latest.number}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · "),
             ),
             h("span", { "aria-hidden": "true" }, "→"),
           ),
@@ -45,7 +58,7 @@ export function routinesView({ forge }) {
         h(
           "p",
           { class: "lede" },
-          "No routines yet. Add one, then plan its days.",
+          "No routines yet. Add one, then add its days.",
         ),
       );
   });
@@ -56,7 +69,7 @@ export function routinesView({ forge }) {
     h(
       "form",
       {
-        class: "add-gym",
+        class: "add-form",
         onsubmit: async (e) => {
           e.preventDefault();
           status.textContent = "";

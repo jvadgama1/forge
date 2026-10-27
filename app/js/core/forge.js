@@ -1,4 +1,4 @@
-/** @import { Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -212,7 +212,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * from a routine day (story 23) with its slots laid out as the
      * workout's exercises, at the routine's current version.
      * @param {string} gymId
-     * @param {{ routineId: string, dayId: string }} [from]
+     * @param {RoutineDayRef} [from]
      * @returns {Promise<Workout>}
      */
     startWorkout(gymId, from) {
@@ -230,7 +230,7 @@ export function createForge({ store, library, now = () => new Date() }) {
           entries: [],
         };
         if (from) {
-          const version = (await routineById(from.routineId)).versions.at(-1);
+          const version = currentVersion(await routineById(from.routineId));
           const day = version?.days.find((d) => d.id === from.dayId);
           if (!version || !day) throw new Error("That routine day is gone");
           workout.routine = {
@@ -292,6 +292,10 @@ export function createForge({ store, library, now = () => new Date() }) {
       });
     },
 
+    currentVersion,
+
+    newSlot,
+
     /**
      * Routines by name (#14).
      * @returns {Promise<Routine[]>}
@@ -302,6 +306,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
+     * A routine with all its versions (#14).
      * @param {string} routineId
      * @returns {Promise<Routine | undefined>}
      */
@@ -336,39 +341,39 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * The routine day that comes next (spec #3, Rules): the day after the
-     * one done most recently at the routine's current version, wrapping
-     * around; the first day before any is done.
+     * The routine day that comes next (spec #3, Rules; story 22): the day
+     * of the current version after the one done most recently, wrapping
+     * around; the first day before any is done. Days keep their ids across
+     * versions, so saving a change doesn't restart the rotation; a day since
+     * removed is passed over.
      * @param {string} routineId
      * @returns {Promise<RoutineDay | undefined>}
      */
     async nextRoutineDay(routineId) {
-      const version = (await routineById(routineId)).versions.at(-1);
+      const version = currentVersion(await routineById(routineId));
       if (!version?.days.length) return undefined;
+      const ids = version.days.map((d) => d.id);
       const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
       const last = workouts
         .filter(
           (w) =>
-            w.routine?.routineId === routineId &&
-            w.routine.version === version.number,
+            w.routine?.routineId === routineId && ids.includes(w.routine.dayId),
         )
         .sort(
           (a, b) =>
             b.date.localeCompare(a.date) ||
             b.startedAt.localeCompare(a.startedAt),
         )[0];
-      const index = version.days.findIndex(
-        (d) => d.id === last?.routine?.dayId,
-      );
+      const index = ids.indexOf(last?.routine?.dayId ?? "");
       return version.days[(index + 1) % version.days.length];
     },
 
     /**
-     * What a workout is called: its routine day's name, or Freestyle.
+     * What a workout is called (#14): its routine day's name, or Freestyle.
      * @param {Workout} workout
      */
     async workoutTitle(workout) {
-      return (await plannedDay(workout))?.name ?? "Freestyle";
+      return (await followedDay(workout))?.name ?? "Freestyle";
     },
 
     /**
@@ -379,22 +384,23 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @returns {Promise<Omit<Slot, "exerciseId"> | undefined>}
      */
     async targets(workout, exerciseId) {
-      const slot = (await plannedDay(workout))?.slots.find(
+      const slot = (await followedDay(workout))?.slots.find(
         (s) => s.exerciseId === exerciseId,
       );
       if (!slot) return undefined;
       const { sets, repMin, repMax, rir } = slot;
-      return { sets, repMin, repMax, ...(rir === undefined ? {} : { rir }) };
+      return { sets, repMin, repMax, ...withRir(rir) };
     },
 
     /**
-     * Whether a routine workout's exercises differ from its day's plan: one
-     * added, skipped or moved (spec #3, stories 34-35), so finishing can
-     * offer to save them.
+     * Whether a routine workout's exercises differ from its routine day as
+     * the routine now stands: one added, skipped or moved (spec #3, stories
+     * 34-35), so finishing can offer to save them. Nothing to save once the
+     * day is gone from the routine.
      * @param {Workout | undefined} workout
      */
     async routineChanges(workout) {
-      const day = workout && (await plannedDay(workout));
+      const day = workout && (await dayNow(workout));
       if (!workout || !day) return false;
       return (
         JSON.stringify(day.slots.map((s) => s.exerciseId)) !==
@@ -777,11 +783,40 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
+   * The routine's current version (#14): the one new workouts follow.
+   * @param {Routine} routine
+   * @returns {RoutineVersion | undefined}
+   */
+  function currentVersion(routine) {
+    return routine.versions.at(-1);
+  }
+
+  /**
+   * A slot for an exercise added to a routine day, until its targets are
+   * set: 3 sets of 8-12 reps (#14).
+   * @param {string} exerciseId
+   * @param {number} [sets]
+   * @returns {Slot}
+   */
+  function newSlot(exerciseId, sets = 3) {
+    return { exerciseId, sets, repMin: 8, repMax: 12 };
+  }
+
+  /**
+   * A target RIR as an optional field: absent rather than undefined, so a
+   * routine compares equal when unchanged.
+   * @param {number | undefined} rir
+   */
+  function withRir(rir) {
+    return rir === undefined ? {} : { rir };
+  }
+
+  /**
    * The routine day a workout followed, at its version; none for freestyle
    * or a routine since deleted.
    * @param {Workout} workout
    */
-  async function plannedDay(workout) {
+  async function followedDay(workout) {
     if (!workout.routine) return undefined;
     const { routineId, version, dayId } = workout.routine;
     const routine = /** @type {Routine | undefined} */ (
@@ -793,28 +828,49 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
+   * The workout's routine day as the routine now stands: the same day in the
+   * current version, if it's still there.
+   * @param {Workout} workout
+   */
+  async function dayNow(workout) {
+    if (!workout.routine) return undefined;
+    const { routineId, dayId } = workout.routine;
+    const routine = /** @type {Routine | undefined} */ (
+      await store.get("routines", routineId)
+    );
+    return routine && currentVersion(routine)?.days.find((d) => d.id === dayId);
+  }
+
+  /**
    * Checked days in a fixed shape, so an unchanged routine compares equal:
-   * named days, each exercise once a day, targets that can be followed.
+   * named days, each exercise once a day, targets that can be followed. A
+   * problem names the day and exercise, since the editor shows many.
    * @param {RoutineDayDraft[]} days
    * @returns {Promise<RoutineDay[]>}
    */
   async function checkDays(days) {
-    const known = new Set(library.map((e) => e.id));
-    for (const e of await store.list("customExercises")) known.add(e.id);
+    /** @type {Map<string, string>} */
+    const names = new Map(library.map((e) => [e.id, e.name]));
+    for (const e of await store.list("customExercises"))
+      names.set(e.id, e.name);
     return days.map((day) => {
       const name = day.name.trim();
-      if (!name) throw new Error("Give each day a name");
+      if (!name) throw new Error("Each day needs a name");
       const seen = new Set();
       return {
         id: day.id ?? crypto.randomUUID(),
         name,
         slots: day.slots.map(({ exerciseId, sets, repMin, repMax, rir }) => {
-          if (!known.has(exerciseId)) throw new Error("Unknown exercise");
+          const exercise = names.get(exerciseId);
+          if (!exercise) throw new Error(`${name}: unknown exercise`);
           if (seen.has(exerciseId))
-            throw new Error("An exercise appears once a day");
+            throw new Error(`${name}: ${exercise} appears twice`);
           seen.add(exerciseId);
+          /** @param {string} problem */
+          const refuse = (problem) =>
+            new Error(`${name}, ${exercise}: ${problem}`);
           if (!(Number.isInteger(sets) && sets >= 1 && sets <= 20))
-            throw new Error("Target sets are 1 to 20");
+            throw refuse("target sets are 1 to 20");
           if (!(
             Number.isInteger(repMin) &&
             Number.isInteger(repMax) &&
@@ -822,19 +878,13 @@ export function createForge({ store, library, now = () => new Date() }) {
             repMin <= repMax &&
             repMax <= 100
           ))
-            throw new Error("The rep range runs from low to high, 1 to 100");
+            throw refuse("the rep range runs from low to high, 1 to 100");
           if (
             rir !== undefined &&
             !(Number.isInteger(rir) && rir >= 0 && rir <= 4)
           )
-            throw new Error("Target RIR is 0 to 4");
-          return {
-            exerciseId,
-            sets,
-            repMin,
-            repMax,
-            ...(rir === undefined ? {} : { rir }),
-          };
+            throw refuse("target RIR is 0 to 4");
+          return { exerciseId, sets, repMin, repMax, ...withRir(rir) };
         }),
       };
     });
@@ -847,7 +897,7 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {RoutineDay[]} days
    */
   async function saveVersion(routine, days) {
-    const latest = routine.versions.at(-1);
+    const latest = currentVersion(routine);
     /** @type {Routine} */
     const saved =
       latest && JSON.stringify(latest.days) === JSON.stringify(days)
@@ -868,33 +918,29 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * Saves a workout's day as it was done (spec #3, story 35): its exercises
-   * in order, the planned ones keeping their targets and an added one
-   * targeting the working sets logged (3 if none) of 8-12 reps. The rest of
-   * the routine's current version stays as it is.
+   * Saves a workout's day as it was done (spec #3, story 35), onto the
+   * routine as it now stands, so targets changed since the workout started
+   * are kept: its exercises in order, each keeping its current targets, and
+   * an added one targeting the working sets logged. Nothing once the day is
+   * gone from the routine.
    * @param {Workout} workout
    */
   async function saveDayAsDone(workout) {
-    const planned = await plannedDay(workout);
-    if (!workout.routine || !planned) return;
+    const day = await dayNow(workout);
+    if (!workout.routine || !day) return;
     const routine = await routineById(workout.routine.routineId);
-    const latest = routine.versions.at(-1);
-    if (!latest?.days.some((d) => d.id === planned.id)) return;
-    /** @type {Slot[]} */
+    const version = currentVersion(routine);
+    if (!version) return;
     const slots = workout.entries
       .filter((e) => !e.skipped)
       .map(
         (e) =>
-          planned.slots.find((s) => s.exerciseId === e.exerciseId) ?? {
-            exerciseId: e.exerciseId,
-            sets: e.sets.filter(working).length || 3,
-            repMin: 8,
-            repMax: 12,
-          },
+          day.slots.find((s) => s.exerciseId === e.exerciseId) ??
+          newSlot(e.exerciseId, e.sets.filter(working).length || undefined),
       );
     await saveVersion(
       routine,
-      latest.days.map((d) => (d.id === planned.id ? { ...d, slots } : d)),
+      version.days.map((d) => (d.id === day.id ? { ...d, slots } : d)),
     );
   }
 

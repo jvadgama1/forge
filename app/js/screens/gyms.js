@@ -56,7 +56,7 @@ export function gymsView({ forge }) {
     h(
       "form",
       {
-        class: "add-gym",
+        class: "add-form",
         onsubmit: async (e) => {
           e.preventDefault();
           status.textContent = "";
