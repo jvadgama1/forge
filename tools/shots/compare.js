@@ -23,8 +23,8 @@ const names = [
 let changed = 0;
 for (const name of names) {
   const [inA, inB] = await Promise.all([read(a, name), read(b, name)]);
-  const result = verdict(inA, inB, a, b);
-  if (result !== "identical") changed++;
-  console.log(`${name.replace(/\.png$/, "").padEnd(20)} ${result}`);
+  const { same, text } = verdict(inA, inB, a, b);
+  if (!same) changed++;
+  console.log(`${name.replace(/\.png$/, "").padEnd(20)} ${text}`);
 }
 if (changed) process.exitCode = 1;

@@ -29,6 +29,9 @@ const fontCss = (await readFile(join(fontDir, "fonts.css"), "utf8")).replaceAll(
   "font-display: swap",
   "font-display: block",
 );
+// The font URL the copy was fetched for: the app asking for another one
+// (a family or weight added) means the copy is stale.
+const fontUrl = fontCss.match(/^\/\* Fetched for (\S+) \*\//)?.[1];
 
 // A made-up origin, answered from app/ below. https, because the app needs a
 // secure context (crypto.randomUUID makes every new id).
@@ -74,7 +77,7 @@ await mkdir(outDir, { recursive: true });
 // code. Over ten-run batches, only all of these together cut that to about
 // one render in a hundred (see stableRender): no GPU, no LCD antialiasing
 // (phones don't use it), no subpixel glyph positioning, no hinting, and text
-// drawn once (see phoneContext).
+// drawn once (see fontCss).
 const browser = await chromium.launch({
   channel: "msedge",
   args: [
@@ -107,9 +110,11 @@ async function phoneContext() {
   });
   // The fonts come from a copy in fonts/, so text never depends on what the
   // live font service sends (#37).
-  await context.route("https://fonts.googleapis.com/**", (route) =>
-    route.fulfill({ body: fontCss, contentType: "text/css" }),
-  );
+  await context.route("https://fonts.googleapis.com/**", (route) => {
+    if (route.request().url() !== fontUrl)
+      errors.add(`font URL not in tools/shots/fonts: ${route.request().url()}`);
+    return route.fulfill({ body: fontCss, contentType: "text/css" });
+  });
   await context.route("https://fonts.gstatic.com/**", async (route) => {
     const file = basename(new URL(route.request().url()).pathname);
     try {
