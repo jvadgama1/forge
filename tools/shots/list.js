@@ -381,6 +381,35 @@ const WEIGHTS = {
 
 /** @type {Shot[]} */
 export const SHOTS = [
+  { name: "workouts", as: "owner", route: "/workouts", seed: WORKOUT },
+  {
+    name: "past-workout",
+    as: "owner",
+    route: "/workouts/w-2026-10-14",
+    seed: WORKOUT,
+  },
+  {
+    name: "past-workout-edit",
+    as: "owner",
+    route: "/workouts/w-2026-10-14",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await page
+        .getByRole("button", { name: "Correct Barbell Bench Press set 2" })
+        .click();
+      await page.getByRole("button", { name: "Delete set" }).waitFor();
+    },
+  },
+  {
+    name: "log-earlier-date",
+    as: "owner",
+    route: "/log",
+    seed: GYMS,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "Earlier date" }).click();
+      await page.getByLabel("Workout date").waitFor();
+    },
+  },
   { name: "body-weight-empty", as: "owner", route: "/body-weight", seed: GYMS },
   { name: "body-weight", as: "owner", route: "/body-weight", seed: WEIGHTS },
   {

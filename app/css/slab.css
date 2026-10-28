@@ -960,3 +960,75 @@ select.small-number {
   display: flex;
   gap: 6px;
 }
+
+/* Workouts (#20) */
+.workout-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workout-link-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.set-editable {
+  cursor: pointer;
+}
+
+/* Overrides the set row grid: the form stacks its fields. */
+.sets li.set-form {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.past-exercise {
+  margin-top: 14px;
+}
+
+.past-exercise-name {
+  margin: 0;
+  font: 800 20px var(--font-display);
+  text-transform: uppercase;
+}
+
+.set-form-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.set-form-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* The action a form exists for, in the accent (DESIGN.md: lime is the
+   primary action). */
+.chip.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.small-number.wide {
+  width: 72px;
+}
+
+.past-date {
+  margin-top: 12px;
+}
+
+.past-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  text-decoration: none;
+}

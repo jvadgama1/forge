@@ -47,6 +47,16 @@
  */
 
 /**
+ * Which set of which workout (#20): the exercise's set at `index`, from 0.
+ * @typedef {{ workoutId: string, exerciseId: string, index: number }} SetRef
+ */
+
+/**
+ * A set as the user enters it, to log or correct (#11, #20).
+ * @typedef {{ load: number, reps: number, rir?: number, warmUp?: boolean, drop?: boolean }} SetInput
+ */
+
+/**
  * An exercise in a workout, with its sets in the order logged.
  * @typedef {object} WorkoutEntry
  * @property {string} exerciseId

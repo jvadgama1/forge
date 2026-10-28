@@ -151,8 +151,7 @@ describe("starting from a routine day (#14)", () => {
     const { f, routine, gym } = await withRoutine();
     const pull = routine.versions[0].days[1];
     const workout = await f.startWorkout(gym.id, {
-      routineId: routine.id,
-      dayId: pull.id,
+      day: { routineId: routine.id, dayId: pull.id },
     });
     expect(workout.routine).toEqual({
       routineId: routine.id,
@@ -166,8 +165,7 @@ describe("starting from a routine day (#14)", () => {
   it("shows each exercise's targets", async () => {
     const { f, routine, gym } = await withRoutine();
     const workout = await f.startWorkout(gym.id, {
-      routineId: routine.id,
-      dayId: routine.versions[0].days[0].id,
+      day: { routineId: routine.id, dayId: routine.versions[0].days[0].id },
     });
     expect(await f.targets(workout, "bench-press")).toEqual({
       sets: 3,
@@ -190,8 +188,7 @@ describe("starting from a routine day (#14)", () => {
     const { f, routine, gym } = await withRoutine();
     const push = routine.versions[0].days[0];
     const workout = await f.startWorkout(gym.id, {
-      routineId: routine.id,
-      dayId: push.id,
+      day: { routineId: routine.id, dayId: push.id },
     });
     await f.saveRoutine({
       id: routine.id,
@@ -213,8 +210,7 @@ describe("the next routine day (#14)", () => {
     ];
     if (!day) throw new Error("no day");
     const w = await env.f.startWorkout(env.gym.id, {
-      routineId: env.routine.id,
-      dayId: day.id,
+      day: { routineId: env.routine.id, dayId: day.id },
     });
     await env.f.logSet(w.id, day.slots[0].exerciseId, { load: 100, reps: 8 });
     await env.f.finishWorkout(w.id);
@@ -275,8 +271,7 @@ describe("saving a workout's changes to its routine (#14)", () => {
     const env = await withRoutine();
     const push = env.routine.versions[0].days[0];
     const w = await env.f.startWorkout(env.gym.id, {
-      routineId: env.routine.id,
-      dayId: push.id,
+      day: { routineId: env.routine.id, dayId: push.id },
     });
     return { ...env, w, push };
   }
