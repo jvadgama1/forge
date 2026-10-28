@@ -988,6 +988,35 @@ select.small-number {
   padding: 10px 0;
 }
 
+.past-exercise {
+  margin-top: 14px;
+}
+
+.past-exercise-name {
+  margin: 0;
+  font: 800 20px var(--font-display);
+  text-transform: uppercase;
+}
+
+.set-form-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.set-form-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* The action a form exists for, in the accent (DESIGN.md: lime is the
+   primary action). */
+.chip.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
 .small-number.wide {
   width: 72px;
 }
@@ -999,6 +1028,7 @@ select.small-number {
 .past-link {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   margin-top: 18px;
   text-decoration: none;
 }

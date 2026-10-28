@@ -43,11 +43,17 @@ function timer(startedAt) {
 /**
  * The header every workout screen shares: wordmark and gym, the workout's
  * name, its timer and the exercise count, which opens the workout's list.
- * @param {{ workout: Workout, title: string, gymName: string, today: string, position?: string }} header
- *   `title` is the routine day's name, or Freestyle (#14). A workout dated
- *   before `today` was back-dated, and the header says when (#20).
+ * @param {{ workout: Workout, title: string, gymName: string, backDated: boolean, position?: string }} header
+ *   `title` is the routine day's name, or Freestyle (#14). A back-dated
+ *   workout's header says its date (#20).
  */
-export function workoutHeader({ workout, title, gymName, today, position }) {
+export function workoutHeader({
+  workout,
+  title,
+  gymName,
+  backDated,
+  position,
+}) {
   return [
     h(
       "div",
@@ -56,9 +62,9 @@ export function workoutHeader({ workout, title, gymName, today, position }) {
       h(
         "span",
         { class: "label" },
-        workout.date === today
-          ? `At ${gymName}`
-          : `At ${gymName} · ${monthDay(workout.date)}`,
+        backDated
+          ? `At ${gymName} · ${monthDay(workout.date)}`
+          : `At ${gymName}`,
       ),
     ),
     h(
@@ -116,6 +122,60 @@ export function setRow(set, index) {
     ),
     h("span", { class: "set-done", "aria-label": "logged" }, "✓"),
   );
+}
+
+/**
+ * A set's optional RIR and set type (warm-up or drop set), as chips that
+ * a second tap clears: for logging a set and for correcting one (#11, #20).
+ * @param {Pick<WorkoutSet, "rir" | "warmUp" | "drop">} [set] to start from
+ */
+export function setChoices(set = {}) {
+  /** @type {{ rir: number | undefined, flag: "warmUp" | "drop" | undefined }} */
+  const choice = {
+    rir: set.rir,
+    flag: set.warmUp ? "warmUp" : set.drop ? "drop" : undefined,
+  };
+  /** @type {{ value: "warmUp" | "drop", text: string }[]} */
+  const flagOptions = [
+    { value: "warmUp", text: "Warm-up" },
+    { value: "drop", text: "Drop set" },
+  ];
+  return {
+    nodes: [
+      h(
+        "div",
+        { class: "rir" },
+        h("span", { class: "label" }, "RIR"),
+        choiceChips({
+          label: "RIR, optional",
+          options: [0, 1, 2, 3, 4].map((value) => ({
+            value,
+            text: rirLabel(value),
+          })),
+          selected: choice.rir,
+          clearable: true,
+          onChoose: (value) => {
+            choice.rir = value;
+          },
+        }),
+      ),
+      choiceChips({
+        label: "Set type",
+        options: flagOptions,
+        selected: choice.flag,
+        clearable: true,
+        onChoose: (value) => {
+          choice.flag = value;
+        },
+      }),
+    ],
+    /** The choices as a set's fields. */
+    read: () => ({
+      rir: choice.rir,
+      warmUp: choice.flag === "warmUp",
+      drop: choice.flag === "drop",
+    }),
+  };
 }
 
 /**
@@ -194,9 +254,6 @@ export async function workoutScreen({
   const step = forge.loadStep(exerciseId);
   const prefill = forge.nextSet(workout, exerciseId);
 
-  /** @type {{ rir: number | undefined, flag: "warmUp" | "drop" | undefined }} */
-  const choice = { rir: undefined, flag: undefined };
-
   const load = h("input", {
     class: "big-number",
     type: "text",
@@ -253,38 +310,7 @@ export async function workoutScreen({
       ),
     );
 
-  const rirButtons = h(
-    "div",
-    { class: "rir" },
-    h("span", { class: "label" }, "RIR"),
-    choiceChips({
-      label: "RIR, optional",
-      options: [0, 1, 2, 3, 4].map((value) => ({
-        value,
-        text: rirLabel(value),
-      })),
-      selected: undefined,
-      clearable: true,
-      onChoose: (value) => {
-        choice.rir = value;
-      },
-    }),
-  );
-
-  /** @type {{ value: "warmUp" | "drop", text: string }[]} */
-  const flagOptions = [
-    { value: "warmUp", text: "Warm-up" },
-    { value: "drop", text: "Drop set" },
-  ];
-  const flags = choiceChips({
-    label: "Set type",
-    options: flagOptions,
-    selected: undefined,
-    clearable: true,
-    onChoose: (value) => {
-      choice.flag = value;
-    },
-  });
+  const choices = setChoices();
 
   const logButton = h(
     "button",
@@ -300,9 +326,7 @@ export async function workoutScreen({
           const logged = await forge.logSet(workout.id, exerciseId, {
             load: typed(load),
             reps: typed(reps),
-            rir: choice.rir,
-            warmUp: choice.flag === "warmUp",
-            drop: choice.flag === "drop",
+            ...choices.read(),
           });
           startRest(forge.restAfterSet(exerciseId));
           onLogged(await forge.recordsSetBy(logged, exerciseId));
@@ -383,7 +407,7 @@ export async function workoutScreen({
       workout,
       title: await forge.workoutTitle(workout),
       gymName,
-      today: forge.today(),
+      backDated: forge.isBackDated(workout),
       position: `${pad2(index + 1)}/${pad2(live.length)}`,
     }),
     h(
@@ -439,8 +463,7 @@ export async function workoutScreen({
         steppers(reps, 1, 1, "reps"),
       ),
     ),
-    rirButtons,
-    flags,
+    ...choices.nodes,
     logButton,
     status,
     nav,

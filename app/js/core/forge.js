@@ -1,4 +1,4 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -217,7 +217,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @param {{ day?: RoutineDayRef, date?: string }} [options]
      * @returns {Promise<Workout>}
      */
-    startWorkout(gymId, { day: from, date } = {}) {
+    startWorkout(gymId, { day, date } = {}) {
       return inTurn(async () => {
         await finishIfAbandoned();
         if (await workoutInProgress())
@@ -231,16 +231,17 @@ export function createForge({ store, library, now = () => new Date() }) {
           gymId,
           entries: [],
         };
-        if (from) {
-          const version = currentVersion(await routineById(from.routineId));
-          const day = version?.days.find((d) => d.id === from.dayId);
-          if (!version || !day) throw new Error("That routine day is gone");
+        if (day) {
+          const version = currentVersion(await routineById(day.routineId));
+          const routineDay = version?.days.find((d) => d.id === day.dayId);
+          if (!version || !routineDay)
+            throw new Error("That routine day is gone");
           workout.routine = {
-            routineId: from.routineId,
+            routineId: day.routineId,
             version: version.number,
-            dayId: day.id,
+            dayId: routineDay.id,
           };
-          workout.entries = day.slots.map((slot) => ({
+          workout.entries = routineDay.slots.map((slot) => ({
             exerciseId: slot.exerciseId,
             sets: [],
           }));
@@ -371,14 +372,30 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
+     * Whether a workout was logged afterwards for an earlier date (#20):
+     * dated before the day it was started.
+     * @param {Workout} workout
+     */
+    isBackDated(workout) {
+      return workout.date < localDate(new Date(workout.startedAt));
+    },
+
+    /**
+     * The exercises of a workout that have sets, as a past workout shows
+     * them (#20): what finishing keeps.
+     * @param {Workout} workout
+     */
+    exercisesDone(workout) {
+      return workout.entries.filter((e) => e.sets.length > 0);
+    },
+
+    /**
      * Corrects a set of any workout, finished or not (spec #3, story 54),
      * with the same checks as logging it; it keeps when it was logged.
-     * @param {string} workoutId
-     * @param {string} exerciseId
-     * @param {number} index the set's place, from 0
+     * @param {SetRef} ref
      * @param {SetInput} set
      */
-    editSet(workoutId, exerciseId, index, set) {
+    editSet({ workoutId, exerciseId, index }, set) {
       return changeWorkout(workoutId, (w) =>
         changeEntry(w, exerciseId, (e) => {
           const old = e.sets[index];
@@ -391,25 +408,34 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Deletes a set of any workout (spec #3, story 54). In a finished
-     * workout, an exercise left with no sets goes too, as finishing would
-     * have left it out.
-     * @param {string} workoutId
-     * @param {string} exerciseId
-     * @param {number} index the set's place, from 0
+     * Deletes a set of any workout (spec #3, story 54). A finished workout
+     * keeps only exercises with sets, as finishing would, and goes
+     * altogether with its last set, as finishing an empty one does (#11).
+     * @param {SetRef} ref
+     * @returns {Promise<Workout | undefined>} the workout, or undefined if
+     *   it went
      */
-    deleteSet(workoutId, exerciseId, index) {
-      return changeWorkout(workoutId, (w) => {
+    deleteSet({ workoutId, exerciseId, index }) {
+      return inTurn(async () => {
+        const w = await workoutById(workoutId);
         const changed = changeEntry(w, exerciseId, (e) => {
           if (!e.sets[index]) throw new Error("No such set");
           return { ...e, sets: e.sets.filter((_, i) => i !== index) };
         });
-        return w.finishedAt
-          ? {
-              ...changed,
-              entries: changed.entries.filter((e) => e.sets.length > 0),
-            }
-          : changed;
+        if (!w.finishedAt) {
+          await store.put("workouts", changed);
+          return changed;
+        }
+        const kept = {
+          ...changed,
+          entries: changed.entries.filter((e) => e.sets.length > 0),
+        };
+        if (kept.entries.length) {
+          await store.put("workouts", kept);
+          return kept;
+        }
+        await removeWorkout(workoutId);
+        return undefined;
       });
     },
 
@@ -419,19 +445,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @param {string} workoutId
      */
     deleteWorkout(workoutId) {
-      return inTurn(async () => {
-        await store.remove("workouts", workoutId);
-        const changed = await settings();
-        if (
-          changed.workoutInProgress === workoutId ||
-          changed.autoFinished === workoutId
-        ) {
-          if (changed.workoutInProgress === workoutId)
-            delete changed.workoutInProgress;
-          if (changed.autoFinished === workoutId) delete changed.autoFinished;
-          await store.put("settings", changed);
-        }
-      });
+      return inTurn(() => removeWorkout(workoutId));
     },
 
     /**
@@ -922,6 +936,24 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
+   * Removes a workout, and any setting pointing at it: the workout in
+   * progress, or the auto-finished one to mention (#20). Callers hold the
+   * turn.
+   * @param {string} workoutId
+   */
+  async function removeWorkout(workoutId) {
+    await store.remove("workouts", workoutId);
+    const changed = await settings();
+    const pointers = /** @type {const} */ ([
+      "workoutInProgress",
+      "autoFinished",
+    ]);
+    const stale = pointers.filter((key) => changed[key] === workoutId);
+    for (const key of stale) delete changed[key];
+    if (stale.length) await store.put("settings", changed);
+  }
+
+  /**
    * A real calendar date no later than today (#18, #20): body weight and
    * back-dated workouts can't be in the future.
    * @param {string} date YYYY-MM-DD
@@ -941,7 +973,7 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * A set that can be right (spec #3, stories 29-32), as stored: whole reps
+   * A set checked and shaped for storing (spec #3, stories 29-32): whole reps
    * of 1 or more, a load of 0 or more, RIR 0-4, and not both a warm-up and a
    * drop set. Loads are in lb until per-exercise units arrive (#21).
    * @param {SetInput} set

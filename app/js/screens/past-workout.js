@@ -1,5 +1,5 @@
 import { h } from "../dom.js";
-import { choiceChips } from "./exercise-list.js";
+import { endRest } from "./rest-timer.js";
 import {
   countOf,
   listDate,
@@ -7,9 +7,9 @@ import {
   twoTapButton,
   typedNumber,
 } from "./screen.js";
-import { setRow } from "./workout.js";
+import { setChoices, setRow } from "./workout.js";
 
-/** @import { WorkoutSet } from "../core/types.js" */
+/** @import { SetRef, WorkoutSet } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
 /**
@@ -40,31 +40,37 @@ export function pastWorkoutView({ forge, id }) {
       return;
     }
     const workoutId = workout.id;
+    const inProgress = !workout.finishedAt;
+    // A change to the workout in progress ends its rest, as undo does (#12).
+    const changed = () => {
+      if (inProgress) endRest();
+    };
     const [title, gym] = await Promise.all([
       forge.workoutTitle(workout),
       forge.getGym(workout.gymId),
     ]);
     const { exercises, sets, minutes } = forge.summarize(workout);
     const blocks = await Promise.all(
-      workout.entries
-        .filter((e) => e.sets.length > 0)
-        .map(async (entry) => {
-          const name =
-            (await forge.getExercise(entry.exerciseId))?.name ??
-            entry.exerciseId;
-          return h(
-            "section",
-            { class: "history-workout" },
-            h("h2", { class: "history-date" }, name),
-            h(
-              "ol",
-              { class: "sets", "aria-label": `${name} sets` },
-              ...entry.sets.map((set, i) =>
-                editableSet(entry.exerciseId, name, set, i),
+      forge.exercisesDone(workout).map(async (entry) => {
+        const name =
+          (await forge.getExercise(entry.exerciseId))?.name ?? entry.exerciseId;
+        return h(
+          "section",
+          { class: "past-exercise" },
+          h("h2", { class: "past-exercise-name" }, name),
+          h(
+            "ol",
+            { class: "sets", "aria-label": `${name} sets` },
+            ...entry.sets.map((set, index) =>
+              editableSet(
+                { workoutId, exerciseId: entry.exerciseId, index },
+                name,
+                set,
               ),
             ),
-          );
-        }),
+          ),
+        );
+      }),
     );
     root.replaceChildren(
       screen(
@@ -76,9 +82,7 @@ export function pastWorkoutView({ forge, id }) {
           [
             listDate(workout.date, forge.today()),
             gym?.name,
-            workout.finishedAt
-              ? `${countOf(minutes, "minute")}`
-              : "In progress",
+            inProgress ? "In progress" : countOf(minutes, "minute"),
           ]
             .filter(Boolean)
             .join(" · "),
@@ -90,22 +94,23 @@ export function pastWorkoutView({ forge, id }) {
         ),
         ...(workout.note ? [h("p", { class: "lede" }, workout.note)] : []),
         ...blocks,
-        ...(workout.finishedAt
-          ? []
-          : [
+        ...(inProgress
+          ? [
               h(
                 "a",
                 { class: "button", href: "#/log" },
                 "Back to logging",
                 h("span", { "aria-hidden": "true" }, "→"),
               ),
-            ]),
+            ]
+          : []),
         twoTapButton({
           className: "button secondary",
           text: "Delete workout",
           again: () => `Tap again to delete ${title} for good`,
           act: async () => {
             await forge.deleteWorkout(workoutId);
+            changed();
             location.hash = "#/workouts";
           },
         }),
@@ -114,18 +119,17 @@ export function pastWorkoutView({ forge, id }) {
 
     /**
      * A set row that opens a form to correct it on a tap.
-     * @param {string} exerciseId
-     * @param {string} name
+     * @param {SetRef} ref
+     * @param {string} name the exercise's
      * @param {WorkoutSet} set
-     * @param {number} index
      */
-    function editableSet(exerciseId, name, set, index) {
-      const row = setRow(set, index);
+    function editableSet(ref, name, set) {
+      const row = setRow(set, ref.index);
       row.classList.add("set-editable");
       row.setAttribute("role", "button");
       row.setAttribute("tabindex", "0");
-      row.setAttribute("aria-label", `Correct ${name} set ${index + 1}`);
-      const open = () => row.replaceWith(setForm(exerciseId, set, index));
+      row.setAttribute("aria-label", `Correct ${name} set ${ref.index + 1}`);
+      const open = () => row.replaceWith(setForm(ref, set));
       row.addEventListener("click", open);
       row.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") open();
@@ -136,16 +140,11 @@ export function pastWorkoutView({ forge, id }) {
     /**
      * The form correcting one set: load, reps, RIR and set type, with Save,
      * Cancel and a two-tap Delete.
-     * @param {string} exerciseId
+     * @param {SetRef} ref
      * @param {WorkoutSet} set
-     * @param {number} index
      */
-    function setForm(exerciseId, set, index) {
-      /** @type {{ rir: number | undefined, flag: "warmUp" | "drop" | undefined }} */
-      const choice = {
-        rir: set.rir,
-        flag: set.warmUp ? "warmUp" : set.drop ? "drop" : undefined,
-      };
+    function setForm(ref, set) {
+      const choices = setChoices(set);
       const load = h("input", {
         class: "small-number wide",
         type: "text",
@@ -166,59 +165,29 @@ export function pastWorkoutView({ forge, id }) {
         { class: "set-form" },
         h(
           "div",
-          { class: "slot-targets" },
+          { class: "set-form-fields" },
           h("span", { class: "label" }, set.unit),
           load,
           h("span", { class: "label" }, "×"),
           reps,
           h("span", { class: "label" }, "reps"),
         ),
+        ...choices.nodes,
         h(
           "div",
-          { class: "rir" },
-          h("span", { class: "label" }, "RIR"),
-          choiceChips({
-            label: "RIR, optional",
-            options: [0, 1, 2, 3, 4].map((value) => ({
-              value,
-              text: value === 4 ? "4+" : String(value),
-            })),
-            selected: set.rir,
-            clearable: true,
-            onChoose: (value) => {
-              choice.rir = value;
-            },
-          }),
-        ),
-        choiceChips({
-          label: "Set type",
-          options: [
-            { value: /** @type {const} */ ("warmUp"), text: "Warm-up" },
-            { value: /** @type {const} */ ("drop"), text: "Drop set" },
-          ],
-          selected: choice.flag,
-          clearable: true,
-          onChoose: (value) => {
-            choice.flag = value;
-          },
-        }),
-        h(
-          "div",
-          { class: "weight-actions" },
+          { class: "set-form-actions" },
           h(
             "button",
             {
-              class: "chip",
+              class: "chip primary",
               type: "button",
               onclick: async () => {
                 status.hidden = true;
                 try {
-                  await forge.editSet(workoutId, exerciseId, index, {
+                  await forge.editSet(ref, {
                     load: typedNumber(load),
                     reps: typedNumber(reps),
-                    rir: choice.rir,
-                    warmUp: choice.flag === "warmUp",
-                    drop: choice.flag === "drop",
+                    ...choices.read(),
                   });
                   show();
                 } catch (error) {
@@ -239,8 +208,11 @@ export function pastWorkoutView({ forge, id }) {
             text: "Delete set",
             again: () => "Tap again to delete",
             act: async () => {
-              await forge.deleteSet(workoutId, exerciseId, index);
-              show();
+              const left = await forge.deleteSet(ref);
+              changed();
+              // The workout's last set took the workout with it.
+              if (left) show();
+              else location.hash = "#/workouts";
             },
           }),
         ),

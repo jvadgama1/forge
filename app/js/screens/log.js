@@ -43,7 +43,7 @@ export function logView({ forge, id }) {
             workout,
             title: await forge.workoutTitle(workout),
             gymName,
-            today: forge.today(),
+            backDated: forge.isBackDated(workout),
           }),
           h("p", { class: "lede" }, "Add your first exercise."),
           h(
@@ -149,7 +149,8 @@ export function logView({ forge, id }) {
       h(
         "a",
         { class: "chip past-link", href: "#/workouts" },
-        "Past workouts →",
+        "Workouts",
+        h("span", { "aria-hidden": "true" }, "→"),
       ),
       ...(autoFinished ? [autoFinished] : []),
     );

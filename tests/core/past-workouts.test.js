@@ -75,6 +75,47 @@ describe("back-dating (#20)", () => {
     ).toEqual(["2026-10-22", "2026-10-20"]);
   });
 
+  it("counts toward the records", async () => {
+    const env = await setup();
+    await benchWorkout(env, [[135, 8]]);
+    await benchWorkout(env, [[165, 2]], "2026-10-01");
+    expect((await env.f.records("bench-press")).heaviest?.load).toBe(165);
+  });
+
+  it("is said to be back-dated", async () => {
+    const env = await setup();
+    const today = await benchWorkout(env, [[135, 8]]);
+    const past = await benchWorkout(env, [[135, 8]], "2026-10-01");
+    expect(env.f.isBackDated(today)).toBe(false);
+    expect(env.f.isBackDated(past)).toBe(true);
+  });
+
+  it("doesn't move a routine's next day past days done since", async () => {
+    const env = await setup();
+    const routine = await env.f.saveRoutine({
+      name: "PPL",
+      days: ["Push A", "Pull A", "Legs A"].map((name) => ({
+        name,
+        slots: [{ exerciseId: "bench-press", sets: 3, repMin: 8, repMax: 12 }],
+      })),
+    });
+    const [push, pull] = routine.versions[0].days;
+    /** @param {string} dayId @param {string} [date] */
+    const doDay = async (dayId, date) => {
+      const w = await env.f.startWorkout(env.gym.id, {
+        day: { routineId: routine.id, dayId },
+        date,
+      });
+      await env.f.logSet(w.id, "bench-press", { load: 135, reps: 8 });
+      await env.f.finishWorkout(w.id);
+    };
+    env.on(22);
+    await doDay(pull.id); // Pull A on the 22nd
+    env.on(25);
+    await doDay(push.id, "2026-10-20"); // Push A logged late, for the 20th
+    expect((await env.f.nextRoutineDay(routine.id))?.name).toBe("Legs A");
+  });
+
   it("refuses a future or impossible date", async () => {
     const env = await setup();
     await expect(
@@ -93,11 +134,14 @@ describe("editing a set (#20)", () => {
       [135, 8],
       [135, 7],
     ]);
-    const edited = await env.f.editSet(w.id, "bench-press", 1, {
-      load: 135,
-      reps: 9,
-      rir: 1,
-    });
+    const edited = await env.f.editSet(
+      { workoutId: w.id, exerciseId: "bench-press", index: 1 },
+      {
+        load: 135,
+        reps: 9,
+        rir: 1,
+      },
+    );
     const sets = edited.entries[0].sets;
     expect(sets.map((s) => s.reps)).toEqual([8, 9]);
     expect(sets[1]).toMatchObject({ load: 135, reps: 9, rir: 1 });
@@ -111,36 +155,96 @@ describe("editing a set (#20)", () => {
     env.on(22);
     const w = await benchWorkout(env, [[1355, 8]]); // a slipped digit
     expect((await env.f.records("bench-press")).heaviest?.load).toBe(1355);
-    await env.f.editSet(w.id, "bench-press", 0, { load: 135, reps: 9 });
+    await env.f.editSet(
+      { workoutId: w.id, exerciseId: "bench-press", index: 0 },
+      { load: 135, reps: 9 },
+    );
     expect((await env.f.records("bench-press")).heaviest?.load).toBe(135);
     expect((await env.f.lastWorkoutLine("bench-press"))?.sets).toEqual([
       { load: 135, unit: "lb", reps: 9 },
     ]);
   });
 
+  it("takes a set flagged as a warm-up out of the records", async () => {
+    const env = await setup();
+    env.on(20);
+    await benchWorkout(env, [[135, 8]]);
+    env.on(22);
+    const w = await benchWorkout(env, [
+      [155, 3],
+      [135, 8],
+    ]);
+    await env.f.editSet(
+      { workoutId: w.id, exerciseId: "bench-press", index: 0 },
+      { load: 155, reps: 3, warmUp: true },
+    );
+    expect((await env.f.records("bench-press")).heaviest?.load).toBe(135);
+  });
+
   it("refuses what logging refuses", async () => {
     const env = await setup();
     const w = await benchWorkout(env, [[135, 8]]);
     await expect(
-      env.f.editSet(w.id, "bench-press", 0, { load: 135, reps: 0 }),
+      env.f.editSet(
+        { workoutId: w.id, exerciseId: "bench-press", index: 0 },
+        { load: 135, reps: 0 },
+      ),
     ).rejects.toThrow("Reps must be 1 or more");
     await expect(
-      env.f.editSet(w.id, "bench-press", 3, { load: 135, reps: 8 }),
+      env.f.editSet(
+        { workoutId: w.id, exerciseId: "bench-press", index: 3 },
+        { load: 135, reps: 8 },
+      ),
     ).rejects.toThrow("No such set");
   });
 });
 
 describe("deleting (#20)", () => {
-  it("deletes a set; an exercise left with none goes from a finished workout", async () => {
+  it("deletes a set, which leaves the records and the last workout", async () => {
     const env = await setup();
+    env.on(20);
+    await benchWorkout(env, [[135, 8]]);
+    env.on(22);
     const w = await benchWorkout(env, [
-      [135, 8],
+      [155, 3],
       [135, 7],
     ]);
-    const one = await env.f.deleteSet(w.id, "bench-press", 0);
-    expect(one.entries[0].sets.map((s) => s.reps)).toEqual([7]);
-    const none = await env.f.deleteSet(w.id, "bench-press", 0);
-    expect(none.entries).toEqual([]);
+    const left = await env.f.deleteSet({
+      workoutId: w.id,
+      exerciseId: "bench-press",
+      index: 0,
+    });
+    expect(left?.entries[0].sets.map((s) => s.reps)).toEqual([7]);
+    expect((await env.f.records("bench-press")).heaviest?.load).toBe(135);
+    expect((await env.f.lastWorkoutLine("bench-press"))?.sets).toEqual([
+      { load: 135, unit: "lb", reps: 7 },
+    ]);
+  });
+
+  it("deletes a finished workout with its last set, as finishing an empty one would", async () => {
+    const env = await setup();
+    const w = await benchWorkout(env, [[135, 8]]);
+    expect(
+      await env.f.deleteSet({
+        workoutId: w.id,
+        exerciseId: "bench-press",
+        index: 0,
+      }),
+    ).toBeUndefined();
+    expect(await env.f.getWorkout(w.id)).toBeUndefined();
+  });
+
+  it("keeps an exercise with no sets in the workout in progress", async () => {
+    const env = await setup();
+    const w = await env.f.startWorkout(env.gym.id);
+    await env.f.addExercise(w.id, "bench-press");
+    await env.f.logSet(w.id, "bench-press", { load: 135, reps: 8 });
+    const left = await env.f.deleteSet({
+      workoutId: w.id,
+      exerciseId: "bench-press",
+      index: 0,
+    });
+    expect(left?.entries).toEqual([{ exerciseId: "bench-press", sets: [] }]);
   });
 
   it("deletes a workout, which leaves the history and records", async () => {
