@@ -133,6 +133,12 @@
  */
 
 /**
+ * A suggested weight (GLOSSARY: Suggested weight; #15) and why: up by the
+ * increment, hold, down by the increment, or a comeback.
+ * @typedef {Load & { reason: "up" | "hold" | "down" | "comeback" }} Suggestion
+ */
+
+/**
  * One exercise's sets in one workout, for its last workout and history.
  * @typedef {{ workout: Workout, sets: WorkoutSet[] }} ExerciseInWorkout
  */

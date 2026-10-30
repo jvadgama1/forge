@@ -362,6 +362,41 @@ const ROUTINE_WORKOUT = {
   ],
 };
 
+/**
+ * Push A just started, after a bench press workout on `date` that hit the
+ * top of its 6–10 rep range: Oct 20 suggests going up, Oct 1 a comeback
+ * (#15).
+ * @param {string} date YYYY-MM-DD
+ */
+const pushAfter = (date) => ({
+  ...ROUTINE,
+  settings: [
+    { id: "user", lastGymId: "gym-work", workoutInProgress: "w-push" },
+  ],
+  workouts: [
+    {
+      ...benchDay(date, [
+        [135, 10],
+        [135, 10],
+        [135, 10, 1],
+      ]),
+      routine: { routineId: "r-ppl", version: 1, dayId: "d-push" },
+    },
+    {
+      id: "w-push",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:00:00.000Z",
+      gymId: "gym-work",
+      routine: { routineId: "r-ppl", version: 1, dayId: "d-push" },
+      entries: [
+        { exerciseId: "barbell-bench-press", sets: [] },
+        { exerciseId: "incline-db-press", sets: [] },
+        { exerciseId: "triceps-pushdown", sets: [] },
+      ],
+    },
+  ],
+});
+
 /** Made-up body weight entries (#18). */
 const WEIGHTS = {
   ...GYMS,
@@ -442,6 +477,18 @@ export const SHOTS = [
     as: "owner",
     route: "/log",
     seed: ROUTINE_WORKOUT,
+  },
+  {
+    name: "suggested-up",
+    as: "owner",
+    route: "/log",
+    seed: pushAfter("2026-10-20"),
+  },
+  {
+    name: "suggested-comeback",
+    as: "owner",
+    route: "/log",
+    seed: pushAfter("2026-10-01"),
   },
   {
     name: "routine-finish",

@@ -1,10 +1,14 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, Suggestion, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
 // A workout left this long after its last set (or its start, with no sets)
 // was abandoned, not paused: no real workout rests 3 hours (#45).
 const ABANDONED_AFTER = 3 * 60 * 60_000;
+
+// A break this long makes the next workout with an exercise a comeback
+// (GLOSSARY: Comeback).
+const COMEBACK_DAYS = 14;
 
 // Records compare loads in kg, so a unit change doesn't fake one (spec #3).
 const KG_PER_LB = 0.45359237;
@@ -672,17 +676,9 @@ export function createForge({ store, library, now = () => new Date() }) {
       return latest?.exerciseId ?? live[0]?.exerciseId;
     },
 
-    /**
-     * The load steppers' step: the exercise's increment, by default 5 lb for
-     * upper body and 10 lb for lower (GLOSSARY: Increment). Per-exercise
-     * increments arrive with #21.
-     * @param {string} exerciseId
-     */
-    loadStep(exerciseId) {
-      return library.find((e) => e.id === exerciseId)?.body === "lower"
-        ? 10
-        : 5;
-    },
+    loadStep,
+
+    suggestedWeight,
 
     /**
      * Seconds to rest after a set of the exercise: its rest default, 90 s
@@ -804,18 +800,26 @@ export function createForge({ store, library, now = () => new Date() }) {
 
     /**
      * What the next set of an exercise starts filled in with: the previous
-     * set's load and reps (spec #3, story 28). The first set starts empty
-     * until last workouts and suggestions arrive (#13, #15).
+     * set's load and reps (spec #3, story 28). The first set starts from the
+     * suggested weight and the bottom of the rep range, or the last working
+     * set's reps without one (#15); empty with no history.
      * @param {Workout} workout
      * @param {string} exerciseId
-     * @returns {{ load: number, reps: number } | undefined}
+     * @returns {Promise<{ load: number, reps: number } | undefined>}
      */
-    nextSet(workout, exerciseId) {
+    async nextSet(workout, exerciseId) {
       const sets = workout.entries.find(
         (e) => e.exerciseId === exerciseId,
       )?.sets;
       const last = sets?.at(-1);
-      return last && { load: last.load, reps: last.reps };
+      if (last) return { load: last.load, reps: last.reps };
+      const suggested = await suggestedWeight(workout, exerciseId);
+      const lastSet = (await workingHistory(workout, exerciseId))[0]?.sets
+        .filter(working)
+        .at(-1);
+      if (!suggested || !lastSet) return undefined;
+      const range = await repRange(workout, exerciseId);
+      return { load: suggested.load, reps: range?.repMin ?? lastSet.reps };
     },
 
     /**
@@ -905,6 +909,101 @@ export function createForge({ store, library, now = () => new Date() }) {
     return (await history(exerciseId)).find(
       (h) => h.workout.finishedAt && h.workout.id !== excluding,
     );
+  }
+
+  /**
+   * The load steppers' step: the exercise's increment, by default 5 lb for
+   * upper body and 10 lb for lower (GLOSSARY: Increment). Per-exercise
+   * increments arrive with #21.
+   * @param {string} exerciseId
+   */
+  function loadStep(exerciseId) {
+    return library.find((e) => e.id === exerciseId)?.body === "lower" ? 10 : 5;
+  }
+
+  /**
+   * The suggested weight for an exercise's working sets in `workout`
+   * (spec #3, Rules; #15), worked out with no AI (ADR-0004). A comeback
+   * after 14 or more days without the exercise comes first; otherwise
+   * double progression over its rep range, from its last working sets. None
+   * without history.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   * @returns {Promise<Suggestion | undefined>}
+   */
+  async function suggestedWeight(workout, exerciseId) {
+    const recent = await workingHistory(workout, exerciseId);
+    const sets = recent.map((h) => h.sets.filter(working));
+    const lastSet = sets[0]?.at(-1);
+    if (!lastSet) return undefined;
+    const { load, unit } = lastSet;
+    const step = loadStep(exerciseId);
+    if (daysBetween(recent[0].workout.date, workout.date) >= COMEBACK_DAYS)
+      // 90%, in whole tenths so 135 lb gives 121.5, not 121.49999.
+      return {
+        load: Math.floor((load * 9) / 10 / step) * step,
+        unit,
+        reason: "comeback",
+      };
+    const range = await repRange(workout, exerciseId);
+    if (!range) return { load, unit, reason: "hold" };
+    if (sets[0].every((s) => s.reps >= range.repMax))
+      return { load: load + step, unit, reason: "up" };
+    /** @param {WorkoutSet[] | undefined} done */
+    const short = (done) => !!done?.some((s) => s.reps < range.repMin);
+    if (short(sets[0]) && short(sets[1]))
+      return { load: Math.max(0, load - step), unit, reason: "down" };
+    return { load, unit, reason: "hold" };
+  }
+
+  /**
+   * The exercise's finished workouts other than `workout`, newest first,
+   * skipping any without working sets: what double progression reads.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  async function workingHistory(workout, exerciseId) {
+    return (await history(exerciseId)).filter(
+      (h) =>
+        h.workout.finishedAt &&
+        h.workout.id !== workout.id &&
+        h.sets.some(working),
+    );
+  }
+
+  /**
+   * The exercise's rep range for double progression (spec #3, Rules): its
+   * slot in the routine day the workout follows; otherwise, as in
+   * freestyle, its slot in the routine saved most recently that has it.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   * @returns {Promise<{ repMin: number, repMax: number } | undefined>}
+   */
+  async function repRange(workout, exerciseId) {
+    const followed = (await followedDay(workout))?.slots.find(
+      (s) => s.exerciseId === exerciseId,
+    );
+    if (followed) return followed;
+    const routines = /** @type {Routine[]} */ (await store.list("routines"));
+    return routines
+      .map((r) => currentVersion(r))
+      .filter((v) => v !== undefined)
+      .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+      .flatMap((v) => v.days.flatMap((d) => d.slots))
+      .find((s) => s.exerciseId === exerciseId);
+  }
+
+  /**
+   * Calendar days from one date to a later one, both YYYY-MM-DD.
+   * @param {string} from
+   * @param {string} to
+   */
+  function daysBetween(from, to) {
+    const utc = (/** @type {string} */ date) => {
+      const [year, month, day] = date.split("-").map(Number);
+      return Date.UTC(year, month - 1, day);
+    };
+    return Math.round((utc(to) - utc(from)) / 86_400_000);
   }
 
   /**
