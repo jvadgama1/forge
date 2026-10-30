@@ -39,7 +39,7 @@ Started and not yet finished. It finishes when the user taps Finish, or by itsel
 _Avoid_: Open, active
 
 **Set**:
-One effort at an exercise: a load and a count (reps, seconds, or time and distance), an optional RIR, and optional flags.
+One effort at an exercise: a load and a count (reps, seconds, or time and distance), together its measure, plus an optional RIR and optional flags.
 
 **Working set**:
 A set that is neither a warm-up nor a drop set; the sets that drive suggested weights and records.
@@ -75,7 +75,7 @@ How long to rest after a set of an exercise, which the rest timer counts down: 9
 A note attached to an exercise, shown every time it is logged (seat height, grip).
 
 **Body weight entry**:
-A dated body-weight reading.
+A dated body-weight reading. Set text writes body weight as BW ("BW + 25 lb × 8").
 
 ## Routines and progression
 
@@ -112,7 +112,7 @@ _Avoid_: Deload (a deload is planned; a comeback follows a break)
 The heaviest single rep a set implies, estimated from its load and reps.
 
 **Record**:
-A best-ever result for an exercise (heaviest load, best e1RM, most reps at a load).
+A best-ever result for an exercise (heaviest load, best e1RM, most reps at a load). For a bodyweight exercise the heaviest load and e1RM count the body weight on the day; for an assisted one the load record is the least assist and there is no e1RM. Timed holds and cardio have none.
 _Avoid_: PR (collides with "pull request" in this project's process vocabulary)
 
 ## Coaching

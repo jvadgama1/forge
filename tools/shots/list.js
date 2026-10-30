@@ -397,6 +397,103 @@ const pushAfter = (date) => ({
   ],
 });
 
+/**
+ * A finished made-up workout of one exercise's sets on `date` (#19).
+ * @param {string} date YYYY-MM-DD
+ * @param {string} exerciseId
+ * @param {object[]} sets each set's measure
+ */
+const typeDay = (date, exerciseId, sets) => ({
+  id: `w-${exerciseId}-${date}`,
+  date,
+  startedAt: `${date}T18:00:00.000Z`,
+  finishedAt: `${date}T19:00:00.000Z`,
+  gymId: "gym-work",
+  entries: [
+    {
+      exerciseId,
+      sets: sets.map((set) => ({
+        load: 0,
+        unit: "lb",
+        loggedAt: `${date}T18:10:00.000Z`,
+        ...set,
+      })),
+    },
+  ],
+});
+
+/**
+ * A workout in progress with one exercise of each other type (#19), after a
+ * workout of each on Oct 20 and with body weight entries.
+ */
+const TYPES = {
+  gyms: GYMS.gyms,
+  settings: [
+    { id: "user", lastGymId: "gym-work", workoutInProgress: "w-types" },
+  ],
+  bodyWeights: [
+    {
+      id: "bw-1",
+      date: "2026-10-01",
+      load: 180,
+      unit: "lb",
+      loggedAt: "2026-10-01T07:30:00.000Z",
+    },
+    {
+      id: "bw-2",
+      date: "2026-10-22",
+      load: 181.6,
+      unit: "lb",
+      loggedAt: "2026-10-22T07:30:00.000Z",
+    },
+  ],
+  workouts: [
+    typeDay("2026-10-13", "pull-up", [
+      { reps: 10 },
+      { reps: 8 },
+      { load: 10, reps: 6 },
+    ]),
+    typeDay("2026-10-20", "pull-up", [
+      { reps: 12 },
+      { load: 10, reps: 8 },
+      { load: 25, reps: 5 },
+    ]),
+    typeDay("2026-10-20", "assisted-pull-up", [
+      { load: 40, reps: 12 },
+      { load: 40, reps: 12 },
+    ]),
+    typeDay("2026-10-20", "farmers-carry", [
+      { load: 70, seconds: 45 },
+      { load: 70, seconds: 40 },
+    ]),
+    typeDay("2026-10-20", "treadmill", [
+      { seconds: 1200, distance: 2, distanceUnit: "mi" },
+    ]),
+    {
+      id: "w-types",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:00:00.000Z",
+      gymId: "gym-work",
+      entries: [
+        {
+          exerciseId: "pull-up",
+          sets: [
+            {
+              load: 0,
+              unit: "lb",
+              reps: 12,
+              loggedAt: "2026-10-25T18:04:00.000Z",
+            },
+          ],
+        },
+        { exerciseId: "assisted-pull-up", sets: [] },
+        { exerciseId: "farmers-carry", sets: [] },
+        { exerciseId: "treadmill", sets: [] },
+      ],
+    },
+  ],
+};
+
 /** Made-up body weight entries (#18). */
 const WEIGHTS = {
   ...GYMS,
@@ -431,6 +528,35 @@ export const SHOTS = [
     steps: async (page) => {
       await page
         .getByRole("button", { name: "Correct Barbell Bench Press set 2" })
+        .click();
+      await page.getByRole("button", { name: "Delete set" }).waitFor();
+    },
+  },
+  ...[
+    ["type-bodyweight", "pull-up"],
+    ["type-assisted", "assisted-pull-up"],
+    ["type-timed", "farmers-carry"],
+    ["type-cardio", "treadmill"],
+  ].map(([name, exerciseId]) => ({
+    name,
+    as: /** @type {const} */ ("owner"),
+    route: `/log/ex/${exerciseId}`,
+    seed: TYPES,
+  })),
+  {
+    name: "type-history",
+    as: "owner",
+    route: "/log/history/pull-up",
+    seed: TYPES,
+  },
+  {
+    name: "type-edit",
+    as: "owner",
+    route: "/workouts/w-treadmill-2026-10-20",
+    seed: TYPES,
+    steps: async (page) => {
+      await page
+        .getByRole("button", { name: "Correct Treadmill set 1" })
         .click();
       await page.getByRole("button", { name: "Delete set" }).waitFor();
     },

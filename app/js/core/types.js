@@ -35,11 +35,17 @@
  */
 
 /**
- * One effort at an exercise (GLOSSARY: Set).
+ * One effort at an exercise (GLOSSARY: Set), measured by its exercise type
+ * (#19): reps for weight × reps, bodyweight × reps and assisted; seconds
+ * for a timed hold; seconds and an optional distance for cardio.
  * @typedef {object} WorkoutSet
- * @property {number} load
+ * @property {number} load The weight lifted; for bodyweight × reps the
+ *   added load, for assisted the assist; 0 for cardio.
  * @property {"lb" | "kg"} unit
- * @property {number} reps
+ * @property {number} [reps]
+ * @property {number} [seconds]
+ * @property {number} [distance]
+ * @property {"mi" | "km"} [distanceUnit] With a distance.
  * @property {number} [rir] Reps in reserve, 0–4; 4 means "4 or more".
  * @property {boolean} [warmUp]
  * @property {boolean} [drop]
@@ -52,8 +58,17 @@
  */
 
 /**
- * A set as the user enters it, to log or correct (#11, #20).
- * @typedef {{ load: number, reps: number, rir?: number, warmUp?: boolean, drop?: boolean }} SetInput
+ * A set's load and count, without when it was logged, its RIR or flags:
+ * what the last-workout line shows (#13, #19).
+ * @typedef {Pick<WorkoutSet, "load" | "unit" | "reps" | "seconds" | "distance" | "distanceUnit">} Measure
+ */
+
+/**
+ * A set as the user enters it, to log or correct (#11, #19, #20): the
+ * measure its exercise type needs. A missing load is 0, except for
+ * weight × reps.
+ * @typedef {{ load?: number, reps?: number, seconds?: number, distance?: number, distanceUnit?: "mi" | "km", rir?: number, warmUp?: boolean, drop?: boolean }} SetInput
+ *   A distance without a unit is in miles until per-exercise units (#21).
  */
 
 /**
@@ -145,9 +160,9 @@
  */
 
 /**
- * A record a set can beat (GLOSSARY: Record): heaviest load, best e1RM, most
- * reps at a load.
- * @typedef {"heaviest" | "e1rm" | "reps"} RecordKind
+ * A record a set can beat (GLOSSARY: Record): heaviest load (least assist
+ * for assisted, #19), best e1RM, most reps at a load.
+ * @typedef {"heaviest" | "least-assist" | "e1rm" | "reps"} RecordKind
  */
 
 /**

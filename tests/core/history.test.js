@@ -189,7 +189,7 @@ describe("e1RM trend (#13)", () => {
     expect(trend.points[1].value).toBeCloseTo(80, 2);
   });
 
-  it("is empty for an exercise without e1RM (not weight × reps)", async () => {
+  it("is empty for a bodyweight exercise with no body weight on record", async () => {
     const { f, store } = await withHistory({
       ...past("a", "2026-10-14", []),
       entries: [{ exerciseId: "dips", sets: [set(0, 12), set(25, 8)] }],

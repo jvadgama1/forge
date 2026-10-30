@@ -1,14 +1,26 @@
 // The logging screen (#11), laid out as the Slab prototype: one exercise at
-// a time, its sets so far, a big load × reps entry with steppers, RIR,
-// warm-up / drop-set flags and one button to log the set.
+// a time, its sets so far, a big two-number entry with steppers (load × reps,
+// or what the exercise type measures: #19), RIR, warm-up / drop-set flags and
+// one button to log the set.
 import { h } from "../dom.js";
 import { muscleGroup } from "../core/muscle-groups.js";
+import { TYPE_RULES } from "../core/exercise-types.js";
 import { choiceChips } from "./exercise-list.js";
+import {
+  fieldsFor,
+  loadText,
+  readFields,
+  setText,
+  shortText,
+} from "./measure.js";
 import { endRest, restBar, startRest } from "./rest-timer.js";
 import { monthDay, pad2, typedNumber as typed } from "./screen.js";
 
-/** @import { Load, RecordKind, SuggestedWeight, Workout, WorkoutSet } from "../core/types.js" */
+/** @import { ExerciseType, RecordKind, SuggestedWeight, Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
+
+/** @param {number} n to 0.01 */
+const round = (n) => Math.round(n * 100) / 100;
 
 /** @param {number} rir 0–4, where 4 means "4 or more" */
 const rirLabel = (rir) => (rir === 4 ? "4+" : String(rir));
@@ -92,18 +104,13 @@ export function workoutHeader({
   ];
 }
 
-/** @param {Load} load as "135 lb" */
-export const loadText = ({ load, unit }) => `${load} ${unit}`;
-
-/** @param {WorkoutSet} set as "135 lb × 8" */
-const setText = (set) => `${loadText(set)} × ${set.reps}`;
-
 /**
- * One logged set: number, load × reps, any flag, RIR and a tick.
+ * One logged set: number, its measure, any flag, RIR and a tick.
  * @param {WorkoutSet} set
  * @param {number} index
+ * @param {ExerciseType} type the exercise's
  */
-export function setRow(set, index) {
+export function setRow(set, index, type) {
   const flag = set.warmUp ? "Warm-up" : set.drop ? "Drop set" : "";
   return h(
     "li",
@@ -112,7 +119,7 @@ export function setRow(set, index) {
     h(
       "span",
       { class: "set-what" },
-      setText(set),
+      setText(set, type),
       flag && h("span", { class: "label set-flag" }, flag),
     ),
     h(
@@ -127,38 +134,45 @@ export function setRow(set, index) {
 /**
  * A set's optional RIR and set type (warm-up or drop set), as chips that
  * a second tap clears: for logging a set and for correcting one (#11, #20).
+ * A timed hold or cardio has only the warm-up flag (#19).
+ * @param {ExerciseType} type the exercise's
  * @param {Pick<WorkoutSet, "rir" | "warmUp" | "drop">} [set] to start from
  */
-export function setChoices(set = {}) {
+export function setChoices(type, set = {}) {
   /** @type {{ rir: number | undefined, flag: "warmUp" | "drop" | undefined }} */
   const choice = {
     rir: set.rir,
     flag: set.warmUp ? "warmUp" : set.drop ? "drop" : undefined,
   };
+  const reps = TYPE_RULES[type].effort;
   /** @type {{ value: "warmUp" | "drop", text: string }[]} */
   const flagOptions = [
     { value: "warmUp", text: "Warm-up" },
-    { value: "drop", text: "Drop set" },
+    ...(reps
+      ? [{ value: /** @type {const} */ ("drop"), text: "Drop set" }]
+      : []),
   ];
   return {
     nodes: [
-      h(
-        "div",
-        { class: "rir" },
-        h("span", { class: "label" }, "RIR"),
-        choiceChips({
-          label: "RIR, optional",
-          options: [0, 1, 2, 3, 4].map((value) => ({
-            value,
-            text: rirLabel(value),
-          })),
-          selected: choice.rir,
-          clearable: true,
-          onChoose: (value) => {
-            choice.rir = value;
-          },
-        }),
-      ),
+      reps
+        ? h(
+            "div",
+            { class: "rir" },
+            h("span", { class: "label" }, "RIR"),
+            choiceChips({
+              label: "RIR, optional",
+              options: [0, 1, 2, 3, 4].map((value) => ({
+                value,
+                text: rirLabel(value),
+              })),
+              selected: choice.rir,
+              clearable: true,
+              onChoose: (value) => {
+                choice.rir = value;
+              },
+            }),
+          )
+        : null,
       choiceChips({
         label: "Set type",
         options: flagOptions,
@@ -171,7 +185,7 @@ export function setChoices(set = {}) {
     ],
     /** The choices as a set's fields. */
     read: () => ({
-      rir: choice.rir,
+      rir: reps ? choice.rir : undefined,
       warmUp: choice.flag === "warmUp",
       drop: choice.flag === "drop",
     }),
@@ -183,9 +197,10 @@ export function setChoices(set = {}) {
  * order (date, each working set, RIR) and the Slab prototype's coral-edged
  * card. Tapping it opens the full history (#13).
  * @param {string} exerciseId
+ * @param {ExerciseType} type
  * @param {NonNullable<Awaited<ReturnType<Forge["lastWorkoutLine"]>>>} last
  */
-function lastWorkoutLine(exerciseId, { date, sets, rir }) {
+function lastWorkoutLine(exerciseId, type, { date, sets, rir }) {
   return h(
     "a",
     {
@@ -197,7 +212,7 @@ function lastWorkoutLine(exerciseId, { date, sets, rir }) {
       "span",
       { class: "last-sets" },
       sets.length
-        ? sets.map((s) => `${s.load}×${s.reps}`).join(", ")
+        ? sets.map((s) => shortText(s, type)).join(", ")
         : "Warm-ups only",
       rir === undefined
         ? null
@@ -208,21 +223,26 @@ function lastWorkoutLine(exerciseId, { date, sets, rir }) {
 }
 
 /**
- * The suggested weight and why (#15), as "Suggested 140 lb · Up 5 lb".
+ * The suggested weight and why (#15), as "Suggested 140 lb · Up 5 lb"; for
+ * assisted, "Suggested 35 lb assist · Less assist" (#19).
  * @param {SuggestedWeight} suggestion
+ * @param {ExerciseType} type
  */
-function suggestionLine(suggestion) {
+function suggestionLine(suggestion, type) {
   const by = `${suggestion.by} ${suggestion.unit}`;
+  const assisted = TYPE_RULES[type].harder === "lighter";
   const why = {
-    up: `Up ${by}`,
+    up: assisted ? "Less assist" : `Up ${by}`,
     hold: "Hold",
-    down: `Down ${by}`,
-    comeback: `Comeback, ${suggestion.percent}%`,
+    down: assisted ? "More assist" : `Down ${by}`,
+    comeback: assisted
+      ? `Comeback, ${by} more`
+      : `Comeback, ${suggestion.percent}%`,
   }[suggestion.reason];
   return h(
     "p",
     { class: "label targets" },
-    `Suggested ${loadText(suggestion)} · ${why}`,
+    `Suggested ${loadText(suggestion, type)} · ${why}`,
   );
 }
 
@@ -230,26 +250,29 @@ function suggestionLine(suggestion) {
  * What the celebration calls a record the set beat.
  * @param {RecordKind} record
  * @param {WorkoutSet} set the set that beat it
+ * @param {ExerciseType} type
  */
-const recordName = (record, set) =>
-  record === "heaviest"
-    ? "heaviest load"
-    : record === "e1rm"
-      ? "best e1RM"
-      : `most reps at ${loadText(set)}`;
+const recordName = (record, set, type) =>
+  ({
+    heaviest: "heaviest load",
+    "least-assist": "least assist",
+    e1rm: "best e1RM",
+    reps: `most reps at ${loadText(set, type)}`,
+  })[record];
 
 /**
  * A small celebration for a set that beat a record (spec #3, story 40):
  * a star and the record's name, so it isn't colour alone.
  * @param {RecordKind[]} records
  * @param {WorkoutSet} set the set that beat them
+ * @param {ExerciseType} type
  */
-function celebration(records, set) {
+function celebration(records, set, type) {
   return h(
     "p",
     { class: "record", role: "status" },
     h("span", { "aria-hidden": "true" }, "★ "),
-    `New record: ${records.map((r) => recordName(r, set)).join(", ")}`,
+    `New record: ${records.map((r) => recordName(r, set, type)).join(", ")}`,
   );
 }
 
@@ -269,31 +292,25 @@ export async function workoutScreen({
   const index = live.findIndex((e) => e.exerciseId === exerciseId);
   const entry = live[index];
   const exercise = await forge.getExercise(exerciseId);
+  const type = await forge.exerciseType(exerciseId);
   const sets = entry?.sets ?? [];
-  const step = forge.loadStep(exerciseId);
   const prefill = await forge.nextSet(workout, exerciseId);
-
-  const load = h("input", {
-    class: "big-number",
-    type: "text",
-    inputmode: "decimal",
-    placeholder: "—",
-    "aria-label": "Load in lb",
-    value: prefill ? String(prefill.load) : "",
-  });
-  const reps = h("input", {
-    class: "big-number",
-    type: "text",
-    inputmode: "numeric",
-    placeholder: "—",
-    "aria-label": "Reps",
-    value: prefill ? String(prefill.reps) : "",
-  });
+  const fields = fieldsFor(type, "lb", forge.loadStep(exerciseId));
+  const inputs = fields.map((field) =>
+    h("input", {
+      class: "big-number",
+      type: "text",
+      inputmode: field.mode,
+      placeholder: field.optional ? "0" : "—",
+      "aria-label": field.name,
+      value: prefill ? field.show(prefill) : "",
+    }),
+  );
   const status = h("p", { class: "lede", role: "status" });
 
   /**
    * −/+ for a number field: by `by`, never below `min`; from empty, + starts
-   * at `by`.
+   * at `by`. Sums round to 0.01, so 0.1 steps don't drift.
    * @param {HTMLInputElement} field
    * @param {number} by
    * @param {number} min
@@ -310,7 +327,7 @@ export async function workoutScreen({
           "aria-label": `Decrease ${what}`,
           onclick: () => {
             const value = typed(field);
-            if (value - by >= min) field.value = String(value - by);
+            if (value - by >= min) field.value = String(round(value - by));
           },
         },
         "−",
@@ -322,14 +339,14 @@ export async function workoutScreen({
           "aria-label": `Increase ${what}`,
           onclick: () => {
             const value = typed(field);
-            field.value = String(Number.isNaN(value) ? by : value + by);
+            field.value = String(Number.isNaN(value) ? by : round(value + by));
           },
         },
         "+",
       ),
     );
 
-  const choices = setChoices();
+  const choices = setChoices(type);
 
   const logButton = h(
     "button",
@@ -343,8 +360,7 @@ export async function workoutScreen({
         status.textContent = "";
         try {
           const logged = await forge.logSet(workout.id, exerciseId, {
-            load: typed(load),
-            reps: typed(reps),
+            ...readFields(fields, inputs.map(typed)),
             ...choices.read(),
           });
           startRest(forge.restAfterSet(exerciseId));
@@ -372,7 +388,7 @@ export async function workoutScreen({
         if (!last || undo.disabled) return;
         if (!armed) {
           armed = true;
-          undo.textContent = `Tap again to undo ${setText(last)}`;
+          undo.textContent = `Tap again to undo ${setText(last, type)}`;
           return;
         }
         undo.disabled = true;
@@ -450,12 +466,12 @@ export async function workoutScreen({
           targets.rir === undefined ? "" : ` · RIR ${rirLabel(targets.rir)}`,
         )
       : null,
-    suggested ? suggestionLine(suggested) : null,
-    lastWorkout ? lastWorkoutLine(exerciseId, lastWorkout) : null,
+    suggested ? suggestionLine(suggested, type) : null,
+    lastWorkout ? lastWorkoutLine(exerciseId, type, lastWorkout) : null,
     h(
       "ol",
       { class: "sets", "aria-label": "Sets logged" },
-      ...sets.map(setRow),
+      ...sets.map((set, i) => setRow(set, i, type)),
       h(
         "li",
         { class: "set-now" },
@@ -463,25 +479,20 @@ export async function workoutScreen({
         h("span", { class: "set-what" }, "Now"),
       ),
     ),
-    records.length && last ? celebration(records, last) : null,
+    records.length && last ? celebration(records, last, type) : null,
     undo,
     restBar(),
     h(
       "div",
       { class: "entry" },
-      h(
-        "div",
-        { class: "entry-half" },
-        load,
-        h("span", { class: "label" }, "lb"),
-        steppers(load, step, 0, "load"),
-      ),
-      h(
-        "div",
-        { class: "entry-half" },
-        reps,
-        h("span", { class: "label" }, "Reps"),
-        steppers(reps, 1, 1, "reps"),
+      ...fields.map((field, i) =>
+        h(
+          "div",
+          { class: "entry-half" },
+          inputs[i],
+          h("span", { class: "label" }, field.label),
+          steppers(inputs[i], field.step, field.min, field.what),
+        ),
       ),
     ),
     ...choices.nodes,
