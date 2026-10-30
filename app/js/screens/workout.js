@@ -7,7 +7,7 @@ import { choiceChips } from "./exercise-list.js";
 import { endRest, restBar, startRest } from "./rest-timer.js";
 import { monthDay, pad2, typedNumber as typed } from "./screen.js";
 
-/** @import { Load, RecordKind, Suggestion, Workout, WorkoutSet } from "../core/types.js" */
+/** @import { Load, RecordKind, SuggestedWeight, Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
 
 /** @param {number} rir 0–4, where 4 means "4 or more" */
@@ -209,16 +209,15 @@ function lastWorkoutLine(exerciseId, { date, sets, rir }) {
 
 /**
  * The suggested weight and why (#15), as "Suggested 140 lb · Up 5 lb".
- * @param {Suggestion} suggestion
- * @param {number} step the exercise's increment
+ * @param {SuggestedWeight} suggestion
  */
-function suggestionLine(suggestion, step) {
-  const by = `${step} ${suggestion.unit}`;
+function suggestionLine(suggestion) {
+  const by = `${suggestion.by} ${suggestion.unit}`;
   const why = {
     up: `Up ${by}`,
     hold: "Hold",
     down: `Down ${by}`,
-    comeback: "Comeback, 90%",
+    comeback: `Comeback, ${suggestion.percent}%`,
   }[suggestion.reason];
   return h(
     "p",
@@ -451,7 +450,7 @@ export async function workoutScreen({
           targets.rir === undefined ? "" : ` · RIR ${rirLabel(targets.rir)}`,
         )
       : null,
-    suggested ? suggestionLine(suggested, step) : null,
+    suggested ? suggestionLine(suggested) : null,
     lastWorkout ? lastWorkoutLine(exerciseId, lastWorkout) : null,
     h(
       "ol",

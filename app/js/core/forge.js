@@ -1,4 +1,4 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, Suggestion, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -6,9 +6,17 @@
 // was abandoned, not paused: no real workout rests 3 hours (#45).
 const ABANDONED_AFTER = 3 * 60 * 60_000;
 
-// A break this long makes the next workout with an exercise a comeback
-// (GLOSSARY: Comeback).
+// A break this long makes the next workout with an exercise a comeback,
+// which suggests this share of the last working load (spec #3, Rules; #15).
 const COMEBACK_DAYS = 14;
+const COMEBACK_PERCENT = 90;
+
+// Exercise types double progression applies to: timed holds and cardio get
+// no suggested weight (spec #3, Rules); assisted waits for its reverse
+// progression (#19).
+const PROGRESSING = new Set(["weight-reps", "bodyweight-reps"]);
+
+const DAY = 86_400_000;
 
 // Records compare loads in kg, so a unit change doesn't fake one (spec #3).
 const KG_PER_LB = 0.45359237;
@@ -110,19 +118,7 @@ export function createForge({ store, library, now = () => new Date() }) {
   return {
     searchExercises,
 
-    /**
-     * A seeded or custom exercise.
-     * @param {string} exerciseId
-     * @returns {Promise<Exercise | undefined>}
-     */
-    async getExercise(exerciseId) {
-      return (
-        library.find((e) => e.id === exerciseId) ??
-        /** @type {Exercise | undefined} */ (
-          await store.get("customExercises", exerciseId)
-        )
-      );
-    },
+    getExercise: findExercise,
 
     /**
      * The exercise picker: the gym's exercises, searched and filtered like
@@ -536,9 +532,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @returns {Promise<Omit<Slot, "exerciseId"> | undefined>}
      */
     async targets(workout, exerciseId) {
-      const slot = (await followedDay(workout))?.slots.find(
-        (s) => s.exerciseId === exerciseId,
-      );
+      const slot = await followedSlot(workout, exerciseId);
       if (!slot) return undefined;
       const { sets, repMin, repMax, rir } = slot;
       return { sets, repMin, repMax, ...withRir(rir) };
@@ -678,7 +672,17 @@ export function createForge({ store, library, now = () => new Date() }) {
 
     loadStep,
 
-    suggestedWeight,
+    /**
+     * The suggested weight for an exercise's working sets in `workout`
+     * (spec #3, Rules; #15), worked out with no AI (ADR-0004); none without
+     * history, or for an exercise type double progression doesn't cover.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     * @returns {Promise<SuggestedWeight | undefined>}
+     */
+    async suggestedWeight(workout, exerciseId) {
+      return (await progression(workout, exerciseId))?.suggested;
+    },
 
     /**
      * Seconds to rest after a set of the exercise: its rest default, 90 s
@@ -801,8 +805,9 @@ export function createForge({ store, library, now = () => new Date() }) {
     /**
      * What the next set of an exercise starts filled in with: the previous
      * set's load and reps (spec #3, story 28). The first set starts from the
-     * suggested weight and the bottom of the rep range, or the last working
-     * set's reps without one (#15); empty with no history.
+     * suggested weight and the bottom of the rep range; with no rep range,
+     * from the last workout's first working set, or the comeback load with
+     * its reps (story 27, #15). Empty with no history.
      * @param {Workout} workout
      * @param {string} exerciseId
      * @returns {Promise<{ load: number, reps: number } | undefined>}
@@ -813,13 +818,14 @@ export function createForge({ store, library, now = () => new Date() }) {
       )?.sets;
       const last = sets?.at(-1);
       if (last) return { load: last.load, reps: last.reps };
-      const suggested = await suggestedWeight(workout, exerciseId);
-      const lastSet = (await workingHistory(workout, exerciseId))[0]?.sets
-        .filter(working)
-        .at(-1);
-      if (!suggested || !lastSet) return undefined;
-      const range = await repRange(workout, exerciseId);
-      return { load: suggested.load, reps: range?.repMin ?? lastSet.reps };
+      const p = await progression(workout, exerciseId);
+      if (!p) return undefined;
+      if (p.range) return { load: p.suggested.load, reps: p.range.repMin };
+      const first = p.lastSets[0];
+      return {
+        load: p.suggested.reason === "comeback" ? p.suggested.load : first.load,
+        reps: first.reps,
+      };
     },
 
     /**
@@ -922,53 +928,56 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * The suggested weight for an exercise's working sets in `workout`
-   * (spec #3, Rules; #15), worked out with no AI (ADR-0004). A comeback
-   * after 14 or more days without the exercise comes first; otherwise
-   * double progression over its rep range, from its last working sets. None
-   * without history.
+   * Double progression for an exercise in `workout` (spec #3, Rules; #15):
+   * the suggested weight, the rep range it used, and the last workout's
+   * working sets. A comeback after 14 or more days without the exercise
+   * comes first. Dropping takes two short workouts in a row at the same
+   * load, so one short workout after a drop holds rather than dropping
+   * again. None without history, or for a type it doesn't cover.
    * @param {Workout} workout
    * @param {string} exerciseId
-   * @returns {Promise<Suggestion | undefined>}
    */
-  async function suggestedWeight(workout, exerciseId) {
-    const recent = await workingHistory(workout, exerciseId);
-    const sets = recent.map((h) => h.sets.filter(working));
-    const lastSet = sets[0]?.at(-1);
-    if (!lastSet) return undefined;
+  async function progression(workout, exerciseId) {
+    const exercise = await findExercise(exerciseId);
+    if (!exercise || !PROGRESSING.has(exercise.type)) return undefined;
+    const done = (await history(exerciseId)).filter(
+      (h) => h.workout.finishedAt && h.workout.id !== workout.id,
+    );
+    const recent = done
+      .map((h) => h.sets.filter(working))
+      .filter((sets) => sets.length > 0);
+    const lastSets = recent[0];
+    if (!lastSets) return undefined;
+    const lastSet = /** @type {WorkoutSet} */ (lastSets.at(-1));
     const { load, unit } = lastSet;
     const step = loadStep(exerciseId);
-    if (daysBetween(recent[0].workout.date, workout.date) >= COMEBACK_DAYS)
-      // 90%, in whole tenths so 135 lb gives 121.5, not 121.49999.
-      return {
-        load: Math.floor((load * 9) / 10 / step) * step,
+    const range = await repRange(workout, exerciseId);
+    /** @param {WorkoutSet[] | undefined} sets */
+    const short = (sets) =>
+      !!range &&
+      !!sets?.some((s) => s.reps < range.repMin) &&
+      loadKey(/** @type {WorkoutSet} */ (sets.at(-1))) === loadKey(lastSet);
+    /** @type {SuggestedWeight} */
+    let suggested = { load, unit, reason: "hold" };
+    // A warm-up-only workout still did the exercise: the break counts from it.
+    if (daysBetween(done[0].workout.date, workout.date) >= COMEBACK_DAYS)
+      suggested = {
+        // In whole percents, so 135 lb gives 121.5, not 121.49999.
+        load: Math.floor((load * COMEBACK_PERCENT) / 100 / step) * step,
         unit,
         reason: "comeback",
+        percent: COMEBACK_PERCENT,
       };
-    const range = await repRange(workout, exerciseId);
-    if (!range) return { load, unit, reason: "hold" };
-    if (sets[0].every((s) => s.reps >= range.repMax))
-      return { load: load + step, unit, reason: "up" };
-    /** @param {WorkoutSet[] | undefined} done */
-    const short = (done) => !!done?.some((s) => s.reps < range.repMin);
-    if (short(sets[0]) && short(sets[1]))
-      return { load: Math.max(0, load - step), unit, reason: "down" };
-    return { load, unit, reason: "hold" };
-  }
-
-  /**
-   * The exercise's finished workouts other than `workout`, newest first,
-   * skipping any without working sets: what double progression reads.
-   * @param {Workout} workout
-   * @param {string} exerciseId
-   */
-  async function workingHistory(workout, exerciseId) {
-    return (await history(exerciseId)).filter(
-      (h) =>
-        h.workout.finishedAt &&
-        h.workout.id !== workout.id &&
-        h.sets.some(working),
-    );
+    else if (range && lastSets.every((s) => s.reps >= range.repMax))
+      suggested = { load: load + step, unit, reason: "up", by: step };
+    else if (short(recent[0]) && short(recent[1]))
+      suggested = {
+        load: Math.max(0, load - step),
+        unit,
+        reason: "down",
+        by: step,
+      };
+    return { suggested, range, lastSets };
   }
 
   /**
@@ -980,9 +989,7 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @returns {Promise<{ repMin: number, repMax: number } | undefined>}
    */
   async function repRange(workout, exerciseId) {
-    const followed = (await followedDay(workout))?.slots.find(
-      (s) => s.exerciseId === exerciseId,
-    );
+    const followed = await followedSlot(workout, exerciseId);
     if (followed) return followed;
     const routines = /** @type {Routine[]} */ (await store.list("routines"));
     return routines
@@ -991,6 +998,31 @@ export function createForge({ store, library, now = () => new Date() }) {
       .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
       .flatMap((v) => v.days.flatMap((d) => d.slots))
       .find((s) => s.exerciseId === exerciseId);
+  }
+
+  /**
+   * The exercise's slot in the routine day the workout followed, if any.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  async function followedSlot(workout, exerciseId) {
+    return (await followedDay(workout))?.slots.find(
+      (s) => s.exerciseId === exerciseId,
+    );
+  }
+
+  /**
+   * A seeded or custom exercise.
+   * @param {string} exerciseId
+   * @returns {Promise<Exercise | undefined>}
+   */
+  async function findExercise(exerciseId) {
+    return (
+      library.find((e) => e.id === exerciseId) ??
+      /** @type {Exercise | undefined} */ (
+        await store.get("customExercises", exerciseId)
+      )
+    );
   }
 
   /**
@@ -1003,7 +1035,7 @@ export function createForge({ store, library, now = () => new Date() }) {
       const [year, month, day] = date.split("-").map(Number);
       return Date.UTC(year, month - 1, day);
     };
-    return Math.round((utc(to) - utc(from)) / 86_400_000);
+    return Math.round((utc(to) - utc(from)) / DAY);
   }
 
   /**
@@ -1308,12 +1340,7 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {string} exerciseId
    */
   async function hasE1rm(exerciseId) {
-    const exercise =
-      library.find((e) => e.id === exerciseId) ??
-      /** @type {Exercise | undefined} */ (
-        await store.get("customExercises", exerciseId)
-      );
-    return exercise?.type === "weight-reps";
+    return (await findExercise(exerciseId))?.type === "weight-reps";
   }
 
   /**

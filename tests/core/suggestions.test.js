@@ -1,9 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { createForge } from "../../app/js/core/forge.js";
 import { createMemoryStore } from "../../app/js/store/memory-store.js";
-import { library } from "./library-fixture.js";
+import { library as strength } from "./library-fixture.js";
 
-/** @import { Workout, WorkoutSet } from "../../app/js/core/types.js" */
+/** @import { Exercise, Workout, WorkoutSet } from "../../app/js/core/types.js" */
+
+/**
+ * The strength fixture plus one exercise of each type double progression
+ * doesn't cover.
+ * @type {Exercise[]}
+ */
+const library = [
+  ...strength,
+  .../** @type {const} */ (["timed", "cardio", "assisted"]).map((type) => ({
+    id: type,
+    name: type,
+    type,
+    primary: /** @type {Exercise["primary"]} */ (["abs"]),
+    secondary: [],
+    body: /** @type {const} */ ("upper"),
+  })),
+];
 
 /**
  * A set of `load` lb × `reps`, with optional flags.
@@ -80,9 +97,9 @@ async function setup(...workouts) {
 describe("suggested weight by double progression (#15)", () => {
   it("is none without a last workout", async () => {
     const { f, pushA } = await setup();
-    expect(await f.suggestedWeight(await pushA(), "bench-press")).toBe(
-      undefined,
-    );
+    expect(
+      await f.suggestedWeight(await pushA(), "bench-press"),
+    ).toBeUndefined();
   });
 
   it("holds the last working load until every working set reaches the top of the rep range", async () => {
@@ -104,6 +121,7 @@ describe("suggested weight by double progression (#15)", () => {
       load: 140,
       unit: "lb",
       reason: "up",
+      by: 5,
     });
   });
 
@@ -115,6 +133,7 @@ describe("suggested weight by double progression (#15)", () => {
       load: 310,
       unit: "lb",
       reason: "up",
+      by: 10,
     });
   });
 
@@ -131,6 +150,7 @@ describe("suggested weight by double progression (#15)", () => {
       load: 140,
       unit: "lb",
       reason: "up",
+      by: 5,
     });
   });
 
@@ -154,6 +174,7 @@ describe("suggested weight by double progression (#15)", () => {
       load: 140,
       unit: "lb",
       reason: "down",
+      by: 5,
     });
   });
 
@@ -179,6 +200,7 @@ describe("suggested weight by double progression (#15)", () => {
       load: 0,
       unit: "lb",
       reason: "down",
+      by: 5,
     });
   });
 
@@ -190,6 +212,7 @@ describe("suggested weight by double progression (#15)", () => {
       load: 140,
       unit: "lb",
       reason: "up",
+      by: 5,
     });
   });
 
@@ -202,6 +225,32 @@ describe("suggested weight by double progression (#15)", () => {
     ).toEqual({ load: 50, unit: "lb", reason: "hold" });
   });
 
+  it("after a drop, holds the new load through one workout below the range", async () => {
+    const { f, pushA } = await setup(
+      past("2026-10-12", [set(145, 8), set(145, 6)]),
+      past("2026-10-16", [set(145, 9), set(145, 7)]),
+      past("2026-10-20", [set(140, 9), set(140, 7)]),
+    );
+    expect(await f.suggestedWeight(await pushA(), "bench-press")).toEqual({
+      load: 140,
+      unit: "lb",
+      reason: "hold",
+    });
+  });
+
+  it("is none for timed holds, cardio and (until #19) assisted exercises", async () => {
+    const { f, freestyle } = await setup(
+      past("2026-10-20", [set(0, 60)], "timed"),
+      past("2026-10-20", [set(0, 20)], "cardio"),
+      past("2026-10-20", [set(40, 10)], "assisted"),
+    );
+    const workout = await freestyle();
+    for (const id of ["timed", "cardio", "assisted"]) {
+      expect(await f.suggestedWeight(workout, id)).toBeUndefined();
+      expect(await f.nextSet(workout, id)).toBeUndefined();
+    }
+  });
+
   it("skips a last workout with only warm-ups, going back to the one before", async () => {
     const { f, pushA } = await setup(
       past("2026-10-18", [set(135, 12), set(135, 12)]),
@@ -211,6 +260,7 @@ describe("suggested weight by double progression (#15)", () => {
       load: 140,
       unit: "lb",
       reason: "up",
+      by: 5,
     });
   });
 });
@@ -225,6 +275,7 @@ describe("comeback (#15)", () => {
       load: 120,
       unit: "lb",
       reason: "comeback",
+      percent: 90,
     });
   });
 
@@ -237,12 +288,25 @@ describe("comeback (#15)", () => {
       load: 280,
       unit: "lb",
       reason: "comeback",
+      percent: 90,
     });
   });
 
   it("isn't one 13 days later", async () => {
     const { f, pushA } = await setup(
       past("2026-10-12", [set(135, 10), set(135, 10)]),
+    );
+    expect(await f.suggestedWeight(await pushA(), "bench-press")).toEqual({
+      load: 135,
+      unit: "lb",
+      reason: "hold",
+    });
+  });
+
+  it("counts the break from a workout with only warm-ups of the exercise", async () => {
+    const { f, pushA } = await setup(
+      past("2026-10-01", [set(135, 10), set(135, 10)]),
+      past("2026-10-20", [set(95, 10, { warmUp: true })]),
     );
     expect(await f.suggestedWeight(await pushA(), "bench-press")).toEqual({
       load: 135,
@@ -273,19 +337,34 @@ describe("the first set (#15)", () => {
     });
   });
 
-  it("without a rep range, starts from the last working set", async () => {
+  it("without a rep range, starts from the last workout's first working set", async () => {
     const { f, freestyle } = await setup(
-      past("2026-10-20", [set(50, 20), set(55, 15)], "triceps-pushdown"),
+      past(
+        "2026-10-20",
+        [set(30, 15, { warmUp: true }), set(50, 20), set(55, 15)],
+        "triceps-pushdown",
+      ),
     );
     expect(await f.nextSet(await freestyle(), "triceps-pushdown")).toEqual({
-      load: 55,
-      reps: 15,
+      load: 50,
+      reps: 20,
+    });
+  });
+
+  it("without a rep range, after a break starts from the comeback load", async () => {
+    // 90% of 55 is 49.5, down to a multiple of 5: 45.
+    const { f, freestyle } = await setup(
+      past("2026-10-01", [set(50, 20), set(55, 15)], "triceps-pushdown"),
+    );
+    expect(await f.nextSet(await freestyle(), "triceps-pushdown")).toEqual({
+      load: 45,
+      reps: 20,
     });
   });
 
   it("starts empty with no last workout", async () => {
     const { f, pushA } = await setup();
-    expect(await f.nextSet(await pushA(), "bench-press")).toBe(undefined);
+    expect(await f.nextSet(await pushA(), "bench-press")).toBeUndefined();
   });
 
   it("is followed by sets that start from the previous set, whatever the suggestion", async () => {

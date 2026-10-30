@@ -133,9 +133,10 @@
  */
 
 /**
- * A suggested weight (GLOSSARY: Suggested weight; #15) and why: up by the
- * increment, hold, down by the increment, or a comeback.
- * @typedef {Load & { reason: "up" | "hold" | "down" | "comeback" }} Suggestion
+ * A suggested weight (GLOSSARY: Suggested weight; #15) and why: up or down
+ * `by` the increment, hold, or a comeback at `percent` of the last working
+ * load.
+ * @typedef {Load & { reason: "up" | "hold" | "down" | "comeback", by?: number, percent?: number }} SuggestedWeight
  */
 
 /**
