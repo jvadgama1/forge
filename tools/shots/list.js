@@ -615,6 +615,17 @@ export const SHOTS = [
     steps: logThenRest(91),
   },
   {
+    name: "rest-skipped",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    steps: async (page) => {
+      await logThenRest(24)(page);
+      await page.getByRole("button", { name: "Skip" }).click();
+      await page.getByRole("timer").waitFor({ state: "hidden" });
+    },
+  },
+  {
     name: "workout-next",
     as: "owner",
     route: "/log/ex/lat-pulldown",

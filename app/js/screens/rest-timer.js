@@ -1,5 +1,5 @@
 // The rest timer (#12): it starts when a set is logged, counts down on the
-// logging screen, can be paused, extended or dismissed, and vibrates when it
+// logging screen, can be paused, extended or skipped, and vibrates when it
 // ends. Its state lives here, not in a screen, because logging a set redraws
 // the screen; it runs only while the app is open (spec #3).
 import { h } from "../dom.js";
@@ -125,11 +125,7 @@ export function restBar() {
       { class: "rest-actions" },
       pause,
       more,
-      h(
-        "button",
-        { class: "chip", type: "button", onclick: endRest },
-        "Dismiss",
-      ),
+      h("button", { class: "chip", type: "button", onclick: endRest }, "Skip"),
     ),
   );
 
