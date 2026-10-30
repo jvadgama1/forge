@@ -155,6 +155,29 @@ describe("logging each exercise type (#19)", () => {
     ]);
   });
 
+  it("takes a distance as miles when no unit is given", async () => {
+    const { f, start } = await setup();
+    const w = await start("treadmill");
+    const logged = await f.logSet(w.id, "treadmill", {
+      seconds: 600,
+      distance: 1,
+    });
+    expect(setsOf(logged, "treadmill")).toEqual([
+      { load: 0, unit: "lb", seconds: 600, distance: 1, distanceUnit: "mi" },
+    ]);
+  });
+
+  it("refuses RIR or a drop set on a timed hold or cardio, which have no reps", async () => {
+    const { f, start } = await setup();
+    const w = await start("farmers-carry", "treadmill");
+    await expect(
+      f.logSet(w.id, "farmers-carry", { seconds: 30, rir: 2 }),
+    ).rejects.toThrow("A timed hold or cardio set takes no RIR or drop set");
+    await expect(
+      f.logSet(w.id, "treadmill", { seconds: 600, drop: true }),
+    ).rejects.toThrow("A timed hold or cardio set takes no RIR or drop set");
+  });
+
   it("refuses a set without its type's measure", async () => {
     const { f, start } = await setup();
     const w = await start("farmers-carry", "treadmill", "bench-press");
@@ -200,13 +223,13 @@ describe("assisted progression (#19)", () => {
     ).toEqual({ load: 35, unit: "lb", reason: "down", by: 5 });
   });
 
-  it("never suggests less than no assist", async () => {
+  it("holds at no assist, with none left to take away", async () => {
     const { f, start } = await setup(
       past("2026-10-20", "assisted-dip", [set({ load: 0, reps: 12 })]),
     );
     expect(
       await f.suggestedWeight(await start("assisted-dip"), "assisted-dip"),
-    ).toEqual({ load: 0, unit: "lb", reason: "up", by: 5 });
+    ).toEqual({ load: 0, unit: "lb", reason: "hold" });
   });
 
   it("comes back with one increment more assist", async () => {
@@ -336,6 +359,18 @@ describe("bodyweight e1RM and records (#19)", () => {
       { load: 20, unit: "lb", reps: 6 },
       { load: 0, unit: "lb", reps: 12 },
     ]);
+  });
+
+  it("adds a body weight in kg to a load in lb", async () => {
+    const { f } = await setup(
+      past("2026-10-20", "pull-up", [set({ load: 10, reps: 5 })]),
+    );
+    await f.addBodyWeight({ date: "2026-10-01", load: 80, unit: "kg" });
+    // 80 kg is 176.4 lb; plus 10 lb is 186.4 lb.
+    expect((await f.records("pull-up")).heaviest).toEqual({
+      load: 186.4,
+      unit: "lb",
+    });
   });
 
   it("without a body weight on record, has no e1RM or heaviest, only reps at a load", async () => {

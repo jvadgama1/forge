@@ -39,7 +39,7 @@ Started and not yet finished. It finishes when the user taps Finish, or by itsel
 _Avoid_: Open, active
 
 **Set**:
-One effort at an exercise: a load and a count (reps, seconds, or time and distance), an optional RIR, and optional flags.
+One effort at an exercise: a load and a count (reps, seconds, or time and distance), together its measure, plus an optional RIR and optional flags.
 
 **Working set**:
 A set that is neither a warm-up nor a drop set; the sets that drive suggested weights and records.
@@ -75,7 +75,7 @@ How long to rest after a set of an exercise, which the rest timer counts down: 9
 A note attached to an exercise, shown every time it is logged (seat height, grip).
 
 **Body weight entry**:
-A dated body-weight reading.
+A dated body-weight reading. Set text writes body weight as BW ("BW + 25 lb × 8").
 
 ## Routines and progression
 

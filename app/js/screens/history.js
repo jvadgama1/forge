@@ -2,6 +2,7 @@
 // every workout's sets, newest first. Opened from the last-workout line.
 import { h } from "../dom.js";
 import { e1rmChart, whole } from "./e1rm-chart.js";
+import { TYPE_RULES } from "../core/exercise-types.js";
 import { setText } from "./measure.js";
 import { monthDay, screen } from "./screen.js";
 import { setRow } from "./workout.js";
@@ -25,7 +26,7 @@ export function historyView({ forge, id }) {
       forge.records(id),
       forge.e1rmTrend(id),
     ]);
-    const type = exercise?.type ?? "weight-reps";
+    const type = await forge.exerciseType(id);
     /** @type {Map<string, number>} */
     const e1rmByWorkout = new Map(
       trend.points.map((p) => [p.workoutId, p.value]),
@@ -40,7 +41,7 @@ export function historyView({ forge, id }) {
       );
     const { heaviest, leastAssist, bestE1rm, repsAtLoad } = records;
     // A bodyweight load counts the body weight (#19).
-    const withBody = type === "bodyweight-reps" ? " with BW" : "";
+    const withBody = TYPE_RULES[type].withBody ? " with BW" : "";
     const stats = [
       heaviest && stat(heaviest.load, `Heaviest ${heaviest.unit}${withBody}`),
       leastAssist && stat(leastAssist.load, `Least assist ${leastAssist.unit}`),

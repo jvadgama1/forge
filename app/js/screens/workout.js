@@ -4,10 +4,10 @@
 // one button to log the set.
 import { h } from "../dom.js";
 import { muscleGroup } from "../core/muscle-groups.js";
+import { TYPE_RULES } from "../core/exercise-types.js";
 import { choiceChips } from "./exercise-list.js";
 import {
   fieldsFor,
-  hasReps,
   loadText,
   readFields,
   setText,
@@ -144,7 +144,7 @@ export function setChoices(type, set = {}) {
     rir: set.rir,
     flag: set.warmUp ? "warmUp" : set.drop ? "drop" : undefined,
   };
-  const reps = hasReps(type);
+  const reps = TYPE_RULES[type].effort;
   /** @type {{ value: "warmUp" | "drop", text: string }[]} */
   const flagOptions = [
     { value: "warmUp", text: "Warm-up" },
@@ -230,15 +230,14 @@ function lastWorkoutLine(exerciseId, type, { date, sets, rir }) {
  */
 function suggestionLine(suggestion, type) {
   const by = `${suggestion.by} ${suggestion.unit}`;
-  const assisted = type === "assisted";
+  const assisted = TYPE_RULES[type].harder === "lighter";
   const why = {
     up: assisted ? "Less assist" : `Up ${by}`,
     hold: "Hold",
     down: assisted ? "More assist" : `Down ${by}`,
-    comeback:
-      suggestion.percent === undefined
-        ? `Comeback, ${by} more`
-        : `Comeback, ${suggestion.percent}%`,
+    comeback: assisted
+      ? `Comeback, ${by} more`
+      : `Comeback, ${suggestion.percent}%`,
   }[suggestion.reason];
   return h(
     "p",
@@ -293,7 +292,7 @@ export async function workoutScreen({
   const index = live.findIndex((e) => e.exerciseId === exerciseId);
   const entry = live[index];
   const exercise = await forge.getExercise(exerciseId);
-  const type = exercise?.type ?? "weight-reps";
+  const type = await forge.exerciseType(exerciseId);
   const sets = entry?.sets ?? [];
   const prefill = await forge.nextSet(workout, exerciseId);
   const fields = fieldsFor(type, "lb", forge.loadStep(exerciseId));

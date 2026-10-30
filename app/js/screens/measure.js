@@ -1,7 +1,7 @@
-// How each exercise type's sets read and are entered (#19): weight × reps,
-// bodyweight × reps with an optional added load, assisted with its assist,
-// a timed hold in seconds with an optional load, and cardio as time with an
-// optional distance. Every screen that shows or takes a set uses these.
+// How each exercise type's sets read and are entered (#19), so the logging
+// screen, history and the past-workout editor show a set the same way. The
+// rules (what's measured, what's optional) come from the core's TYPE_RULES.
+import { TYPE_RULES } from "../core/exercise-types.js";
 import { pad2 } from "./screen.js";
 
 /** @import { ExerciseType, Load, Measure, SetInput } from "../core/types.js" */
@@ -90,21 +90,21 @@ export function shortText(set, type) {
  * @returns {Field[]}
  */
 export function fieldsFor(type, unit, increment) {
+  const optionalLoad = TYPE_RULES[type].load !== "needed";
   /**
    * @param {string} label
    * @param {string} name
    * @param {string} what
-   * @param {boolean} optional
    * @returns {Field}
    */
-  const load = (label, name, what, optional) => ({
+  const load = (label, name, what) => ({
     label,
     name,
     what,
     mode: "decimal",
     step: increment,
     min: 0,
-    optional,
+    optional: optionalLoad,
     show: (set) => String(set.load),
     read: (value) => ({ load: value }),
   });
@@ -123,17 +123,14 @@ export function fieldsFor(type, unit, increment) {
   switch (type) {
     case "bodyweight-reps":
       return [
-        load(`Added ${unit}`, `Added load in ${unit}`, "added load", true),
+        load(`Added ${unit}`, `Added load in ${unit}`, "added load"),
         reps,
       ];
     case "assisted":
-      return [
-        load(`Assist ${unit}`, `Assist in ${unit}`, "assist", true),
-        reps,
-      ];
+      return [load(`Assist ${unit}`, `Assist in ${unit}`, "assist"), reps];
     case "timed":
       return [
-        load(unit, `Load in ${unit}`, "load", true),
+        load(unit, `Load in ${unit}`, "load"),
         {
           label: "Seconds",
           name: "Seconds",
@@ -163,7 +160,7 @@ export function fieldsFor(type, unit, increment) {
           read: (value) => ({ seconds: Math.round(value * 60) }),
         },
         {
-          // Miles until per-exercise units arrive (#21).
+          // The core takes a distance as miles until #21.
           label: "mi",
           name: "Distance in mi",
           what: "distance",
@@ -173,11 +170,11 @@ export function fieldsFor(type, unit, increment) {
           optional: true,
           show: (set) =>
             set.distance === undefined ? "" : String(set.distance),
-          read: (value) => ({ distance: value, distanceUnit: "mi" }),
+          read: (value) => ({ distance: value }),
         },
       ];
     default:
-      return [load(unit, `Load in ${unit}`, "load", false), reps];
+      return [load(unit, `Load in ${unit}`, "load"), reps];
   }
 }
 
@@ -197,10 +194,3 @@ export function readFields(fields, values) {
     ),
   );
 }
-
-/**
- * Whether sets of the type take RIR and a drop-set flag: a timed hold and
- * cardio have no reps to hold in reserve or drop (#19).
- * @param {ExerciseType} type
- */
-export const hasReps = (type) => type !== "timed" && type !== "cardio";

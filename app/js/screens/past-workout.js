@@ -1,4 +1,5 @@
 import { h } from "../dom.js";
+import { TYPE_RULES } from "../core/exercise-types.js";
 import { fieldsFor, readFields } from "./measure.js";
 import { endRest } from "./rest-timer.js";
 import {
@@ -55,7 +56,7 @@ export function pastWorkoutView({ forge, id }) {
       forge.exercisesDone(workout).map(async (entry) => {
         const exercise = await forge.getExercise(entry.exerciseId);
         const name = exercise?.name ?? entry.exerciseId;
-        const type = exercise?.type ?? "weight-reps";
+        const type = await forge.exerciseType(entry.exerciseId);
         return h(
           "section",
           { class: "past-exercise" },
@@ -171,7 +172,13 @@ export function pastWorkoutView({ forge, id }) {
           ...fields.flatMap((field, i) => [
             // Time and distance aren't multiplied (#19).
             ...(i
-              ? [h("span", { class: "label" }, type === "cardio" ? "·" : "×")]
+              ? [
+                  h(
+                    "span",
+                    { class: "label" },
+                    TYPE_RULES[type].measure === "time-distance" ? "·" : "×",
+                  ),
+                ]
               : []),
             inputs[i],
             h("span", { class: "label" }, field.label),

@@ -68,6 +68,7 @@
  * measure its exercise type needs. A missing load is 0, except for
  * weight × reps.
  * @typedef {{ load?: number, reps?: number, seconds?: number, distance?: number, distanceUnit?: "mi" | "km", rir?: number, warmUp?: boolean, drop?: boolean }} SetInput
+ *   A distance without a unit is in miles until per-exercise units (#21).
  */
 
 /**

@@ -42,6 +42,7 @@ const SHELL = [
   "js/firebase-sdk.js",
   "js/store/firestore-store.js",
   "js/core/forge.js",
+  "js/core/exercise-types.js",
   "js/store/memory-store.js",
   "js/core/muscle-groups.js",
   "js/core/seed-library.js",

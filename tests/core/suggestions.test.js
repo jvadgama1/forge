@@ -191,7 +191,7 @@ describe("suggested weight by double progression (#15)", () => {
     });
   });
 
-  it("never drops below 0", async () => {
+  it("holds at 0 rather than dropping below it", async () => {
     const { f, pushA } = await setup(
       past("2026-10-16", [set(0, 5)]),
       past("2026-10-20", [set(0, 5)]),
@@ -199,8 +199,7 @@ describe("suggested weight by double progression (#15)", () => {
     expect(await f.suggestedWeight(await pushA(), "bench-press")).toEqual({
       load: 0,
       unit: "lb",
-      reason: "down",
-      by: 5,
+      reason: "hold",
     });
   });
 
