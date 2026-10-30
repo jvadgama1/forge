@@ -112,7 +112,7 @@ _Avoid_: Deload (a deload is planned; a comeback follows a break)
 The heaviest single rep a set implies, estimated from its load and reps.
 
 **Record**:
-A best-ever result for an exercise (heaviest load, best e1RM, most reps at a load).
+A best-ever result for an exercise (heaviest load, best e1RM, most reps at a load). For a bodyweight exercise the heaviest load and e1RM count the body weight on the day; for an assisted one the load record is the least assist and there is no e1RM. Timed holds and cardio have none.
 _Avoid_: PR (collides with "pull request" in this project's process vocabulary)
 
 ## Coaching

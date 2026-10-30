@@ -6,13 +6,13 @@ import { library as strength } from "./library-fixture.js";
 /** @import { Exercise, Workout, WorkoutSet } from "../../app/js/core/types.js" */
 
 /**
- * The strength fixture plus one exercise of each type double progression
- * doesn't cover.
+ * The strength fixture plus a timed hold and a cardio exercise, which double
+ * progression doesn't cover.
  * @type {Exercise[]}
  */
 const library = [
   ...strength,
-  .../** @type {const} */ (["timed", "cardio", "assisted"]).map((type) => ({
+  .../** @type {const} */ (["timed", "cardio"]).map((type) => ({
     id: type,
     name: type,
     type,
@@ -238,16 +238,14 @@ describe("suggested weight by double progression (#15)", () => {
     });
   });
 
-  it("is none for timed holds, cardio and (until #19) assisted exercises", async () => {
+  it("is none for timed holds and cardio", async () => {
     const { f, freestyle } = await setup(
-      past("2026-10-20", [set(0, 60)], "timed"),
-      past("2026-10-20", [set(0, 20)], "cardio"),
-      past("2026-10-20", [set(40, 10)], "assisted"),
+      past("2026-10-20", [{ ...set(0, 0), seconds: 60 }], "timed"),
+      past("2026-10-20", [{ ...set(0, 0), seconds: 1200 }], "cardio"),
     );
     const workout = await freestyle();
-    for (const id of ["timed", "cardio", "assisted"]) {
+    for (const id of ["timed", "cardio"]) {
       expect(await f.suggestedWeight(workout, id)).toBeUndefined();
-      expect(await f.nextSet(workout, id)).toBeUndefined();
     }
   });
 

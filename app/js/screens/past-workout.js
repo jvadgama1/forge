@@ -1,4 +1,5 @@
 import { h } from "../dom.js";
+import { fieldsFor, readFields } from "./measure.js";
 import { endRest } from "./rest-timer.js";
 import {
   countOf,
@@ -9,7 +10,7 @@ import {
 } from "./screen.js";
 import { setChoices, setRow } from "./workout.js";
 
-/** @import { SetRef, WorkoutSet } from "../core/types.js" */
+/** @import { ExerciseType, SetRef, WorkoutSet } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
 /**
@@ -52,8 +53,9 @@ export function pastWorkoutView({ forge, id }) {
     const { exercises, sets, minutes } = forge.summarize(workout);
     const blocks = await Promise.all(
       forge.exercisesDone(workout).map(async (entry) => {
-        const name =
-          (await forge.getExercise(entry.exerciseId))?.name ?? entry.exerciseId;
+        const exercise = await forge.getExercise(entry.exerciseId);
+        const name = exercise?.name ?? entry.exerciseId;
+        const type = exercise?.type ?? "weight-reps";
         return h(
           "section",
           { class: "past-exercise" },
@@ -66,6 +68,7 @@ export function pastWorkoutView({ forge, id }) {
                 { workoutId, exerciseId: entry.exerciseId, index },
                 name,
                 set,
+                type,
               ),
             ),
           ),
@@ -122,14 +125,15 @@ export function pastWorkoutView({ forge, id }) {
      * @param {SetRef} ref
      * @param {string} name the exercise's
      * @param {WorkoutSet} set
+     * @param {ExerciseType} type the exercise's
      */
-    function editableSet(ref, name, set) {
-      const row = setRow(set, ref.index);
+    function editableSet(ref, name, set, type) {
+      const row = setRow(set, ref.index, type);
       row.classList.add("set-editable");
       row.setAttribute("role", "button");
       row.setAttribute("tabindex", "0");
       row.setAttribute("aria-label", `Correct ${name} set ${ref.index + 1}`);
-      const open = () => row.replaceWith(setForm(ref, set));
+      const open = () => row.replaceWith(setForm(ref, set, type));
       row.addEventListener("click", open);
       row.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") open();
@@ -138,27 +142,25 @@ export function pastWorkoutView({ forge, id }) {
     }
 
     /**
-     * The form correcting one set: load, reps, RIR and set type, with Save,
-     * Cancel and a two-tap Delete.
+     * The form correcting one set: its measure (load and reps, or what the
+     * exercise type measures: #19), RIR and set type, with Save, Cancel and
+     * a two-tap Delete.
      * @param {SetRef} ref
      * @param {WorkoutSet} set
+     * @param {ExerciseType} type the exercise's
      */
-    function setForm(ref, set) {
-      const choices = setChoices(set);
-      const load = h("input", {
-        class: "small-number wide",
-        type: "text",
-        inputmode: "decimal",
-        "aria-label": `Load in ${set.unit}`,
-        value: String(set.load),
-      });
-      const reps = h("input", {
-        class: "small-number",
-        type: "text",
-        inputmode: "numeric",
-        "aria-label": "Reps",
-        value: String(set.reps),
-      });
+    function setForm(ref, set, type) {
+      const choices = setChoices(type, set);
+      const fields = fieldsFor(type, set.unit, forge.loadStep(ref.exerciseId));
+      const inputs = fields.map((field) =>
+        h("input", {
+          class: `small-number${field.mode === "decimal" ? " wide" : ""}`,
+          type: "text",
+          inputmode: field.mode,
+          "aria-label": field.name,
+          value: field.show(set),
+        }),
+      );
       const status = h("p", { class: "lede", role: "status", hidden: true });
       return h(
         "li",
@@ -166,11 +168,14 @@ export function pastWorkoutView({ forge, id }) {
         h(
           "div",
           { class: "set-form-fields" },
-          h("span", { class: "label" }, set.unit),
-          load,
-          h("span", { class: "label" }, "×"),
-          reps,
-          h("span", { class: "label" }, "reps"),
+          ...fields.flatMap((field, i) => [
+            // Time and distance aren't multiplied (#19).
+            ...(i
+              ? [h("span", { class: "label" }, type === "cardio" ? "·" : "×")]
+              : []),
+            inputs[i],
+            h("span", { class: "label" }, field.label),
+          ]),
         ),
         ...choices.nodes,
         h(
@@ -185,8 +190,7 @@ export function pastWorkoutView({ forge, id }) {
                 status.hidden = true;
                 try {
                   await forge.editSet(ref, {
-                    load: typedNumber(load),
-                    reps: typedNumber(reps),
+                    ...readFields(fields, inputs.map(typedNumber)),
                     ...choices.read(),
                   });
                   show();

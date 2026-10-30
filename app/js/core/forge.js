@@ -1,4 +1,4 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -12,9 +12,13 @@ const COMEBACK_DAYS = 14;
 const COMEBACK_PERCENT = 90;
 
 // Exercise types double progression applies to: timed holds and cardio get
-// no suggested weight (spec #3, Rules); assisted waits for its reverse
-// progression (#19).
-const PROGRESSING = new Set(["weight-reps", "bodyweight-reps"]);
+// no suggested weight (spec #3, Rules). Assisted runs in reverse (#19).
+const PROGRESSING = new Set(["weight-reps", "bodyweight-reps", "assisted"]);
+
+// Exercise types with records, and with an e1RM (spec #3, Rules; #19):
+// timed holds and cardio have neither, and assisted has no e1RM.
+const WITH_RECORDS = new Set(["weight-reps", "bodyweight-reps", "assisted"]);
+const WITH_E1RM = new Set(["weight-reps", "bodyweight-reps"]);
 
 const DAY = 86_400_000;
 
@@ -44,37 +48,77 @@ const loadKey = (load) => Math.round(inKg(load) * 10);
 const working = (set) => !set.warmUp && !set.drop;
 
 /**
- * Epley's estimated one-rep max (spec #3, Rules), in kg to compare: for
- * working sets of 1 to 12 reps with a load. Callers check the exercise has
- * an e1RM at all (`hasE1rm`).
+ * A set's measure (#19): its load and count, with nothing else.
  * @param {WorkoutSet} set
- * @returns {number | undefined}
+ * @returns {Measure}
  */
-function e1rmKg(set) {
-  if (!working(set) || set.load <= 0 || set.reps < 1 || set.reps > 12)
-    return undefined;
-  return inKg(set) * (1 + set.reps / 30);
+function measureOf({ load, unit, reps, seconds, distance, distanceUnit }) {
+  return {
+    load,
+    unit,
+    ...(reps === undefined ? {} : { reps }),
+    ...(seconds === undefined ? {} : { seconds }),
+    ...(distance === undefined ? {} : { distance, distanceUnit }),
+  };
 }
 
 /**
- * Records from a set of sets (spec #3, Rules): the heaviest working load,
- * the best e1RM (when `withE1rm`, in its set's unit), and the most reps at
- * each load, heaviest load first.
- * @param {WorkoutSet[]} sets
- * @param {boolean} withE1rm
+ * A set's measure as the next set starts from it: no unit, since the screen
+ * shows the exercise's.
+ * @param {WorkoutSet} set
  */
-function recordsOf(sets, withE1rm) {
+function inputOf(set) {
+  // eslint-disable-next-line no-unused-vars -- left out on purpose
+  const { unit, ...input } = measureOf(set);
+  return input;
+}
+
+/**
+ * A working set and the load its records count (#19): its own load, or for
+ * bodyweight × reps the body weight on its workout's date plus the added
+ * load, which is none without a body weight on record.
+ * @typedef {{ set: WorkoutSet, total: Load | undefined }} Counted
+ */
+
+/**
+ * Epley's estimated one-rep max (spec #3, Rules), in kg to compare: for sets
+ * of 1 to 12 reps with a load. Callers check the exercise type has an e1RM.
+ * @param {Counted} counted
+ * @returns {number | undefined}
+ */
+function e1rmKg({ set, total }) {
+  const reps = set.reps ?? 0;
+  if (!total || total.load <= 0 || reps < 1 || reps > 12) return undefined;
+  return inKg(total) * (1 + reps / 30);
+}
+
+/**
+ * Records from counted working sets (spec #3, Rules; #19): the heaviest
+ * load, or for assisted the least assist; the best e1RM, in its set's unit;
+ * and the most reps at each of the sets' own loads (the added load, or the
+ * assist), heaviest first. None for timed holds or cardio.
+ * @param {Counted[]} counted
+ * @param {ExerciseType} type
+ */
+function recordsOf(counted, type) {
   /** @type {Load | undefined} */
   let heaviest;
+  /** @type {Load | undefined} */
+  let leastAssist;
   /** @type {{ set: WorkoutSet, kg: number } | undefined} */
   let best;
   /** @type {Map<number, Load & { reps: number }>} */
   const atLoad = new Map();
-  for (const set of sets.filter(working)) {
-    if (!heaviest || inKg(set) > inKg(heaviest))
-      heaviest = { load: set.load, unit: set.unit };
-    const kg = withE1rm ? e1rmKg(set) : undefined;
+  for (const c of WITH_RECORDS.has(type) ? counted : []) {
+    const { set, total } = c;
+    if (type === "assisted") {
+      if (!leastAssist || inKg(set) < inKg(leastAssist))
+        leastAssist = { load: set.load, unit: set.unit };
+    } else if (total && (!heaviest || inKg(total) > inKg(heaviest)))
+      heaviest = total;
+    const kg = WITH_E1RM.has(type) ? e1rmKg(c) : undefined;
     if (kg !== undefined && (!best || kg > best.kg)) best = { set, kg };
+    if (set.reps === undefined) continue;
     const key = loadKey(set);
     if ((atLoad.get(key)?.reps ?? 0) < set.reps)
       atLoad.set(key, { load: set.load, unit: set.unit, reps: set.reps });
@@ -84,6 +128,7 @@ function recordsOf(sets, withE1rm) {
     .map(([, r]) => r);
   return {
     ...(heaviest && { heaviest }),
+    ...(leastAssist && { leastAssist }),
     ...(best && {
       bestE1rm: { set: best.set, value: fromKg(best.kg, best.set.unit) },
     }),
@@ -395,13 +440,14 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @param {SetRef} ref
      * @param {SetInput} set
      */
-    editSet({ workoutId, exerciseId, index }, set) {
+    async editSet({ workoutId, exerciseId, index }, set) {
+      const type = await typeOf(exerciseId);
       return changeWorkout(workoutId, (w) =>
         changeEntry(w, exerciseId, (e) => {
           const old = e.sets[index];
           if (!old) throw new Error("No such set");
           const sets = [...e.sets];
-          sets[index] = checkSet(set, old.loggedAt, old.unit);
+          sets[index] = checkSet(set, old.loggedAt, type, old.unit);
           return { ...e, sets };
         }),
       );
@@ -615,15 +661,20 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Logs a weight × reps set for an exercise in the workout (spec #3,
-     * stories 29–32), with optional RIR and a warm-up or drop-set flag.
-     * Loads are in lb until per-exercise units arrive (#21).
+     * Logs a set for an exercise in the workout (spec #3, stories 29–32),
+     * measured as its exercise type needs (#19), with optional RIR and a
+     * warm-up or drop-set flag. Loads are in lb until per-exercise units
+     * arrive (#21).
      * @param {string} workoutId
      * @param {string} exerciseId
      * @param {SetInput} set
      */
     async logSet(workoutId, exerciseId, set) {
-      const logged = checkSet(set, now().toISOString());
+      const logged = checkSet(
+        set,
+        now().toISOString(),
+        await typeOf(exerciseId),
+      );
       return changeWorkout(workoutId, (w) => {
         inPlay(w, exerciseId);
         return changeEntry(w, exerciseId, (e) => ({
@@ -703,7 +754,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * one's RIR. No sets means it had only warm-ups or drop sets.
      * @param {string} exerciseId
      * @param {string} [excluding] the workout in progress
-     * @returns {Promise<{ date: string, sets: (Load & { reps: number })[], rir?: number } | undefined>}
+     * @returns {Promise<{ date: string, sets: Measure[], rir?: number } | undefined>}
      */
     async lastWorkoutLine(exerciseId, excluding) {
       const last = await lastWorkout(exerciseId, excluding);
@@ -712,7 +763,7 @@ export function createForge({ store, library, now = () => new Date() }) {
       const rir = done.at(-1)?.rir;
       return {
         date: last.workout.date,
-        sets: done.map(({ load, unit, reps }) => ({ load, unit, reps })),
+        sets: done.map(measureOf),
         ...(rir === undefined ? {} : { rir }),
       };
     },
@@ -720,12 +771,13 @@ export function createForge({ store, library, now = () => new Date() }) {
     history,
 
     /**
-     * The exercise's records (spec #3, Rules), from its working sets.
+     * The exercise's records (spec #3, Rules; #19), from its working sets.
      * @param {string} exerciseId
      */
     async records(exerciseId) {
-      const sets = (await history(exerciseId)).flatMap((h) => h.sets);
-      return recordsOf(sets, await hasE1rm(exerciseId));
+      const type = await typeOf(exerciseId);
+      const each = await counted(await history(exerciseId), type);
+      return recordsOf(each.flat(), type);
     },
 
     /**
@@ -736,10 +788,13 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @returns {Promise<{ unit: Load["unit"], points: { workoutId: string, date: string, value: number }[] }>}
      */
     async e1rmTrend(exerciseId) {
-      if (!(await hasE1rm(exerciseId))) return { unit: "lb", points: [] };
-      const best = (await history(exerciseId))
-        .map(({ workout, sets }) => {
-          const top = recordsOf(sets, true).bestE1rm;
+      const type = await typeOf(exerciseId);
+      if (!WITH_E1RM.has(type)) return { unit: "lb", points: [] };
+      const entries = await history(exerciseId);
+      const each = await counted(entries, type);
+      const best = entries
+        .map(({ workout }, i) => {
+          const top = recordsOf(each[i], type).bestE1rm;
           return (
             top && {
               workout,
@@ -777,18 +832,31 @@ export function createForge({ store, library, now = () => new Date() }) {
       )?.sets;
       const latest = sets?.at(-1);
       if (!sets || !latest || !working(latest)) return [];
-      const others = (await history(exerciseId))
-        .filter((h) => h.workout.id !== workout.id)
-        .flatMap((h) => h.sets);
-      if (!others.some(working)) return [];
-      const withE1rm = await hasE1rm(exerciseId);
-      const before = recordsOf([...others, ...sets.slice(0, -1)], withE1rm);
-      if (!before.heaviest) return [];
+      const others = (await history(exerciseId)).filter(
+        (h) => h.workout.id !== workout.id,
+      );
+      if (!others.some((h) => h.sets.some(working))) return [];
+      const type = await typeOf(exerciseId);
+      const [mine, ...earlier] = await counted(
+        [{ workout, sets }, ...others],
+        type,
+      );
+      const now = /** @type {Counted} */ (mine.at(-1));
+      const before = recordsOf([...earlier.flat(), ...mine.slice(0, -1)], type);
       /** @type {RecordKind[]} */
       const beaten = [];
-      if (inKg(latest) > inKg(before.heaviest)) beaten.push("heaviest");
-      const estimate = withE1rm ? e1rmKg(latest) : undefined;
-      const bestBefore = before.bestE1rm && e1rmKg(before.bestE1rm.set);
+      if (
+        now.total &&
+        before.heaviest &&
+        inKg(now.total) > inKg(before.heaviest)
+      )
+        beaten.push("heaviest");
+      if (before.leastAssist && inKg(latest) < inKg(before.leastAssist))
+        beaten.push("least-assist");
+      const estimate = WITH_E1RM.has(type) ? e1rmKg(now) : undefined;
+      const bestBefore =
+        before.bestE1rm &&
+        inKg({ load: before.bestE1rm.value, unit: before.bestE1rm.set.unit });
       if (
         estimate !== undefined &&
         bestBefore !== undefined &&
@@ -798,33 +866,34 @@ export function createForge({ store, library, now = () => new Date() }) {
       const atLoad = before.repsAtLoad.find(
         (r) => loadKey(r) === loadKey(latest),
       );
-      if (atLoad && latest.reps > atLoad.reps) beaten.push("reps");
+      if (atLoad && (latest.reps ?? 0) > atLoad.reps) beaten.push("reps");
       return beaten;
     },
 
     /**
      * What the next set of an exercise starts filled in with: the previous
-     * set's load and reps (spec #3, story 28). The first set starts from the
+     * set's measure (spec #3, story 28). The first set starts from the
      * suggested weight and the bottom of the rep range; with no rep range,
-     * from the last workout's first working set, or the comeback load with
-     * its reps (story 27, #15). Empty with no history.
+     * or no suggestion (timed holds, cardio: #19), from the last workout's
+     * first working set, at any comeback load (story 27, #15). Empty with no
+     * history.
      * @param {Workout} workout
      * @param {string} exerciseId
-     * @returns {Promise<{ load: number, reps: number } | undefined>}
+     * @returns {Promise<Omit<Measure, "unit"> | undefined>}
      */
     async nextSet(workout, exerciseId) {
       const sets = workout.entries.find(
         (e) => e.exerciseId === exerciseId,
       )?.sets;
       const last = sets?.at(-1);
-      if (last) return { load: last.load, reps: last.reps };
+      if (last) return inputOf(last);
       const p = await progression(workout, exerciseId);
-      if (!p) return undefined;
-      if (p.range) return { load: p.suggested.load, reps: p.range.repMin };
-      const first = p.lastSets[0];
+      if (p?.range) return { load: p.suggested.load, reps: p.range.repMin };
+      const first = (await recentWork(workout, exerciseId)).recent[0]?.[0];
+      if (!first) return undefined;
       return {
-        load: p.suggested.reason === "comeback" ? p.suggested.load : first.load,
-        reps: first.reps,
+        ...inputOf(first),
+        ...(p?.suggested.reason === "comeback" && { load: p.suggested.load }),
       };
     },
 
@@ -938,29 +1007,31 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {string} exerciseId
    */
   async function progression(workout, exerciseId) {
-    const exercise = await findExercise(exerciseId);
-    if (!exercise || !PROGRESSING.has(exercise.type)) return undefined;
-    const done = (await history(exerciseId)).filter(
-      (h) => h.workout.finishedAt && h.workout.id !== workout.id,
-    );
-    const recent = done
-      .map((h) => h.sets.filter(working))
-      .filter((sets) => sets.length > 0);
+    const type = await typeOf(exerciseId);
+    if (!PROGRESSING.has(type)) return undefined;
+    const { done, recent } = await recentWork(workout, exerciseId);
     const lastSets = recent[0];
     if (!lastSets) return undefined;
     const lastSet = /** @type {WorkoutSet} */ (lastSets.at(-1));
     const { load, unit } = lastSet;
     const step = loadStep(exerciseId);
     const range = await repRange(workout, exerciseId);
+    // Less assist is harder (spec #3, Rules: assisted progression).
+    const harder = type === "assisted" ? -step : step;
     /** @param {WorkoutSet[] | undefined} sets */
     const short = (sets) =>
       !!range &&
-      !!sets?.some((s) => s.reps < range.repMin) &&
+      !!sets?.some((s) => (s.reps ?? 0) < range.repMin) &&
       loadKey(/** @type {WorkoutSet} */ (sets.at(-1))) === loadKey(lastSet);
     /** @type {SuggestedWeight} */
     let suggested = { load, unit, reason: "hold" };
     // A warm-up-only workout still did the exercise: the break counts from it.
-    if (daysBetween(done[0].workout.date, workout.date) >= COMEBACK_DAYS)
+    const comeback =
+      daysBetween(done[0].workout.date, workout.date) >= COMEBACK_DAYS;
+    if (comeback && type === "assisted")
+      // Assist has no percent to take: one increment more (#19).
+      suggested = { load: load + step, unit, reason: "comeback", by: step };
+    else if (comeback)
       suggested = {
         // In whole percents, so 135 lb gives 121.5, not 121.49999.
         load: Math.floor((load * COMEBACK_PERCENT) / 100 / step) * step,
@@ -968,16 +1039,70 @@ export function createForge({ store, library, now = () => new Date() }) {
         reason: "comeback",
         percent: COMEBACK_PERCENT,
       };
-    else if (range && lastSets.every((s) => s.reps >= range.repMax))
-      suggested = { load: load + step, unit, reason: "up", by: step };
+    else if (range && lastSets.every((s) => (s.reps ?? 0) >= range.repMax))
+      suggested = {
+        load: Math.max(0, load + harder),
+        unit,
+        reason: "up",
+        by: step,
+      };
     else if (short(recent[0]) && short(recent[1]))
       suggested = {
-        load: Math.max(0, load - step),
+        load: Math.max(0, load - harder),
         unit,
         reason: "down",
         by: step,
       };
     return { suggested, range, lastSets };
+  }
+
+  /**
+   * The exercise's finished workouts other than `workout`, newest first,
+   * and the working sets of those that have any: what progression and the
+   * first set read.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  async function recentWork(workout, exerciseId) {
+    const done = (await history(exerciseId)).filter(
+      (h) => h.workout.finishedAt && h.workout.id !== workout.id,
+    );
+    const recent = done
+      .map((h) => h.sets.filter(working))
+      .filter((sets) => sets.length > 0);
+    return { done, recent };
+  }
+
+  /**
+   * The exercise's working sets in each of `entries`, counted for records
+   * (#19): a bodyweight set with the body weight on or before its workout's
+   * date (spec #3, story 57) plus the added load.
+   * @param {ExerciseInWorkout[]} entries
+   * @param {ExerciseType} type
+   * @returns {Promise<Counted[][]>}
+   */
+  async function counted(entries, type) {
+    const weights = type === "bodyweight-reps" ? await listBodyWeights() : [];
+    return entries.map(({ workout, sets }) => {
+      const body = weights.find((e) => e.date <= workout.date);
+      return sets.filter(working).map((set) => ({
+        set,
+        total:
+          type !== "bodyweight-reps"
+            ? { load: set.load, unit: set.unit }
+            : body && withBody(set, body),
+      }));
+    });
+  }
+
+  /**
+   * An exercise's type; an unknown one (since deleted, say) counts as
+   * weight × reps.
+   * @param {string} exerciseId
+   * @returns {Promise<ExerciseType>}
+   */
+  async function typeOf(exerciseId) {
+    return (await findExercise(exerciseId))?.type ?? "weight-reps";
   }
 
   /**
@@ -1104,31 +1229,69 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * A set checked and shaped for storing (spec #3, stories 29-32): whole reps
-   * of 1 or more, a load of 0 or more, RIR 0-4, and not both a warm-up and a
-   * drop set. Loads are in lb until per-exercise units arrive (#21).
+   * A set checked and shaped for storing (spec #3, stories 29-32; #19): the
+   * measure its exercise type needs (whole reps of 1 or more; whole seconds
+   * for a hold; time and an optional distance for cardio), a load of 0 or
+   * more, RIR 0-4, and not both a warm-up and a drop set. Loads are in lb
+   * until per-exercise units arrive (#21).
    * @param {SetInput} set
    * @param {string} loggedAt
+   * @param {ExerciseType} type
    * @param {Load["unit"]} [unit]
    * @returns {WorkoutSet}
    */
-  function checkSet({ load, reps, rir, warmUp, drop }, loggedAt, unit = "lb") {
-    if (!Number.isInteger(reps) || reps < 1)
-      throw new Error("Reps must be 1 or more");
+  function checkSet(set, loggedAt, type, unit = "lb") {
+    const { reps, seconds, distance, distanceUnit, rir, warmUp, drop } = set;
+    // Only a weight × reps set needs its load; for the rest it's optional.
+    const load = set.load ?? (type === "weight-reps" ? NaN : 0);
+    /** @type {Partial<WorkoutSet>} */
+    let measure;
+    if (type === "timed") {
+      if (!(Number.isInteger(seconds) && Number(seconds) >= 1))
+        throw new Error("Seconds must be 1 or more");
+      measure = { seconds };
+    } else if (type === "cardio") {
+      if (!(Number(seconds) > 0)) throw new Error("Time must be more than 0");
+      measure = { seconds: Math.round(Number(seconds)) };
+      if (distance !== undefined) {
+        if (!(distance > 0)) throw new Error("Distance must be more than 0");
+        if (distanceUnit !== "mi" && distanceUnit !== "km")
+          throw new Error("Pick mi or km");
+        measure = { ...measure, distance, distanceUnit };
+      }
+    } else {
+      if (!(Number.isInteger(reps) && Number(reps) >= 1))
+        throw new Error("Reps must be 1 or more");
+      measure = { reps };
+    }
     if (!(load >= 0)) throw new Error("Load must be 0 or more");
     if (rir !== undefined && !(Number.isInteger(rir) && rir >= 0 && rir <= 4))
       throw new Error("RIR is 0 to 4");
     if (warmUp && drop)
       throw new Error("A set is a warm-up or a drop set, not both");
     return {
-      load,
+      load: type === "cardio" ? 0 : load,
       unit,
-      reps,
+      ...measure,
       ...withRir(rir),
       ...(warmUp ? { warmUp: true } : {}),
       ...(drop ? { drop: true } : {}),
       loggedAt,
     };
+  }
+
+  /**
+   * A bodyweight set's total (#19): the body weight plus the added load, in
+   * the set's unit, to 0.1 across units.
+   * @param {WorkoutSet} set
+   * @param {Load} body
+   * @returns {Load}
+   */
+  function withBody(set, body) {
+    if (body.unit === set.unit)
+      return { load: body.load + set.load, unit: set.unit };
+    const total = fromKg(inKg(body) + inKg(set), set.unit);
+    return { load: Math.round(total * 10) / 10, unit: set.unit };
   }
 
   /**
@@ -1332,15 +1495,6 @@ export function createForge({ store, library, now = () => new Date() }) {
       }))
       .filter((h) => h.sets.length > 0)
       .sort((a, b) => byWorkoutDate(a.workout, b.workout));
-  }
-
-  /**
-   * Whether the exercise's sets have an e1RM: weight × reps only, until body
-   * weight arrives for bodyweight exercises (#18, #19).
-   * @param {string} exerciseId
-   */
-  async function hasE1rm(exerciseId) {
-    return (await findExercise(exerciseId))?.type === "weight-reps";
   }
 
   /**
