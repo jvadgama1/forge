@@ -216,7 +216,10 @@ describe("undoing the last set", () => {
     await f.logSet(id, "bench-press", { load: 1355, reps: 8 }); // a typo
     const workout = await f.undoLastSet(id, "bench-press");
     expect(workout.entries[0].sets.map((s) => s.load)).toEqual([135]);
-    expect(f.nextSet(workout, "bench-press")).toEqual({ load: 135, reps: 8 });
+    expect(await f.nextSet(workout, "bench-press")).toEqual({
+      load: 135,
+      reps: 8,
+    });
   });
 
   it("starts the next set empty after undoing the only one", async () => {
@@ -224,7 +227,7 @@ describe("undoing the last set", () => {
     await f.addExercise(id, "bench-press");
     await f.logSet(id, "bench-press", { load: 135, reps: 8 });
     const workout = await f.undoLastSet(id, "bench-press");
-    expect(f.nextSet(workout, "bench-press")).toBeUndefined();
+    expect(await f.nextSet(workout, "bench-press")).toBeUndefined();
   });
 
   it("is refused with no sets to undo, for an exercise not in play, or once the workout is finished", async () => {
@@ -254,10 +257,13 @@ describe("the next set", () => {
   it("starts empty, then from the previous set's load and reps", async () => {
     const { f, id } = await started();
     let workout = await f.addExercise(id, "bench-press");
-    expect(f.nextSet(workout, "bench-press")).toBeUndefined();
+    expect(await f.nextSet(workout, "bench-press")).toBeUndefined();
     await f.logSet(id, "bench-press", { load: 135, reps: 10 });
     workout = await f.logSet(id, "bench-press", { load: 145, reps: 8 });
-    expect(f.nextSet(workout, "bench-press")).toEqual({ load: 145, reps: 8 });
+    expect(await f.nextSet(workout, "bench-press")).toEqual({
+      load: 145,
+      reps: 8,
+    });
   });
 });
 

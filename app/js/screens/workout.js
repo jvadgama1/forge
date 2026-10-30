@@ -7,7 +7,7 @@ import { choiceChips } from "./exercise-list.js";
 import { endRest, restBar, startRest } from "./rest-timer.js";
 import { monthDay, pad2, typedNumber as typed } from "./screen.js";
 
-/** @import { Load, RecordKind, Workout, WorkoutSet } from "../core/types.js" */
+/** @import { Load, RecordKind, SuggestedWeight, Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
 
 /** @param {number} rir 0–4, where 4 means "4 or more" */
@@ -208,6 +208,25 @@ function lastWorkoutLine(exerciseId, { date, sets, rir }) {
 }
 
 /**
+ * The suggested weight and why (#15), as "Suggested 140 lb · Up 5 lb".
+ * @param {SuggestedWeight} suggestion
+ */
+function suggestionLine(suggestion) {
+  const by = `${suggestion.by} ${suggestion.unit}`;
+  const why = {
+    up: `Up ${by}`,
+    hold: "Hold",
+    down: `Down ${by}`,
+    comeback: `Comeback, ${suggestion.percent}%`,
+  }[suggestion.reason];
+  return h(
+    "p",
+    { class: "label targets" },
+    `Suggested ${loadText(suggestion)} · ${why}`,
+  );
+}
+
+/**
  * What the celebration calls a record the set beat.
  * @param {RecordKind} record
  * @param {WorkoutSet} set the set that beat it
@@ -252,7 +271,7 @@ export async function workoutScreen({
   const exercise = await forge.getExercise(exerciseId);
   const sets = entry?.sets ?? [];
   const step = forge.loadStep(exerciseId);
-  const prefill = forge.nextSet(workout, exerciseId);
+  const prefill = await forge.nextSet(workout, exerciseId);
 
   const load = h("input", {
     class: "big-number",
@@ -399,6 +418,7 @@ export async function workoutScreen({
 
   const lastWorkout = await forge.lastWorkoutLine(exerciseId, workout.id);
   const targets = await forge.targets(workout, exerciseId);
+  const suggested = await forge.suggestedWeight(workout, exerciseId);
   const primary = exercise && muscleGroup(exercise.primary[0]);
   return h(
     "section",
@@ -430,6 +450,7 @@ export async function workoutScreen({
           targets.rir === undefined ? "" : ` · RIR ${rirLabel(targets.rir)}`,
         )
       : null,
+    suggested ? suggestionLine(suggested) : null,
     lastWorkout ? lastWorkoutLine(exerciseId, lastWorkout) : null,
     h(
       "ol",
