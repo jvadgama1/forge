@@ -147,6 +147,30 @@ function recordsOf(counted, type) {
 }
 
 /**
+ * Rows as CSV (RFC 4180, #22): a field with a comma, quote or line break is
+ * quoted, quotes doubled; a missing value is empty; lines end in CRLF. Text
+ * starting like a formula (=, +, -, @) gets a leading ' so a spreadsheet
+ * shows it rather than runs it, and a byte-order mark tells Excel it's
+ * UTF-8, so names like "Farmer's Carry ×2" read right.
+ * @param {(string | number | undefined)[][]} rows
+ */
+function csv(rows) {
+  /** @param {string | number | undefined} value */
+  const field = (value) => {
+    const text =
+      value === undefined
+        ? ""
+        : typeof value === "string" && /^[=+\-@\t\r]/.test(value)
+          ? `'${value}`
+          : String(value);
+    return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+  return (
+    "\uFEFF" + rows.map((row) => row.map(field).join(",")).join("\r\n") + "\r\n"
+  );
+}
+
+/**
  * The Forge core: every phase 1 rule, with no DOM or Firestore inside.
  * @param {{ store: Store, library: Exercise[], now?: () => Date }} deps
  *   `now` is the clock; tests pass a fixed one.
@@ -513,10 +537,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * one in progress included.
      * @returns {Promise<Workout[]>}
      */
-    async listWorkouts() {
-      const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
-      return workouts.sort(byWorkoutDate);
-    },
+    listWorkouts,
 
     /**
      * Whether a workout was logged afterwards for an earlier date (#20):
@@ -1304,6 +1325,123 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
+     * All the user's data, as one JSON-ready object (#22; spec #3, story
+     * 58): every gym, custom exercise, exercise setting, routine with all
+     * its versions, workout and body weight entry, and the settings, for
+     * their own backup.
+     */
+    async exportJson() {
+      const [gyms, customExercises, exerciseSettings, routines] =
+        await Promise.all([
+          listGyms(),
+          store.list("customExercises"),
+          store.list("exerciseSettings"),
+          store.list("routines"),
+        ]);
+      return {
+        app: "Forge",
+        exportedAt: now().toISOString(),
+        gyms,
+        customExercises,
+        exerciseSettings,
+        routines,
+        workouts: await listWorkouts(),
+        bodyWeights: await listBodyWeights(),
+        settings: await settings(),
+      };
+    },
+
+    /**
+     * Every set as CSV, one row per set, oldest workout first (#22): its
+     * workout's date and gym, the exercise, the set's number and measure,
+     * RIR, flags, and its superset (numbered within the workout) and round.
+     */
+    async exportSetsCsv() {
+      // Oldest first: listWorkouts gives newest first.
+      const workouts = (await listWorkouts()).reverse();
+      const gyms = new Map((await listGyms()).map((g) => [g.id, g.name]));
+      /** @type {Map<string, string>} */
+      const names = new Map();
+      /** @param {string} id */
+      const nameOf = async (id) => {
+        if (!names.has(id)) names.set(id, (await findExercise(id))?.name ?? id);
+        return /** @type {string} */ (names.get(id));
+      };
+      /**
+       * One set and where it sits, for the columns to read.
+       * @typedef {{ w: Workout, e: WorkoutEntry, s: WorkoutSet, n: number, superset: number | undefined, partners: string[], exercise: string, planned: string | undefined }} Row
+       */
+      /** @type {[string, (row: Row) => string | number | undefined][]} */
+      const columns = [
+        ["date", (r) => r.w.date],
+        ["gym", (r) => gyms.get(r.w.gymId)],
+        ["exercise", (r) => r.exercise],
+        ["set", (r) => r.n],
+        ["load", (r) => r.s.load],
+        ["unit", (r) => r.s.unit],
+        ["reps", (r) => r.s.reps],
+        ["seconds", (r) => r.s.seconds],
+        ["distance", (r) => r.s.distance],
+        ["distance_unit", (r) => r.s.distanceUnit],
+        ["rir", (r) => r.s.rir],
+        ["warm_up", (r) => (r.s.warmUp ? "yes" : undefined)],
+        ["drop_set", (r) => (r.s.drop ? "yes" : undefined)],
+        ["superset", (r) => r.superset],
+        ["round", (r) => r.s.superset?.round],
+        ["superset_with", (r) => r.partners.join("; ") || undefined],
+        ["swapped_for", (r) => r.planned],
+        ["in_progress", (r) => (r.w.finishedAt ? undefined : "yes")],
+      ];
+      /** @type {(string | number | undefined)[][]} */
+      const rows = [columns.map(([header]) => header)];
+      for (const w of workouts) {
+        // Supersets numbered within the workout, in the order first logged.
+        /** @type {Map<string, number>} */
+        const numbers = new Map();
+        for (const e of w.entries)
+          for (const [n, s] of e.sets.entries()) {
+            const id = s.superset?.id;
+            if (id !== undefined && !numbers.has(id))
+              numbers.set(id, numbers.size + 1);
+            // Its partners: the other exercises with sets in that superset.
+            const partners = id
+              ? await Promise.all(
+                  w.entries
+                    .filter(
+                      (o) =>
+                        o !== e && o.sets.some((x) => x.superset?.id === id),
+                    )
+                    .map((o) => nameOf(o.exerciseId)),
+                )
+              : [];
+            /** @type {Row} */
+            const row = {
+              w,
+              e,
+              s,
+              n: n + 1,
+              superset: id === undefined ? undefined : numbers.get(id),
+              partners,
+              exercise: await nameOf(e.exerciseId),
+              planned: e.swappedFor && (await nameOf(e.swappedFor)),
+            };
+            rows.push(columns.map(([, value]) => value(row)));
+          }
+      }
+      return csv(rows);
+    },
+
+    /** Body weight entries as CSV, oldest first (#22). */
+    async exportBodyWeightCsv() {
+      // Oldest first: listBodyWeights gives newest first.
+      const entries = (await listBodyWeights()).reverse();
+      return csv([
+        ["date", "weight", "unit"],
+        ...entries.map((e) => [e.date, e.load, e.unit]),
+      ]);
+    },
+
+    /**
      * The gym to preselect: the last one chosen, or the first gym until one
      * is; undefined when there are no gyms.
      * @returns {Promise<Gym | undefined>}
@@ -1756,6 +1894,16 @@ export function createForge({ store, library, now = () => new Date() }) {
       return Date.UTC(year, month - 1, day);
     };
     return Math.round((utc(to) - utc(from)) / DAY);
+  }
+
+  /**
+   * Every workout, newest first by workout date (spec #3, story 53), the
+   * one in progress included.
+   * @returns {Promise<Workout[]>}
+   */
+  async function listWorkouts() {
+    const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
+    return workouts.sort(byWorkoutDate);
   }
 
   /**

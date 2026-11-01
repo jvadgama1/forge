@@ -1209,3 +1209,10 @@ a.pick {
 .swap.swapped .label {
   color: var(--text);
 }
+
+/* Export (#22): a row of download buttons that wraps. */
+.export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
