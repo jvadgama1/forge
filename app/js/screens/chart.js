@@ -1,9 +1,7 @@
-// What every chart shares (#81): inline SVG drawn to DESIGN.md's Slab look,
-// with no charting library (spec #80). A chart is drawn in a frame's
-// coordinates and scales to its card; the 358-wide phone frame fills a
-// 390 px screen. Tap or hover finds the nearest mark and arrow keys step
-// through them, with a tip line below that leads with the value (dataviz:
-// values lead, labels follow).
+// What every chart shares (#81): hand-drawn inline SVG, since the forms are
+// few and the Slab look exacting (spec #80, no charting library). Each chart
+// brings its own frame, so a phone card and a wide one can differ. Tip lines
+// lead with the value (dataviz: values lead, labels follow).
 import { h } from "../dom.js";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -32,9 +30,6 @@ export function svg(tag, attrs = {}, text) {
   if (text !== undefined) el.textContent = text;
   return el;
 }
-
-/** @param {number} value e.g. 186.67 → "187" */
-export const whole = (value) => String(Math.round(value));
 
 /**
  * Clean ticks a little outside the data, so a line isn't pinned to the
@@ -126,12 +121,12 @@ export function explore(chart, { height, pad, width }, xs, read) {
   });
   chart.append(crosshair);
   const value = h("strong", {});
-  const what = h("span", { class: "label" });
+  const label = h("span", { class: "label" });
   const tip = h(
     "p",
     { class: "chart-tip", "aria-live": "polite" },
     value,
-    what,
+    label,
   );
   let shown = -1;
   /** @param {number} i */
@@ -142,7 +137,7 @@ export function explore(chart, { height, pad, width }, xs, read) {
     crosshair.setAttribute("visibility", "visible");
     const reading = read(shown);
     value.textContent = reading.value;
-    what.textContent = reading.label;
+    label.textContent = reading.label;
   };
   /** @param {Event} e */
   const nearest = (e) => {

@@ -3,21 +3,14 @@
 // prototype's progress board. A single series in the accent, so no legend
 // and no new palette. Drawn with the shared chart pieces (#81).
 import { h } from "../dom.js";
-import {
-  chartRoot,
-  explore,
-  grid,
-  linear,
-  niceRange,
-  svg,
-  whole,
-} from "./chart.js";
-import { monthDay } from "./screen.js";
+import { chartRoot, explore, grid, linear, niceRange, svg } from "./chart.js";
+import { monthDay, whole } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
 /** @import { Frame } from "./chart.js" */
 /** @typedef {Awaited<ReturnType<Forge["e1rmTrend"]>>} Trend */
 
+// 358 wide fills a 390 px phone screen inside its 16 px gutters.
 /** @type {Frame} */
 const FRAME = {
   width: 358,
@@ -37,12 +30,13 @@ export function e1rmChart({ unit, points }) {
   const values = points.map((p) => p.value);
   const { low, high } = niceRange(values);
   const times = points.map((p) => Date.parse(`${p.date}T12:00:00`));
-  const time = linear(
+  const timeScale = linear(
     [times[0], times[times.length - 1]],
     [pad.left, width - pad.right],
   );
+  const xs = times.map(timeScale);
   /** @param {number} i */
-  const x = (i) => time(times[i]);
+  const x = (i) => xs[i];
   const y = linear([low, high], [height - pad.bottom, pad.top]);
   const end = points.length - 1;
 
@@ -96,15 +90,10 @@ export function e1rmChart({ unit, points }) {
       ),
     );
 
-  const tip = explore(
-    chart,
-    FRAME,
-    points.map((_, i) => x(i)),
-    (i) => ({
-      value: `${whole(values[i])} ${unit}`,
-      label: ` e1RM · ${monthDay(points[i].date)}`,
-    }),
-  );
+  const tip = explore(chart, FRAME, xs, (i) => ({
+    value: `${whole(values[i])} ${unit}`,
+    label: ` e1RM · ${monthDay(points[i].date)}`,
+  }));
 
   return [h("h2", { class: "label section" }, `e1RM · ${unit}`), chart, tip];
 }
