@@ -22,12 +22,15 @@ export function logView({ forge, id: asked }) {
   return root;
 
   /**
-   * @param {Logged} [logged] the set just logged: its records to celebrate
-   *   once (#13), and the exercise to move to, a superset partner (#17)
+   * @param {Logged | { back: string }} [after] the set just logged: its
+   *   records to celebrate once (#13), and the exercise to move to, a
+   *   superset partner (#17); or the exercise an undo went back to
    */
-  async function show(logged) {
-    if (logged && logged.next !== id) {
-      id = logged.next;
+  async function show(after) {
+    const logged = after && "next" in after ? after : undefined;
+    const to = logged?.next ?? (after && "back" in after ? after.back : id);
+    if (to !== undefined && to !== id) {
+      id = to;
       // The address follows without a fresh render, which would lose the
       // celebration (#17).
       history.replaceState(null, "", `#/log/ex/${encodeURIComponent(id)}`);

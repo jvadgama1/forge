@@ -1,4 +1,4 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 
@@ -719,10 +719,83 @@ export function createForge({ store, library, now = () => new Date() }) {
     supersetOf,
 
     /**
+     * The exercises a set of `exerciseId` can be supersetted with (#17):
+     * the others in the workout, not skipped and not already in its
+     * superset.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     */
+    partnersFor(workout, exerciseId) {
+      const members = supersetOf(workout, exerciseId) ?? [exerciseId];
+      return workout.entries
+        .filter((e) => !e.skipped && !members.includes(e.exerciseId))
+        .map((e) => e.exerciseId);
+    },
+
+    /**
+     * Pairs a routine day's slot with the next as a planned superset, or
+     * splits them (#17), returning the slots: a group is a run of slots
+     * named by its first one's exercise, so splitting a run of three in the
+     * middle leaves the first alone and the rest a group of their own.
+     * @param {Slot[]} slots
+     * @param {number} i
+     * @param {boolean} paired
+     * @returns {Slot[]}
+     */
+    pairWithNext(slots, i, paired) {
+      const next = slots[i + 1];
+      if (!next) return slots;
+      const runs = slots.map((s) => s.superset);
+      if (paired) {
+        const group = runs[i] ?? slots[i].exerciseId;
+        const old = runs[i + 1];
+        runs[i] = group;
+        // The next slot joins, bringing any run it was in.
+        for (let j = i + 1; j < slots.length; j++) {
+          if (j > i + 1 && (old === undefined || runs[j] !== old)) break;
+          runs[j] = group;
+        }
+      } else {
+        const old = runs[i];
+        for (let j = i + 1; j < slots.length && runs[j] === old; j++)
+          runs[j] = slots[i + 1].exerciseId;
+      }
+      // Named by their first slot's exercise; a group of one is no group.
+      return slots.map((s, j) => {
+        // eslint-disable-next-line no-unused-vars -- set again just below
+        const { superset, ...slot } = s;
+        const group = runs[j];
+        const members = slots.filter((_, k) => runs[k] === group);
+        return group !== undefined && members.length > 1
+          ? { ...slot, superset: groupName(members.map((m) => m.exerciseId)) }
+          : slot;
+      });
+    },
+
+    /**
+     * The exercise whose set an undo on `exerciseId`'s screen takes back
+     * (#17): in a superset, the members' most recent set, so undoing just
+     * after moving to the partner takes back the set just logged.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     */
+    undoTarget(workout, exerciseId) {
+      let latest = { exerciseId, at: "" };
+      for (const id of supersetOf(workout, exerciseId) ?? [exerciseId]) {
+        const at =
+          workout.entries.find((e) => e.exerciseId === id)?.sets.at(-1)
+            ?.loggedAt ?? "";
+        if (at > latest.at) latest = { exerciseId: id, at };
+      }
+      return latest.exerciseId;
+    },
+
+    /**
      * Pairs an exercise with another in the workout (#17; spec #3, story
      * 62): the other joins the first's superset, or a new one, leaving any
-     * superset it was in. A third joining a pair makes a tri-set. Changes
-     * only sets logged afterwards, and only this workout.
+     * superset it was in, so a third joining a pair makes a superset of
+     * three (story 70). Changes only sets logged afterwards, and only this
+     * workout.
      * @param {string} workoutId
      * @param {string} exerciseId
      * @param {string} partnerId
@@ -850,18 +923,13 @@ export function createForge({ store, library, now = () => new Date() }) {
         (await exerciseSettings(exerciseId)).unit,
       );
       return changeWorkout(workoutId, (w) => {
-        const entry = inPlay(w, exerciseId);
-        // Its superset and round, from how it was logged (#17).
-        const group = (w.supersets ?? []).find((s) =>
-          s.exerciseIds.includes(exerciseId),
-        );
-        const membership = group && {
-          superset: {
-            id: group.id,
-            round:
-              entry.sets.filter((s) => s.superset?.id === group.id).length + 1,
-          },
-        };
+        inPlay(w, exerciseId);
+        // Its superset and round, from how it was logged (#17): the round
+        // under way, or the next once this exercise has done it. A warm-up
+        // or drop set is outside the rotation.
+        const group = groupOf(w, exerciseId);
+        const membership = group &&
+          working(logged) && { superset: nextRound(w, group, exerciseId) };
         return changeEntry(w, exerciseId, (e) => ({
           ...e,
           sets: [...e.sets, { ...logged, ...membership }],
@@ -1163,9 +1231,11 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @param {string} exerciseId
      */
     skipExercise(workoutId, exerciseId) {
-      return changeWorkout(workoutId, (w) =>
-        changeEntry(w, exerciseId, (e) => ({ ...e, skipped: true })),
-      );
+      return changeWorkout(workoutId, (w) => ({
+        ...changeEntry(w, exerciseId, (e) => ({ ...e, skipped: true })),
+        // A skipped exercise leaves its superset (#17).
+        supersets: withoutMember(w.supersets ?? [], exerciseId),
+      }));
     },
 
     /**
@@ -1188,9 +1258,52 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @returns {string[] | undefined}
    */
   function supersetOf(workout, exerciseId) {
+    return groupOf(workout, exerciseId)?.exerciseIds;
+  }
+
+  /**
+   * The exercise's superset in the workout, if any (#17).
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  function groupOf(workout, exerciseId) {
     return (workout.supersets ?? []).find((s) =>
       s.exerciseIds.includes(exerciseId),
-    )?.exerciseIds;
+    );
+  }
+
+  /**
+   * The round a set of `exerciseId` joins (#17): the superset's latest
+   * round, or the one after once this exercise has done it. One joining a
+   * pair mid-workout joins the round under way.
+   * @param {Workout} workout
+   * @param {Superset} group
+   * @param {string} exerciseId
+   * @returns {SupersetRound}
+   */
+  function nextRound(workout, group, exerciseId) {
+    const rounds = workout.entries.flatMap((e) =>
+      e.sets
+        .filter((s) => s.superset?.id === group.id)
+        .map((s) => ({
+          exerciseId: e.exerciseId,
+          round: s.superset?.round ?? 0,
+        })),
+    );
+    const latest = Math.max(0, ...rounds.map((r) => r.round));
+    const done = rounds.some(
+      (r) => r.exerciseId === exerciseId && r.round === latest,
+    );
+    return { id: group.id, round: latest === 0 || done ? latest + 1 : latest };
+  }
+
+  /**
+   * A planned group's name in a routine (#17): its first exercise, so the
+   * same pairs saved again compare equal and add no version.
+   * @param {string[]} members exercise ids, in order
+   */
+  function groupName(members) {
+    return members[0];
   }
 
   /**
@@ -1243,6 +1356,9 @@ export function createForge({ store, library, now = () => new Date() }) {
     /** @param {string} id */
     const setsOf = (id) =>
       workout.entries.find((e) => e.exerciseId === id)?.sets ?? [];
+    // Targets count working sets, as progression does (#15).
+    /** @param {string} id */
+    const workingSets = (id) => setsOf(id).filter(working).length;
     /** @param {string} id */
     const didRound = (id) =>
       setsOf(id).some(
@@ -1264,7 +1380,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     /** @param {string} id */
     const inRotation = (id) => {
       const target = targets.get(id);
-      return target === undefined || setsOf(id).length < target;
+      return target === undefined || workingSets(id) < target;
     };
     const after = [
       ...order.slice(order.indexOf(exerciseId) + 1),
@@ -1843,7 +1959,7 @@ export function createForge({ store, library, now = () => new Date() }) {
         // each named by its first exercise, so saving the same pairs again
         // adds no version.
         const members = supersetOf(workout, e.exerciseId);
-        return members ? { ...slot, superset: members[0] } : slot;
+        return members ? { ...slot, superset: groupName(members) } : slot;
       });
     await saveVersion(
       routine,

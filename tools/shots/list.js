@@ -754,6 +754,18 @@ export const SHOTS = [
     },
   },
   {
+    // Undo on the partner's screen takes back the set just logged (#17).
+    name: "superset-undo",
+    as: "owner",
+    route: "/log/ex/barbell-bench-press",
+    seed: PAIRED,
+    steps: async (page) => {
+      await page.getByRole("button", { name: /Log set 02/ }).click();
+      await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
+      await page.getByRole("button", { name: "Undo last set" }).click();
+    },
+  },
+  {
     name: "superset-pick",
     as: "owner",
     route: "/log/ex/triceps-pushdown",

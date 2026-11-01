@@ -43,7 +43,7 @@ async function log(f, w, exerciseId) {
   };
 }
 
-/** A routine whose Push A pairs bench press with lat pulldown. */
+/** A routine whose Upper A pairs bench press with lat pulldown. */
 const PAIRED = {
   name: "Upper",
   days: [
@@ -280,5 +280,94 @@ describe("superset membership on each set (#17)", () => {
       "lat-pulldown",
     ]);
     expect((await f.lastWorkoutLine("leg-press"))?.partners).toBeUndefined();
+  });
+});
+
+describe("superset edge cases (#17)", () => {
+  it("lets a third join a pair mid-workout, in the round under way", async () => {
+    const env = await setup();
+    const { f } = env;
+    let w = await freestyle(env);
+    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
+    for (const id of ["bench-press", "lat-pulldown", "bench-press"])
+      w = await f.logSet(w.id, id, { load: 100, reps: 8 });
+    expect(f.partnersFor(w, "bench-press")).toEqual(["leg-press"]);
+    w = await f.pairExercises(w.id, "bench-press", "leg-press");
+    w = await f.logSet(w.id, "leg-press", { load: 200, reps: 10 });
+    const leg = w.entries.find((e) => e.exerciseId === "leg-press")?.sets;
+    // Bench press has started round 2; leg press joins it.
+    expect(leg?.[0].superset?.round).toBe(2);
+    expect(await f.nextExercise(w, "leg-press")).toBe("lat-pulldown");
+  });
+
+  it("takes a skipped exercise out of its superset, its partner carrying on alone", async () => {
+    const env = await setup();
+    const { f } = env;
+    let w = await freestyle(env);
+    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
+    w = await f.skipExercise(w.id, "lat-pulldown");
+    expect(f.supersetOf(w, "bench-press")).toBeUndefined();
+    const step = await log(f, w, "bench-press");
+    expect(step.next).toBe("bench-press");
+    expect(step.rest).toBe(90);
+  });
+
+  it("keeps warm-ups and drop sets out of the rotation", async () => {
+    const env = await setup();
+    const { f } = env;
+    let w = await freestyle(env);
+    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
+    w = await f.logSet(w.id, "bench-press", {
+      load: 60,
+      reps: 10,
+      warmUp: true,
+    });
+    expect(w.entries[0].sets[0].superset).toBeUndefined();
+    expect(await f.nextExercise(w, "bench-press")).toBe("bench-press");
+  });
+
+  it("undoes the superset's most recent set from the partner's screen", async () => {
+    const env = await setup();
+    const { f } = env;
+    let w = await freestyle(env);
+    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
+    w = await f.logSet(w.id, "lat-pulldown", { load: 90, reps: 10 });
+    w = await f.logSet(w.id, "bench-press", { load: 100, reps: 8 });
+    // The screen has moved on to lat pulldown; undo takes back the bench set.
+    expect(f.undoTarget(w, "lat-pulldown")).toBe("bench-press");
+    expect(f.undoTarget(w, "leg-press")).toBe("leg-press");
+  });
+});
+
+describe("planned pairs in the routine editor (#17)", () => {
+  /** @param {string[]} ids @param {(string | undefined)[]} groups */
+  const slots = (ids, groups) =>
+    ids.map((exerciseId, i) => ({
+      exerciseId,
+      sets: 3,
+      repMin: 8,
+      repMax: 12,
+      ...(groups[i] === undefined ? {} : { superset: groups[i] }),
+    }));
+  /** @param {{ superset?: string }[]} list */
+  const groups = (list) => list.map((s) => s.superset);
+
+  it("pairs a slot with the next, and a third joins as a superset of three", async () => {
+    const { f } = await setup();
+    let list = slots(["a", "b", "c"], []);
+    list = f.pairWithNext(list, 0, true);
+    expect(groups(list)).toEqual(["a", "a", undefined]);
+    list = f.pairWithNext(list, 1, true);
+    expect(groups(list)).toEqual(["a", "a", "a"]);
+  });
+
+  it("splits a run of three in the middle, leaving the first alone", async () => {
+    const { f } = await setup();
+    const list = f.pairWithNext(
+      slots(["a", "b", "c"], ["a", "a", "a"]),
+      0,
+      false,
+    );
+    expect(groups(list)).toEqual([undefined, "b", "b"]);
   });
 });

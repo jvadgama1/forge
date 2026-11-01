@@ -296,7 +296,7 @@ async function celebration(forge, { exerciseId, set, records }, onScreen) {
   const which =
     exerciseId === onScreen
       ? ""
-      : ` on ${(await forge.getExercise(exerciseId))?.name ?? exerciseId}`;
+      : ` on ${await exerciseNamer(forge)(exerciseId)}`;
   return h(
     "p",
     { class: "record", role: "status" },
@@ -306,10 +306,11 @@ async function celebration(forge, { exerciseId, set, records }, onScreen) {
 }
 
 /**
- * The superset line (#17): the partners and Unpair when paired, at the top;
- * otherwise `Superset with…`, by the links to other exercises at the foot
- * (pairing is once per exercise, so it keeps the top short: #63), which
- * opens a chip per other exercise: two taps to pair.
+ * The superset line (#17): the partners and Unpair at the top when paired;
+ * and at the foot, by the links to other exercises (pairing is once per
+ * exercise, so the top stays short: #63), `Superset with…`, or `Add to
+ * superset…` once paired, which opens a chip per exercise it can take:
+ * two taps to pair.
  * @param {Forge} forge
  * @param {Workout} workout
  * @param {string} exerciseId
@@ -318,49 +319,51 @@ async function celebration(forge, { exerciseId, set, records }, onScreen) {
 async function supersetLine(forge, workout, exerciseId, changed) {
   const nameOf = exerciseNamer(forge);
   const members = forge.supersetOf(workout, exerciseId);
-  if (members) {
-    const others = await Promise.all(
-      members.filter((id) => id !== exerciseId).map(nameOf),
-    );
-    const line = h(
-      "div",
-      { class: "superset" },
-      h("span", { class: "label" }, `Superset with ${others.join(", ")}`),
-      h(
-        "button",
-        {
-          class: "chip",
-          type: "button",
-          onclick: async () => {
-            await forge.unpairExercise(workout.id, exerciseId);
-            changed();
-          },
-        },
-        "Unpair",
-      ),
-    );
-    return { top: line, foot: null };
-  }
-  const others = workout.entries.filter(
-    (e) => !e.skipped && e.exerciseId !== exerciseId,
-  );
-  if (!others.length) return { top: null, foot: null };
-  const choices = h(
-    "div",
-    { class: "chips", role: "group", "aria-label": "Superset with" },
-    ...(await Promise.all(
-      others.map(async (e) =>
+  const top = members
+    ? h(
+        "div",
+        { class: "superset" },
+        h(
+          "span",
+          { class: "label" },
+          `Superset with ${(
+            await Promise.all(
+              members.filter((id) => id !== exerciseId).map(nameOf),
+            )
+          ).join(", ")}`,
+        ),
         h(
           "button",
           {
             class: "chip",
             type: "button",
             onclick: async () => {
-              await forge.pairExercises(workout.id, exerciseId, e.exerciseId);
+              await forge.unpairExercise(workout.id, exerciseId);
               changed();
             },
           },
-          await nameOf(e.exerciseId),
+          "Unpair",
+        ),
+      )
+    : null;
+  const candidates = forge.partnersFor(workout, exerciseId);
+  if (!candidates.length) return { top, foot: null };
+  const choices = h(
+    "div",
+    { class: "chips", role: "group", "aria-label": "Superset with" },
+    ...(await Promise.all(
+      candidates.map(async (id) =>
+        h(
+          "button",
+          {
+            class: "chip",
+            type: "button",
+            onclick: async () => {
+              await forge.pairExercises(workout.id, exerciseId, id);
+              changed();
+            },
+          },
+          await nameOf(id),
         ),
       ),
     )),
@@ -377,14 +380,14 @@ async function supersetLine(forge, workout, exerciseId, changed) {
         open.setAttribute("aria-expanded", String(!choices.hidden));
       },
     },
-    "Superset with…",
+    members ? "Add to superset…" : "Superset with…",
   );
-  return { top: null, foot: h("div", { class: "superset" }, open, choices) };
+  return { top, foot: h("div", { class: "superset" }, open, choices) };
 }
 
 /**
  * The logging screen for one exercise of the workout in progress.
- * @param {{ forge: Forge, workout: Workout, exerciseId: string, gymName: string, logged?: Logged, onLogged: (logged?: Logged) => void }} screen
+ * @param {{ forge: Forge, workout: Workout, exerciseId: string, gymName: string, logged?: Logged, onLogged: (logged?: Logged | { back: string }) => void }} screen
  *   `logged` is the set just logged, if any, to celebrate.
  */
 export async function workoutScreen({
@@ -496,28 +499,38 @@ export async function workoutScreen({
   );
 
   // Undo the last set (#42): two taps, since the set is gone afterwards.
-  const last = sets.at(-1);
+  const nameOf = exerciseNamer(forge);
+  // In a superset, undo takes back the members' latest set, which may be
+  // the partner's just logged (#17), and goes back to it.
+  const undoFrom = forge.undoTarget(workout, exerciseId);
+  const undoing = workout.entries
+    .find((e) => e.exerciseId === undoFrom)
+    ?.sets.at(-1);
+  const undoType = await forge.exerciseType(undoFrom);
   let armed = false;
   const undo = h(
     "button",
     {
       class: "chip undo",
       type: "button",
-      hidden: !last,
+      hidden: !undoing,
       onclick: async () => {
-        if (!last || undo.disabled) return;
+        if (!undoing || undo.disabled) return;
         if (!armed) {
           armed = true;
-          undo.textContent = `Tap again to undo ${setText(last, type)}`;
+          // Name it when it's the partner's (#17).
+          const whose =
+            undoFrom === exerciseId ? "" : `${await nameOf(undoFrom)} `;
+          undo.textContent = `Tap again to undo ${whose}${setText(undoing, undoType)}`;
           return;
         }
         undo.disabled = true;
         status.textContent = "";
         try {
-          await forge.undoLastSet(workout.id, exerciseId);
+          await forge.undoLastSet(workout.id, undoFrom);
           // The rest was for that set: it goes with it.
           endRest();
-          onLogged();
+          onLogged(undoFrom === exerciseId ? undefined : { back: undoFrom });
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
           armed = false;
@@ -531,7 +544,6 @@ export async function workoutScreen({
 
   const before = live[index - 1];
   const after = live[index + 1];
-  const nameOf = exerciseNamer(forge);
   const superset = await supersetLine(forge, workout, exerciseId, () =>
     onLogged(),
   );

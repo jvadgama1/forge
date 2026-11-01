@@ -155,8 +155,8 @@ export function routineView({ forge, id }) {
     };
 
     /**
-     * A toggle pairing a slot with the next as a planned superset (#17): the
-     * pair takes the first slot's group, so a third joins as a tri-set.
+     * A toggle pairing a slot with the next as a planned superset (#17);
+     * the core keeps the groups straight.
      * @param {Slot[]} slots
      * @param {number} i
      */
@@ -173,11 +173,11 @@ export function routineView({ forge, id }) {
           type: "button",
           "aria-pressed": String(paired),
           onclick: () => {
-            if (paired) delete next.superset;
-            else {
-              slot.superset ??= slot.exerciseId;
-              next.superset = slot.superset;
-            }
+            slots.splice(
+              0,
+              slots.length,
+              ...forge.pairWithNext(slots, i, !paired),
+            );
             draw();
           },
         },

@@ -641,7 +641,12 @@ a {
 /* Undo the last set (#42): small, out of the thumb's way, right-aligned. */
 .undo {
   display: block;
+  max-width: 100%;
   margin: 6px 0 4px auto;
+  /* "Tap again to undo" can name a superset partner (#17): wrap, never
+     push the screen sideways. */
+  padding-block: 6px;
+  text-align: right;
 }
 
 .undo[hidden] {
@@ -1178,11 +1183,11 @@ a.pick {
   padding-top: 0;
 }
 
+.superset .chips[hidden] {
+  display: none;
+}
+
 /* A routine slot's planned pair with the next one (#17). */
 .pair-next {
   margin-top: 8px;
-}
-
-.superset .chips[hidden] {
-  display: none;
 }

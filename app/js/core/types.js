@@ -59,9 +59,9 @@
  * @property {number} [seconds]
  * @property {number} [distance]
  * @property {"mi" | "km"} [distanceUnit] With a distance.
- * @property {{ id: string, round: number }} [superset] The superset it was
- *   logged in, and which round of it (#17): recorded per set, so a pair
- *   broken mid-workout stays truthful.
+ * @property {SupersetRound} [superset] The superset it was logged in, and
+ *   which round of it (#17): recorded per set, so a pair broken mid-workout
+ *   stays truthful.
  * @property {number} [rir] Reps in reserve, 0–4; 4 means "4 or more".
  * @property {boolean} [warmUp]
  * @property {boolean} [drop]
@@ -114,6 +114,12 @@
  * Exercises done alternately, one set of each per round (GLOSSARY:
  * Superset; #17), in member order.
  * @typedef {{ id: string, exerciseIds: string[] }} Superset
+ */
+
+/**
+ * A working set's place in a superset (#17): which one (a Superset's id)
+ * and which round of it (GLOSSARY: Round).
+ * @typedef {{ id: string, round: number }} SupersetRound
  */
 
 /**
