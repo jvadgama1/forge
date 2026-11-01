@@ -697,9 +697,7 @@ export function createForge({ store, library, now = () => new Date() }) {
       const day = workout && (await dayNow(workout));
       if (!workout || !day) return false;
       // A swap is for this workout only (#16): it reads as its slot.
-      const live = workout.entries
-        .filter((e) => !e.skipped)
-        .map((e) => e.swappedFor ?? e.exerciseId);
+      const live = workout.entries.filter((e) => !e.skipped).map(slotOf);
       // A pair made or broken counts too (#17): each exercise's partners.
       /** @param {string[][]} groups */
       const partners = (groups) =>
@@ -723,46 +721,33 @@ export function createForge({ store, library, now = () => new Date() }) {
 
     supersetOf,
 
-    /**
-     * Whether an exercise is at the workout's gym (#16): one that isn't is
-     * marked, with swaps offered. Every exercise counts as here once the
-     * gym is gone.
-     * @param {Workout} workout
-     * @param {string} exerciseId
-     */
-    async atGym(workout, exerciseId) {
-      const gym = await findGym(workout.gymId);
-      return !gym || gym.exerciseIds.includes(exerciseId);
-    },
+    atGym,
+
+    swapCandidates,
 
     /**
-     * The exercises a slot's exercise can be swapped for (spec #3, Rules:
-     * swap candidates; #16): at the workout's gym, the same kind (strength,
-     * timed hold or cardio), not already in the workout, sharing at least
-     * one primary muscle group; most shared first, then by name.
+     * The swaps to offer for an exercise, if any (spec #3, story 36; #16):
+     * for a routine slot whose exercise isn't at the gym, or one already
+     * swapped (to change your mind), before its first set. `swappedFor` is
+     * the slot's exercise once swapped.
      * @param {Workout} workout
      * @param {string} exerciseId
-     * @returns {Promise<string[]>} exercise ids
+     * @returns {Promise<{ candidates: string[], swappedFor?: string } | undefined>}
      */
-    async swapCandidates(workout, exerciseId) {
-      const target = await findExercise(exerciseId);
-      const gym = await findGym(workout.gymId);
-      if (!target || !gym) return [];
-      const kind = TYPE_RULES[target.type].kind;
-      const inWorkout = new Set(workout.entries.map((e) => e.exerciseId));
-      /** @param {Exercise} e */
-      const shared = (e) =>
-        e.primary.filter((m) => target.primary.includes(m)).length;
-      return (await searchExercises({}))
-        .filter(
-          (e) =>
-            gym.exerciseIds.includes(e.id) &&
-            !inWorkout.has(e.id) &&
-            TYPE_RULES[e.type].kind === kind &&
-            shared(e) > 0,
-        )
-        .sort((a, b) => shared(b) - shared(a) || a.name.localeCompare(b.name))
-        .map((e) => e.id);
+    async swapOffer(workout, exerciseId) {
+      const entry = workout.entries.find((e) => e.exerciseId === exerciseId);
+      if (
+        !entry ||
+        entry.sets.length ||
+        !(await followedSlot(workout, exerciseId))
+      )
+        return undefined;
+      if (!entry.swappedFor && (await atGym(workout, exerciseId)))
+        return undefined;
+      return {
+        candidates: await swapCandidates(workout, slotOf(entry)),
+        ...(entry.swappedFor ? { swappedFor: entry.swappedFor } : {}),
+      };
     },
 
     /**
@@ -1689,10 +1674,61 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {string} exerciseId
    */
   function slotIdOf(workout, exerciseId) {
-    return (
-      workout.entries.find((e) => e.exerciseId === exerciseId)?.swappedFor ??
-      exerciseId
+    const entry = workout.entries.find((e) => e.exerciseId === exerciseId);
+    return entry ? slotOf(entry) : exerciseId;
+  }
+
+  /**
+   * The routine slot's exercise an entry stands for (#16).
+   * @param {WorkoutEntry} entry
+   */
+  function slotOf(entry) {
+    return entry.swappedFor ?? entry.exerciseId;
+  }
+
+  /**
+   * Whether an exercise is at the workout's gym (#16): one that isn't is
+   * marked, with swaps offered. Every exercise counts as here once the
+   * gym is gone.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  async function atGym(workout, exerciseId) {
+    const gym = await findGym(workout.gymId);
+    return !gym || gym.exerciseIds.includes(exerciseId);
+  }
+
+  /**
+   * The exercises a slot's exercise can be swapped for (spec #3, Rules:
+   * swap candidates; #16): at the workout's gym, the same kind (strength,
+   * timed hold or cardio), not already in the workout, sharing at least
+   * one primary muscle group; most shared first, then by name.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   * @returns {Promise<string[]>} exercise ids
+   */
+  async function swapCandidates(workout, exerciseId) {
+    const target = await findExercise(exerciseId);
+    const gym = await findGym(workout.gymId);
+    if (!target || !gym) return [];
+    const kind = TYPE_RULES[target.type].kind;
+    // Not one in the workout already, nor the slot's own once swapped.
+    const inWorkout = new Set(
+      workout.entries.flatMap((e) => [e.exerciseId, slotOf(e)]),
     );
+    /** @param {Exercise} e */
+    const shared = (e) =>
+      e.primary.filter((m) => target.primary.includes(m)).length;
+    return (await searchExercises({}))
+      .filter(
+        (e) =>
+          gym.exerciseIds.includes(e.id) &&
+          !inWorkout.has(e.id) &&
+          TYPE_RULES[e.type].kind === kind &&
+          shared(e) > 0,
+      )
+      .sort((a, b) => shared(b) - shared(a) || a.name.localeCompare(b.name))
+      .map((e) => e.id);
   }
 
   /**
@@ -2047,7 +2083,7 @@ export function createForge({ store, library, now = () => new Date() }) {
       .map((e) => {
         // A swapped-in exercise saves as its slot: a swap is for this
         // workout only (#16).
-        const slotId = e.swappedFor ?? e.exerciseId;
+        const slotId = slotOf(e);
         // eslint-disable-next-line no-unused-vars -- replaced just below
         const { superset: planned, ...slot } =
           day.slots.find((s) => s.exerciseId === slotId) ??

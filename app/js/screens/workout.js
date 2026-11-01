@@ -386,9 +386,9 @@ async function supersetLine(forge, workout, exerciseId, changed) {
 }
 
 /**
- * For an exercise this gym doesn't have (#16): says so, with a chip per
- * swap candidate, best first. One tap swaps it for this workout and opens
- * the one swapped in.
+ * For a routine slot's exercise this gym doesn't have, or one swapped in
+ * (#16): says so, with a chip per swap candidate, best first. One tap swaps
+ * it for this workout and opens the one swapped in. Before its first set.
  * @param {Forge} forge
  * @param {Workout} workout
  * @param {string} exerciseId
@@ -396,9 +396,13 @@ async function supersetLine(forge, workout, exerciseId, changed) {
  * @param {(swappedIn: string) => void} swapped
  */
 async function swapLine(forge, workout, exerciseId, gymName, swapped) {
-  if (await forge.atGym(workout, exerciseId)) return null;
+  const offer = await forge.swapOffer(workout, exerciseId);
+  if (!offer) return null;
   const nameOf = exerciseNamer(forge);
-  const candidates = await forge.swapCandidates(workout, exerciseId);
+  const { candidates, swappedFor } = offer;
+  const why = swappedFor
+    ? `Swapped for ${await nameOf(swappedFor)}`
+    : `Not at ${gymName}`;
   return h(
     "div",
     { class: "swap" },
@@ -406,8 +410,8 @@ async function swapLine(forge, workout, exerciseId, gymName, swapped) {
       "p",
       { class: "label" },
       candidates.length
-        ? `Not at ${gymName} · swap for`
-        : `Not at ${gymName} · nothing here to swap for`,
+        ? `${why} · swap for`
+        : `${why} · nothing here to swap for`,
     ),
     candidates.length
       ? h(
@@ -651,11 +655,9 @@ export async function workoutScreen({
         )
       : null,
     superset.top,
-    sets.length
-      ? null
-      : await swapLine(forge, workout, exerciseId, gymName, (id) =>
-          onLogged({ back: id }),
-        ),
+    await swapLine(forge, workout, exerciseId, gymName, (id) =>
+      onLogged({ back: id }),
+    ),
     suggested ? suggestionLine(suggested, type) : null,
     // The pinned note, every time the exercise is logged (#21).
     settings.note

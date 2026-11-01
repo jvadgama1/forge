@@ -115,3 +115,41 @@ describe("swaps (#16)", () => {
     expect(await f.lastWorkoutLine("Flat Bench")).toBeUndefined();
   });
 });
+
+describe("swap offers (#16)", () => {
+  it("are for routine slots not at the gym, before their first set", async () => {
+    const { f, workout } = await setup();
+    expect((await f.swapOffer(workout, "Flat Bench"))?.candidates).toEqual([
+      "Close-Grip Press",
+      "Machine Press",
+      "incline-db-press",
+    ]);
+    expect(await f.swapOffer(workout, "triceps-pushdown")).toBeUndefined();
+    // Added on the day, not a slot: no offer, even if not at the gym.
+    let w = await f.addExercise(workout.id, "leg-press");
+    expect(await f.swapOffer(w, "leg-press")).toBeUndefined();
+    w = await f.logSet(w.id, "Flat Bench", { load: 100, reps: 8 });
+    expect(await f.swapOffer(w, "Flat Bench")).toBeUndefined();
+  });
+
+  it("let you change your mind once swapped, ranked against the slot's exercise", async () => {
+    const { f, workout } = await setup();
+    let w = await f.swapExercise(workout.id, "Flat Bench", "Machine Press");
+    expect(await f.swapOffer(w, "Machine Press")).toEqual({
+      candidates: ["Close-Grip Press", "incline-db-press"],
+      swappedFor: "Flat Bench",
+    });
+    w = await f.swapExercise(w.id, "Machine Press", "Close-Grip Press");
+    expect(await f.targets(w, "Close-Grip Press")).toMatchObject({ sets: 3 });
+  });
+
+  it("keep a swapped superset member in its superset", async () => {
+    const { f, workout } = await setup();
+    let w = await f.pairExercises(workout.id, "Flat Bench", "triceps-pushdown");
+    w = await f.swapExercise(w.id, "Flat Bench", "Machine Press");
+    expect(f.supersetOf(w, "triceps-pushdown")).toEqual([
+      "Machine Press",
+      "triceps-pushdown",
+    ]);
+  });
+});
