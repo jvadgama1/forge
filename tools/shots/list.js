@@ -171,6 +171,35 @@ const WORKOUT = {
   ],
 };
 
+/**
+ * Twelve weeks of made-up bench press, a workout a week getting heavier,
+ * for the Stats board (#82): 135 × 8 on Aug 5 up to 160 × 8 on Oct 21.
+ */
+const STATS = {
+  gyms: GYMS.gyms,
+  settings: [{ id: "user", lastGymId: "gym-work" }],
+  workouts: /** @type {Array<[string, number]>} */ ([
+    ["2026-08-05", 135],
+    ["2026-08-12", 135],
+    ["2026-08-19", 140],
+    ["2026-08-26", 140],
+    ["2026-09-02", 145],
+    ["2026-09-09", 145],
+    ["2026-09-16", 145],
+    ["2026-09-23", 150],
+    ["2026-09-30", 150],
+    ["2026-10-07", 155],
+    ["2026-10-14", 155],
+    ["2026-10-21", 160],
+  ]).map(([date, load]) =>
+    benchDay(date, [
+      [load, 8],
+      [load, 8],
+      [load, 7],
+    ]),
+  ),
+};
+
 /** A workout just started, nothing added yet. */
 const WORKOUT_EMPTY = {
   gyms: GYMS.gyms,
@@ -894,7 +923,6 @@ export const SHOTS = [
   { name: "not-owner", as: "not-owner" },
   { name: "log", as: "owner", route: "/log" },
   { name: "exercises", as: "owner", route: "/exercises" },
-  { name: "stats", as: "owner", route: "/stats" },
   { name: "coach", as: "owner", route: "/coach" },
   { name: "more", as: "owner", route: "/more" },
   {
@@ -1126,4 +1154,16 @@ export const SHOTS = [
       await page.getByRole("button", { name: "Show all" }).click();
     },
   },
+  { name: "stats", as: "owner", route: "/stats", seed: STATS },
+  {
+    name: "stats-4w",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "4W" }).click();
+      await page.getByText("/ 3 WKS").waitFor();
+    },
+  },
+  { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

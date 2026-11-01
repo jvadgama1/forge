@@ -20,6 +20,7 @@ import { bodyWeightView } from "./screens/body-weight.js";
 import { workoutsView } from "./screens/workouts.js";
 import { pastWorkoutView } from "./screens/past-workout.js";
 import { moreView } from "./screens/more.js";
+import { statsView } from "./screens/stats.js";
 
 /** @import { ScreenContext } from "./screens/screen.js" */
 
@@ -59,11 +60,7 @@ const routes = {
   },
   "/exercises": { tab: "log", render: exercisesView },
   "/exercises/:id": { tab: "log", render: exerciseView },
-  "/stats": {
-    tab: "stats",
-    render: () =>
-      placeholderView("Stats", "Progress charts arrive in phase 2."),
-  },
+  "/stats": { tab: "stats", render: statsView },
   "/coach": {
     tab: "coach",
     render: () => placeholderView("Coach", "The coach arrives in phase 3."),
