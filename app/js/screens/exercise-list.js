@@ -9,7 +9,7 @@ import { countOf } from "./screen.js";
 export const exerciseCount = (n) => countOf(n, "exercise");
 
 /** @type {Record<ExerciseType, string>} */
-const TYPE_LABELS = {
+export const TYPE_LABELS = {
   "weight-reps": "Weight × reps",
   "bodyweight-reps": "Bodyweight",
   assisted: "Assisted",
@@ -87,6 +87,38 @@ export function choiceChips({
       ),
     );
   return group;
+}
+
+/**
+ * A row of chips any number of which can be pressed (#21: an exercise's
+ * muscle groups). Changes `selected` in place.
+ * @template {string} T
+ * @param {{ label: string, options: { value: T, text: string }[], selected: Set<T> }} chips
+ */
+export function toggleChips({ label, options, selected }) {
+  return h(
+    "div",
+    { class: "chips", role: "group", "aria-label": label },
+    ...options.map(({ value, text }) =>
+      h(
+        "button",
+        {
+          class: "chip",
+          type: "button",
+          "aria-pressed": String(selected.has(value)),
+          onclick: (e) => {
+            if (selected.has(value)) selected.delete(value);
+            else selected.add(value);
+            /** @type {HTMLElement} */ (e.currentTarget).setAttribute(
+              "aria-pressed",
+              String(selected.has(value)),
+            );
+          },
+        },
+        text,
+      ),
+    ),
+  );
 }
 
 /**

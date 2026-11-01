@@ -91,6 +91,7 @@ export function shortText(set, type) {
  */
 export function fieldsFor(type, unit, increment) {
   const optionalLoad = TYPE_RULES[type].load !== "needed";
+  const distanceUnit = unit === "kg" ? "km" : "mi";
   /**
    * @param {string} label
    * @param {string} name
@@ -160,9 +161,9 @@ export function fieldsFor(type, unit, increment) {
           read: (value) => ({ seconds: Math.round(value * 60) }),
         },
         {
-          // The core takes a distance as miles until #21.
-          label: "mi",
-          name: "Distance in mi",
+          // The exercise's unit picks miles or km (#21).
+          label: distanceUnit,
+          name: `Distance in ${distanceUnit}`,
           what: "distance",
           mode: "decimal",
           step: 0.1,

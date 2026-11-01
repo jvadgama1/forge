@@ -911,6 +911,13 @@ select.small-number {
   color: var(--text);
 }
 
+/* An exercise's pinned note (#21): set-up the user wants every time. */
+.pinned-note {
+  margin: 6px 0 0;
+  font: 400 13px/1.4 var(--font-mono);
+  color: var(--text);
+}
+
 .save-changes {
   margin-top: 16px;
 }
@@ -1030,5 +1037,38 @@ select.small-number {
   align-items: center;
   gap: 6px;
   margin-top: 18px;
+  text-decoration: none;
+}
+
+/* An exercise's page (#21): every choice in view, so chips wrap rather
+   than scroll, and each field has room above it. */
+.new-exercise {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 14px;
+  text-decoration: none;
+}
+
+.exercise-page .chips {
+  flex-wrap: wrap;
+}
+
+.exercise-page .label.field {
+  margin-top: 16px;
+}
+
+.note-field {
+  min-height: 64px;
+  resize: vertical;
+  font: 400 14px/1.4 var(--font-mono);
+}
+
+.exercise-summary {
+  margin-bottom: 6px;
+}
+
+/* A library row that opens the exercise's page (#21). */
+a.pick {
+  display: block;
   text-decoration: none;
 }
