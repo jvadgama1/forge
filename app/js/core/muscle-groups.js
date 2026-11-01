@@ -3,6 +3,18 @@
 /** @typedef {{ id: MuscleGroup, label: string, region: Region }} MuscleGroupInfo */
 
 /**
+ * The four regions (GLOSSARY.md), in their fixed order: chart series and
+ * summaries always run Push, Pull, Legs, Core (DESIGN.md § Look).
+ * @type {{ id: Region, label: string }[]}
+ */
+export const REGIONS = [
+  { id: "push", label: "Push" },
+  { id: "pull", label: "Pull" },
+  { id: "legs", label: "Legs" },
+  { id: "core", label: "Core" },
+];
+
+/**
  * The 17 muscle groups (GLOSSARY.md), in display order, each in one region.
  * @type {MuscleGroupInfo[]}
  */

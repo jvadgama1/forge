@@ -55,7 +55,10 @@ How many more reps the user could have done at the end of a set. Optional per se
 _Avoid_: RPE
 
 **Hard set**:
-A non-warm-up set counted toward a muscle group's weekly volume (1 for primary, 0.5 for secondary). Strength sets and timed holds count; cardio never does, even though cardio exercises are tagged with the muscles they work.
+A set taken close to failure, counted toward a muscle group's weekly volume (1 for primary, 0.5 for secondary): not a warm-up, and not logged at RIR 4+ (a set with no RIR recorded counts). Strength sets and timed holds count; cardio never does, even though cardio exercises are tagged with the muscles they work.
+
+**Training week**:
+A Monday-to-Sunday week with at least one finished workout. Weekly averages on the Stats board divide by training weeks, so a week off doesn't lower them.
 
 **Last workout** (for an exercise):
 The most recent workout containing that exercise; its sets are shown while logging.

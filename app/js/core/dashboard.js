@@ -2,7 +2,10 @@
 // count, and the e1RM headline. The Forge core reads the store and applies
 // them; no DOM or Firestore here.
 
-/** @import { Workout } from "./types.js" */
+import { TYPE_RULES } from "./exercise-types.js";
+import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
+
+/** @import { Exercise, MuscleGroup, Workout, WorkoutSet } from "./types.js" */
 
 /** @typedef {"4w" | "12w" | "1y"} RangeId */
 
@@ -64,15 +67,86 @@ export function e1rmHeadline(points) {
 }
 
 /**
+ * The Monday of a date's week.
+ * @param {string} date YYYY-MM-DD
+ */
+function mondayOf(date) {
+  const day = dayNumber(date);
+  // The epoch's day 0 was a Thursday; Monday is 0 here.
+  return dateOf(day - ((day + 3) % 7));
+}
+
+// The weekly hard-set target band (DESIGN.md § Dashboard; spec #80).
+export const TARGET = { min: 10, max: 20 };
+
+// The muscle groups by region, then in GLOSSARY.md's order within each.
+const BY_REGION = REGIONS.flatMap((region) =>
+  MUSCLE_GROUPS.filter((m) => m.region === region.id),
+);
+
+/**
+ * Where a week's hard sets sit against the target band.
+ * @param {number} perWeek
+ * @returns {"under" | "in" | "over"}
+ */
+const bandOf = (perWeek) =>
+  perWeek < TARGET.min ? "under" : perWeek > TARGET.max ? "over" : "in";
+
+/**
+ * Whether a set is a hard set (GLOSSARY: Hard set; the maintainer's
+ * decision on #80): not a warm-up, not logged at RIR 4+ (4 means "4 or
+ * more"; no RIR still counts), and not cardio. Drop sets count.
+ * @param {WorkoutSet} set
+ * @param {Exercise} exercise
+ */
+const isHardSet = (set, exercise) =>
+  !set.warmUp &&
+  (set.rir ?? 0) < 4 &&
+  TYPE_RULES[exercise.type].kind !== "cardio";
+
+/**
+ * Hard sets per week for every muscle group (spec #80, Rules: Hard sets,
+ * Hard sets per week): each set counts 1 for each primary muscle group and
+ * 0.5 for each secondary, totalled over the counted workouts and divided by
+ * the training weeks (GLOSSARY: Training week), so a break doesn't lower
+ * it.
+ * @param {Workout[]} workouts the counted ones
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ */
+export function hardSetsCard(workouts, exerciseOf) {
+  /** @type {Map<MuscleGroup, number>} */
+  const total = new Map();
+  /** @param {MuscleGroup} id @param {number} n */
+  const add = (id, n) => total.set(id, (total.get(id) ?? 0) + n);
+  for (const workout of workouts)
+    for (const { exerciseId, sets } of workout.entries) {
+      const exercise = exerciseOf(exerciseId);
+      if (!exercise) continue;
+      const hard = sets.filter((set) => isHardSet(set, exercise)).length;
+      for (const id of exercise.primary) add(id, hard);
+      for (const id of exercise.secondary) add(id, hard * 0.5);
+    }
+  const trainingWeeks = new Set(workouts.map((w) => mondayOf(w.date))).size;
+  return {
+    trainingWeeks,
+    muscleGroups: BY_REGION.map(({ id, label, region }) => {
+      // To 0.1, so the number shown and its band always agree.
+      const perWeek = trainingWeeks
+        ? Math.round(((total.get(id) ?? 0) / trainingWeeks) * 10) / 10
+        : 0;
+      return { id, label, region, perWeek, band: bandOf(perWeek) };
+    }),
+  };
+}
+
+/**
  * The range ending with the week that holds `today`.
  * @param {RangeId} id
  * @param {string} today YYYY-MM-DD
  * @returns {Range}
  */
 export function rangeFor(id, today) {
-  const day = dayNumber(today);
-  // The epoch's day 0 was a Thursday; Monday is 0 here.
-  const monday = day - ((day + 3) % 7);
+  const monday = dayNumber(mondayOf(today));
   const weeks = WEEKS[id];
   return {
     id,

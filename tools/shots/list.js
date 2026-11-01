@@ -172,32 +172,82 @@ const WORKOUT = {
 };
 
 /**
- * Twelve weeks of made-up bench press, a workout a week getting heavier,
- * for the Stats board (#82): 135 × 8 on Aug 5 up to 160 × 8 on Oct 21.
+ * A finished made-up workout of several exercises at Work.
+ * @param {string} date YYYY-MM-DD
+ * @param {Array<[exerciseId: string, sets: Array<[load: number, reps: number]>]>} entries
+ */
+const day = (date, entries) => ({
+  id: `w-${date}`,
+  date,
+  startedAt: `${date}T18:00:00.000Z`,
+  finishedAt: `${date}T19:00:00.000Z`,
+  gymId: "gym-work",
+  entries: entries.map(([exerciseId, sets]) => ({
+    exerciseId,
+    sets: sets.map(([load, reps]) => ({
+      load,
+      unit: "lb",
+      reps,
+      loggedAt: `${date}T18:10:00.000Z`,
+    })),
+  })),
+});
+
+/**
+ * `n` sets of `load` × `reps`.
+ * @param {number} n
+ * @param {number} load
+ * @param {number} reps
+ * @returns {Array<[number, number]>}
+ */
+const times = (n, load, reps) => Array.from({ length: n }, () => [load, reps]);
+
+/**
+ * Twelve weeks of made-up training for the Stats board (#82, #83): a push
+ * workout each Wednesday with bench press getting heavier (135 × 8 on Aug 5
+ * up to 160 × 8 on Oct 21), and a pull-and-legs workout each Friday. A week
+ * comes to 12 hard sets of chest and 10 of triceps (in the band), 22 of
+ * lats (over) and 4 of quads (under). The e1RM card was left on bench press.
  */
 const STATS = {
   gyms: GYMS.gyms,
-  settings: [{ id: "user", lastGymId: "gym-work" }],
-  workouts: /** @type {Array<[string, number]>} */ ([
-    ["2026-08-05", 135],
-    ["2026-08-12", 135],
-    ["2026-08-19", 140],
-    ["2026-08-26", 140],
-    ["2026-09-02", 145],
-    ["2026-09-09", 145],
-    ["2026-09-16", 145],
-    ["2026-09-23", 150],
-    ["2026-09-30", 150],
-    ["2026-10-07", 155],
-    ["2026-10-14", 155],
-    ["2026-10-21", 160],
-  ]).map(([date, load]) =>
-    benchDay(date, [
-      [load, 8],
-      [load, 8],
-      [load, 7],
+  settings: [
+    {
+      id: "user",
+      lastGymId: "gym-work",
+      dashboardExerciseId: "barbell-bench-press",
+    },
+  ],
+  workouts: /** @type {Array<[string, string, number]>} */ ([
+    ["2026-08-05", "2026-08-07", 135],
+    ["2026-08-12", "2026-08-14", 135],
+    ["2026-08-19", "2026-08-21", 140],
+    ["2026-08-26", "2026-08-28", 140],
+    ["2026-09-02", "2026-09-04", 145],
+    ["2026-09-09", "2026-09-11", 145],
+    ["2026-09-16", "2026-09-18", 145],
+    ["2026-09-23", "2026-09-25", 150],
+    ["2026-09-30", "2026-10-02", 150],
+    ["2026-10-07", "2026-10-09", 155],
+    ["2026-10-14", "2026-10-16", 155],
+    ["2026-10-21", "2026-10-23", 160],
+  ]).flatMap(([push, pull, load]) => [
+    day(push, [
+      [
+        "barbell-bench-press",
+        [[load, 8], [load, 8], [load, 7], ...times(3, load - 10, 10)],
+      ],
+      ["incline-db-press", times(6, 50, 10)],
+      ["triceps-pushdown", times(4, 60, 12)],
     ]),
-  ),
+    day(pull, [
+      ["lat-pulldown", times(12, 120, 10)],
+      ["seated-cable-row", times(10, 110, 10)],
+      ["db-curl", times(4, 30, 12)],
+      ["leg-press", times(4, 270, 10)],
+      ["plank", []],
+    ]),
+  ]),
 };
 
 /** A workout just started, nothing added yet. */
@@ -1163,6 +1213,16 @@ export const SHOTS = [
     steps: async (page) => {
       await page.getByRole("button", { name: "4W" }).click();
       await page.getByText("/ 3 WKS").waitFor();
+    },
+  },
+  {
+    name: "stats-hard-sets",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      const heading = page.getByRole("heading", { name: /Hard sets/ });
+      await heading.evaluate((el) => el.scrollIntoView());
     },
   },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },

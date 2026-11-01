@@ -6,8 +6,9 @@ import { library as strength } from "./library-fixture.js";
 /** @import { Workout, WorkoutSet } from "../../app/js/core/types.js" */
 
 /**
- * The strength fixture, an assisted exercise (no e1RM) and a bodyweight one
- * (its e1RM counts the body weight on the day), as in #19.
+ * The strength fixture, an assisted exercise (no e1RM), a bodyweight one
+ * (its e1RM counts the body weight on the day), a timed hold and cardio, as
+ * in #19.
  */
 const library = [
   ...strength,
@@ -27,7 +28,39 @@ const library = [
     secondary: ["biceps"],
     body: "upper",
   }),
+  /** @type {import("../../app/js/core/types.js").Exercise} */ ({
+    id: "plank",
+    name: "Plank",
+    type: "timed",
+    primary: ["abs"],
+    secondary: [],
+    body: "upper",
+  }),
+  /** @type {import("../../app/js/core/types.js").Exercise} */ ({
+    id: "treadmill",
+    name: "Treadmill",
+    type: "cardio",
+    primary: ["quads"],
+    secondary: [],
+    body: "lower",
+  }),
 ];
+
+/**
+ * `n` working sets of 100 lb × 10.
+ * @param {number} n
+ * @param {Partial<WorkoutSet>} [more]
+ */
+const sets = (n, more = {}) =>
+  Array.from({ length: n }, () => set(100, 10, more));
+
+/**
+ * A muscle group's row on the hard-sets card.
+ * @param {Awaited<ReturnType<ReturnType<typeof createForge>["dashboard"]>>} dashboard
+ * @param {string} id
+ */
+const muscleGroup = (dashboard, id) =>
+  dashboard.hardSets.muscleGroups.find((m) => m.id === id);
 
 /**
  * A set of `load` lb × `reps`, with optional flags.
@@ -328,5 +361,101 @@ describe("dashboard e1RM trend (spec #80; #82)", () => {
       past("bench", "2026-10-20", "bench-press", [set(150, 6)]),
     );
     expect((await f.dashboard()).e1rm?.name).toBe("Bench Press");
+  });
+});
+
+describe("dashboard hard sets (spec #80; #83)", () => {
+  it("counts a set 1 for each primary muscle group and 0.5 for each secondary", async () => {
+    // Bench Press: chest primary; triceps and front delts secondary.
+    const { f } = await withWorkouts(
+      past("bench", "2026-10-27", "bench-press", sets(4)),
+    );
+    const board = await f.dashboard();
+    expect(muscleGroup(board, "chest")?.perWeek).toBe(4);
+    expect(muscleGroup(board, "triceps")?.perWeek).toBe(2);
+    expect(muscleGroup(board, "front-delts")?.perWeek).toBe(2);
+    expect(muscleGroup(board, "quads")?.perWeek).toBe(0);
+  });
+
+  it("leaves out warm-ups, sets logged at RIR 4+ and cardio, as decided on #80", async () => {
+    const { f } = await withWorkouts({
+      ...past("mixed", "2026-10-27", "triceps-pushdown", []),
+      entries: [
+        {
+          exerciseId: "triceps-pushdown",
+          sets: [
+            set(40, 12, { warmUp: true }), // out
+            set(60, 10, { rir: 4 }), // out: 4 means 4 or more
+            set(60, 10, { rir: 3 }), // in
+            set(60, 10), // in: no RIR recorded
+            set(40, 15, { drop: true }), // in: not a warm-up
+          ],
+        },
+        // A timed hold has no RIR and counts.
+        { exerciseId: "plank", sets: [{ ...set(0, 0), seconds: 60 }] },
+        // Cardio never counts, though tagged with quads.
+        { exerciseId: "treadmill", sets: [{ ...set(0, 0), seconds: 600 }] },
+      ],
+    });
+    const board = await f.dashboard();
+    expect(muscleGroup(board, "triceps")?.perWeek).toBe(3);
+    expect(muscleGroup(board, "abs")?.perWeek).toBe(1);
+    expect(muscleGroup(board, "quads")?.perWeek).toBe(0);
+  });
+
+  it("averages over the weeks with a workout, so a break doesn't lower it", async () => {
+    // Three training weeks in twelve, with nine weeks off between them.
+    const { f } = await withWorkouts(
+      past("aug", "2026-08-11", "bench-press", sets(3)),
+      past("oct-20", "2026-10-20", "bench-press", sets(3)),
+      past("oct-22", "2026-10-22", "bench-press", sets(2)), // same week
+      past("oct-27", "2026-10-27", "bench-press", sets(2)),
+    );
+    const board = await f.dashboard();
+    expect(board.hardSets.trainingWeeks).toBe(3);
+    expect(muscleGroup(board, "chest")?.perWeek).toBe(3.3); // 10 / 3, to 0.1
+  });
+
+  it("lists all 17 muscle groups by region, those with none at 0", async () => {
+    const { f } = await withWorkouts();
+    const { muscleGroups } = (await f.dashboard()).hardSets;
+    expect(muscleGroups.map((m) => [m.region, m.id])).toEqual([
+      ["push", "chest"],
+      ["push", "front-delts"],
+      ["push", "side-delts"],
+      ["push", "triceps"],
+      ["pull", "rear-delts"],
+      ["pull", "biceps"],
+      ["pull", "forearms"],
+      ["pull", "lats-upper-back"],
+      ["pull", "traps"],
+      ["legs", "glutes"],
+      ["legs", "quads"],
+      ["legs", "hamstrings"],
+      ["legs", "adductors"],
+      ["legs", "calves"],
+      ["core", "lower-back"],
+      ["core", "abs"],
+      ["core", "obliques"],
+    ]);
+    expect(muscleGroups.every((m) => m.perWeek === 0)).toBe(true);
+  });
+
+  it("says whether each is under, in or over the 10-20 band", async () => {
+    /** @param {Workout[]} workouts */
+    const band = async (...workouts) =>
+      muscleGroup(
+        await (await withWorkouts(...workouts)).f.dashboard(),
+        "triceps",
+      )?.band;
+    // Triceps Pushdown works only the triceps; two weeks halve a total.
+    const twoWeeks = (/** @type {number} */ a, /** @type {number} */ b) => [
+      past("w1", "2026-10-20", "triceps-pushdown", sets(a)),
+      past("w2", "2026-10-27", "triceps-pushdown", sets(b)),
+    ];
+    expect(await band(...twoWeeks(10, 9))).toBe("under"); // 9.5
+    expect(await band(...twoWeeks(10, 10))).toBe("in"); // 10
+    expect(await band(...twoWeeks(20, 20))).toBe("in"); // 20
+    expect(await band(...twoWeeks(21, 20))).toBe("over"); // 20.5
   });
 });
