@@ -508,6 +508,21 @@ const NOTED = {
   ],
 };
 
+/**
+ * A shot on a 1280 × 800 desktop (#23).
+ * @param {string} name
+ * @param {string} route
+ * @param {Record<string, object[]>} seed
+ * @returns {Shot}
+ */
+const desktop = (name, route, seed) => ({
+  name,
+  as: "owner",
+  route,
+  seed,
+  viewport: { width: 1280, height: 800 },
+});
+
 /** Made-up body weight entries (#18). */
 const WEIGHTS = {
   ...GYMS,
@@ -607,20 +622,31 @@ export const SHOTS = [
   },
   // The wide layout (#23): a side rail, and list-and-item pages in two
   // panes. One at 1920 px and one at a 360 px phone check the extremes.
-  ...[
-    ["desktop-log", "/log", WORKOUT],
-    ["desktop-workouts", "/workouts", WORKOUT],
-    ["desktop-workout", "/workouts/w-2026-10-14", WORKOUT],
-    ["desktop-routine", "/routines/r-ppl", ROUTINE],
-    ["desktop-history", "/log/history/barbell-bench-press", WORKOUT],
-    ["desktop-more", "/more", GYMS],
-  ].map(([name, route, seed]) => ({
-    name: /** @type {string} */ (name),
-    as: /** @type {const} */ ("owner"),
-    route: /** @type {string} */ (route),
-    seed: /** @type {Record<string, object[]>} */ (seed),
-    viewport: { width: 1280, height: 800 },
-  })),
+  desktop("desktop-log", "/log", WORKOUT),
+  desktop("desktop-workouts", "/workouts", WORKOUT),
+  desktop("desktop-workout", "/workouts/w-2026-10-14", WORKOUT),
+  desktop("desktop-routine", "/routines/r-ppl", ROUTINE),
+  desktop("desktop-history", "/log/history/barbell-bench-press", WORKOUT),
+  desktop("desktop-more", "/more", GYMS),
+  {
+    // A load typed on the log stays when History opens beside it (#23).
+    ...desktop("desktop-history-kept", "/log/ex/barbell-bench-press", WORKOUT),
+    steps: async (page) => {
+      await page.getByRole("textbox", { name: "Load in lb" }).fill("140");
+      await page.getByRole("link", { name: /History/ }).click();
+      await page.getByRole("heading", { name: "Workouts" }).waitFor();
+    },
+  },
+  {
+    // A picker opened on the right keeps its Back button (#23).
+    ...desktop("desktop-routine-pick", "/routines/r-ppl", ROUTINE),
+    steps: async (page) => {
+      await page
+        .getByRole("button", { name: /Add exercise to Pull A/ })
+        .click();
+      await page.getByRole("button", { name: "← Back" }).waitFor();
+    },
+  },
   {
     name: "desktop-1920",
     as: "owner",

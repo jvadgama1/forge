@@ -1,7 +1,7 @@
 // Photographs every screen (#33): `npm run shots -- <label>` saves one PNG
-// per entry in list.js to .shots/<label>/, at 390 × 844 unless the entry
-// gives a desktop or other viewport (#23), and fails a screen that scrolls
-// sideways. Drives the
+// per entry in list.js to .shots/<label>/, on a 390 × 844 phone unless the
+// entry gives another viewport (#23). A screen that scrolls sideways fails
+// the run. Drives the
 // installed Microsoft Edge, so nothing downloads a browser. Sign-in and
 // Firestore are stubbed: no personal data reaches a shot (ADR-0005).
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -136,6 +136,9 @@ async function newContext(viewport) {
   return context;
 }
 
+/** The screen a shot is taken on unless it gives its own. */
+const PHONE = { width: 390, height: 844 };
+
 const errors = new Set();
 
 /**
@@ -143,9 +146,7 @@ const errors = new Set();
  * @param {Shot} shot
  */
 async function render(shot) {
-  const context = await newContext(
-    shot.viewport ?? { width: 390, height: 844 },
-  );
+  const context = await newContext(shot.viewport ?? PHONE);
   try {
     // Read by the store stub as its starting documents.
     await context.addInitScript((seed) => {

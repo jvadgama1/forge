@@ -1139,16 +1139,15 @@ a.pick {
     overflow-y: auto;
     padding-right: 8px;
   }
-}
 
-@media (min-width: 960px) {
-  /* The list already shows the way back, and one wordmark is enough; its
-     space stays, so both panes' titles line up. */
-  .pane:not(.pane-list) .back {
+  /* The screen on the left already shows the way back (a link back to it;
+     a picker's Back button stays), and one wordmark is enough: its space
+     stays, so both panes' titles line up. */
+  .pane:last-child a.back {
     display: none;
   }
 
-  .pane:not(.pane-list) .wordmark {
+  .pane:last-child .wordmark {
     visibility: hidden;
   }
 
