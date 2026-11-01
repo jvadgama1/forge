@@ -24,6 +24,7 @@ const SHELL = [
   "js/screens/rest-timer.js",
   "js/screens/history.js",
   "js/screens/e1rm-chart.js",
+  "js/screens/chart.js",
   "js/screens/workout-list.js",
   "js/screens/workout-done.js",
   "js/screens/add-exercise.js",

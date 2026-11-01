@@ -40,6 +40,9 @@ export function monthDay(date) {
  */
 export const pad2 = (n) => String(n).padStart(2, "0");
 
+/** @param {number} value e.g. 186.67 → "187" */
+export const whole = (value) => String(Math.round(value));
+
 /**
  * A typed number, forgiving a decimal comma ("2,5"); blank is no number, so
  * the core refuses it with a message.
