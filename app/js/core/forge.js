@@ -1,6 +1,6 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseFilter, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
-import { TYPE_RULES } from "./exercise-types.js";
+import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -14,6 +14,21 @@ const COMEBACK_DAYS = 14;
 const COMEBACK_PERCENT = 90;
 
 const DAY = 86_400_000;
+
+// The rest timer's default (spec #3, story 38) and the range a rest default
+// can be set to (#21).
+const REST_DEFAULT = 90;
+const REST_MIN = 5;
+const REST_MAX = 15 * 60;
+
+/**
+ * The default increment (GLOSSARY: Increment): 5 lb upper body, 10 lb lower
+ * (spec #3); in kg, 2.5 and 5, the plates a kg gym has (#21).
+ * @param {Exercise["body"] | undefined} body
+ * @param {Load["unit"]} unit
+ */
+const defaultIncrement = (body, unit) =>
+  (body === "lower" ? 10 : 5) / (unit === "kg" ? 2 : 1);
 
 // Records compare loads in kg, so a unit change doesn't fake one (spec #3).
 const KG_PER_LB = 0.45359237;
@@ -159,6 +174,91 @@ export function createForge({ store, library, now = () => new Date() }) {
     searchExercises,
 
     getExercise: findExercise,
+
+    /**
+     * Creates or edits a custom exercise (#21): a name no other exercise
+     * has, at least one primary muscle group, and a body half for its
+     * default increment. Its type is fixed once made, since its sets are
+     * measured by it (#19).
+     * @param {ExerciseDraft} draft
+     * @returns {Promise<Exercise>}
+     */
+    saveCustomExercise(draft) {
+      return inTurn(async () => {
+        const name = draft.name.trim();
+        if (!name) throw new Error("Give the exercise a name");
+        const clash = [
+          ...library,
+          .../** @type {Exercise[]} */ (await store.list("customExercises")),
+        ].find(
+          (e) =>
+            e.id !== draft.id && e.name.toLowerCase() === name.toLowerCase(),
+        );
+        if (clash) throw new Error(`${clash.name} is already an exercise`);
+        if (!draft.primary.length)
+          throw new Error("Pick at least one primary muscle group");
+        const saved =
+          draft.id === undefined
+            ? undefined
+            : /** @type {Exercise | undefined} */ (
+                await store.get("customExercises", draft.id)
+              );
+        /** @type {Exercise} */
+        const exercise = {
+          id: saved?.id ?? `custom-${crypto.randomUUID()}`,
+          name,
+          type: saved?.type ?? draft.type,
+          primary: draft.primary,
+          secondary: draft.secondary.filter((m) => !draft.primary.includes(m)),
+          body: draft.body,
+          custom: true,
+        };
+        await store.put("customExercises", exercise);
+        return exercise;
+      });
+    },
+
+    exerciseSettings,
+
+    /**
+     * The default increment for a body half in a unit (#21), so an editor
+     * can show it as the unit or body half changes.
+     */
+    defaultIncrement,
+
+    /**
+     * Changes an exercise's settings (#21): any of its unit, increment,
+     * rest default and pinned note. An increment equal to the unit's
+     * default isn't kept, so it follows a later change of unit; a blank
+     * note removes it.
+     * @param {string} exerciseId
+     * @param {Partial<ExerciseSettings>} changes
+     */
+    saveExerciseSettings(exerciseId, changes) {
+      return inTurn(async () => {
+        const { unit, increment, rest, note } = changes;
+        if (unit !== undefined && unit !== "lb" && unit !== "kg")
+          throw new Error("Pick lb or kg");
+        if (increment !== undefined && !(increment > 0))
+          throw new Error("The increment must be more than 0");
+        if (
+          rest !== undefined &&
+          rest !== "off" &&
+          !(Number.isInteger(rest) && rest >= REST_MIN && rest <= REST_MAX)
+        )
+          throw new Error("Rest is 5 s to 15 min, or Off");
+        const saved = (await store.get("exerciseSettings", exerciseId)) ?? {
+          id: exerciseId,
+        };
+        const next = { ...saved, ...changes };
+        if (note !== undefined) next.note = note.trim();
+        if (!next.note) delete next.note;
+        const body = (await findExercise(exerciseId))?.body;
+        if (next.increment === defaultIncrement(body, next.unit ?? "lb"))
+          delete next.increment;
+        await store.put("exerciseSettings", next);
+      });
+    },
 
     exerciseType: typeOf,
 
@@ -660,8 +760,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     /**
      * Logs a set for an exercise in the workout (spec #3, stories 29–32),
      * measured as its exercise type needs (#19), with optional RIR and a
-     * warm-up or drop-set flag. Loads are in lb until per-exercise units
-     * arrive (#21).
+     * warm-up or drop-set flag, in the exercise's unit (#21).
      * @param {string} workoutId
      * @param {string} exerciseId
      * @param {SetInput} set
@@ -671,6 +770,7 @@ export function createForge({ store, library, now = () => new Date() }) {
         set,
         now().toISOString(),
         await typeOf(exerciseId),
+        (await exerciseSettings(exerciseId)).unit,
       );
       return changeWorkout(workoutId, (w) => {
         inPlay(w, exerciseId);
@@ -718,8 +818,6 @@ export function createForge({ store, library, now = () => new Date() }) {
       return latest?.exerciseId ?? live[0]?.exerciseId;
     },
 
-    loadStep,
-
     /**
      * The suggested weight for an exercise's working sets in `workout`
      * (spec #3, Rules; #15), worked out with no AI (ADR-0004); none without
@@ -733,14 +831,15 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Seconds to rest after a set of the exercise: its rest default, 90 s
-     * (spec #3, story 38). Per-exercise defaults arrive with #21, rest
-     * within supersets with #17.
+     * Seconds to rest after a set of the exercise: its rest default (spec
+     * #3, story 38; #21), or none when that's Off (#52). Rest within
+     * supersets arrives with #17.
      * @param {string} exerciseId
+     * @returns {Promise<number | undefined>}
      */
-    // eslint-disable-next-line no-unused-vars -- per exercise from #21
-    restAfterSet(exerciseId) {
-      return 90;
+    async restAfterSet(exerciseId) {
+      const { rest } = await exerciseSettings(exerciseId);
+      return rest === "off" ? undefined : rest;
     },
 
     lastWorkout,
@@ -891,8 +990,10 @@ export function createForge({ store, library, now = () => new Date() }) {
       if (p?.range) return { load: p.suggested.load, reps: p.range.repMin };
       const first = (await recentWork(workout, exerciseId)).recent[0]?.[0];
       if (!first) return undefined;
+      const { unit, increment } = await exerciseSettings(exerciseId);
       return {
         ...inputOf(first),
+        load: inUnit(first, unit, increment),
         ...(p?.suggested.reason === "comeback" && { load: p.suggested.load }),
       };
     },
@@ -987,13 +1088,46 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * The load steppers' step: the exercise's increment, by default 5 lb for
-   * upper body and 10 lb for lower (GLOSSARY: Increment). Per-exercise
-   * increments arrive with #21.
-   * @param {string} exerciseId
+   * An exercise's settings, with the defaults for any not set (#21): lb,
+   * the body half's increment in that unit, and a 90 s rest. With no
+   * exercise, the defaults a new one starts with.
+   * @param {string} [exerciseId]
+   * @returns {Promise<ExerciseSettings>}
    */
-  function loadStep(exerciseId) {
-    return library.find((e) => e.id === exerciseId)?.body === "lower" ? 10 : 5;
+  async function exerciseSettings(exerciseId) {
+    const saved =
+      exerciseId === undefined
+        ? undefined
+        : /** @type {Partial<ExerciseSettings> | undefined} */ (
+            await store.get("exerciseSettings", exerciseId)
+          );
+    const unit = saved?.unit ?? "lb";
+    return {
+      unit,
+      increment:
+        saved?.increment ??
+        defaultIncrement(
+          exerciseId === undefined
+            ? undefined
+            : (await findExercise(exerciseId))?.body,
+          unit,
+        ),
+      rest: saved?.rest ?? REST_DEFAULT,
+      ...(saved?.note ? { note: saved.note } : {}),
+    };
+  }
+
+  /**
+   * A load in another unit, to the nearest multiple of the increment, so
+   * progression carries across a unit change (#21; spec #3: comparisons
+   * convert to kg).
+   * @param {Load} load
+   * @param {Load["unit"]} unit
+   * @param {number} increment
+   */
+  function inUnit(load, unit, increment) {
+    if (load.unit === unit) return load.load;
+    return Math.round(fromKg(inKg(load), unit) / increment) * increment;
   }
 
   /**
@@ -1014,8 +1148,12 @@ export function createForge({ store, library, now = () => new Date() }) {
     const lastSets = recent[0];
     if (!lastSets) return undefined;
     const lastSet = /** @type {WorkoutSet} */ (lastSets.at(-1));
-    const { load, unit } = lastSet;
-    const step = loadStep(exerciseId);
+    const { unit, increment: step } = await exerciseSettings(exerciseId);
+    const load = inUnit(lastSet, unit, step);
+    // Across a unit change (#21), the comeback takes 90% of the exact load,
+    // not of the load rounded to the new increment.
+    const exact =
+      lastSet.unit === unit ? lastSet.load : fromKg(inKg(lastSet), unit);
     const range = await repRange(workout, exerciseId);
     // Less assist is harder (spec #3, Rules: assisted progression).
     const up = harder === "lighter" ? -step : step;
@@ -1035,7 +1173,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     else if (comeback)
       suggested = {
         // In whole percents, so 135 lb gives 121.5, not 121.49999.
-        load: Math.floor((load * COMEBACK_PERCENT) / 100 / step) * step,
+        load: Math.floor((exact * COMEBACK_PERCENT) / 100 / step) * step,
         unit,
         reason: "comeback",
         percent: COMEBACK_PERCENT,
@@ -1261,11 +1399,9 @@ export function createForge({ store, library, now = () => new Date() }) {
       measure = { seconds: time };
       if (distance !== undefined) {
         if (!(distance > 0)) throw new Error("Distance must be more than 0");
-        // Miles until per-exercise units arrive (#21).
-        const distanceUnit = set.distanceUnit ?? "mi";
-        if (distanceUnit !== "mi" && distanceUnit !== "km")
-          throw new Error("Pick mi or km");
-        measure = { ...measure, distance, distanceUnit };
+        const per = set.distanceUnit ?? distanceUnit(unit);
+        if (per !== "mi" && per !== "km") throw new Error("Pick mi or km");
+        measure = { ...measure, distance, distanceUnit: per };
       }
     } else {
       if (!(Number.isInteger(reps) && Number(reps) >= 1))

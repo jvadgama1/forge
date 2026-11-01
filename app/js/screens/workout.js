@@ -295,7 +295,8 @@ export async function workoutScreen({
   const type = await forge.exerciseType(exerciseId);
   const sets = entry?.sets ?? [];
   const prefill = await forge.nextSet(workout, exerciseId);
-  const fields = fieldsFor(type, "lb", forge.loadStep(exerciseId));
+  const settings = await forge.exerciseSettings(exerciseId);
+  const fields = fieldsFor(type, settings.unit, settings.increment);
   const inputs = fields.map((field) =>
     h("input", {
       class: "big-number",
@@ -363,7 +364,11 @@ export async function workoutScreen({
             ...readFields(fields, inputs.map(typed)),
             ...choices.read(),
           });
-          startRest(forge.restAfterSet(exerciseId));
+          // A rest default of Off starts no rest (#52).
+          const rest = await forge.restAfterSet(exerciseId);
+          // ...and clears any rest still running from an earlier set.
+          if (rest === undefined) endRest();
+          else startRest(rest);
           onLogged(await forge.recordsSetBy(logged, exerciseId));
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
@@ -467,6 +472,15 @@ export async function workoutScreen({
         )
       : null,
     suggested ? suggestionLine(suggested, type) : null,
+    // The pinned note, every time the exercise is logged (#21).
+    settings.note
+      ? h(
+          "p",
+          { class: "pinned-note" },
+          h("span", { class: "label" }, "Note "),
+          settings.note,
+        )
+      : null,
     lastWorkout ? lastWorkoutLine(exerciseId, type, lastWorkout) : null,
     h(
       "ol",

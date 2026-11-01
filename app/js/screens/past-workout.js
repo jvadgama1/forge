@@ -57,6 +57,13 @@ export function pastWorkoutView({ forge, id }) {
         const exercise = await forge.getExercise(entry.exerciseId);
         const name = exercise?.name ?? entry.exerciseId;
         const type = await forge.exerciseType(entry.exerciseId);
+        const settings = await forge.exerciseSettings(entry.exerciseId);
+        // A set logged before a change of unit steps by its own unit (#21).
+        /** @param {"lb" | "kg"} unit */
+        const increment = (unit) =>
+          unit === settings.unit
+            ? settings.increment
+            : forge.defaultIncrement(exercise?.body, unit);
         return h(
           "section",
           { class: "past-exercise" },
@@ -70,6 +77,7 @@ export function pastWorkoutView({ forge, id }) {
                 name,
                 set,
                 type,
+                increment,
               ),
             ),
           ),
@@ -127,14 +135,15 @@ export function pastWorkoutView({ forge, id }) {
      * @param {string} name the exercise's
      * @param {WorkoutSet} set
      * @param {ExerciseType} type the exercise's
+     * @param {(unit: "lb" | "kg") => number} increment the exercise's, by unit
      */
-    function editableSet(ref, name, set, type) {
+    function editableSet(ref, name, set, type, increment) {
       const row = setRow(set, ref.index, type);
       row.classList.add("set-editable");
       row.setAttribute("role", "button");
       row.setAttribute("tabindex", "0");
       row.setAttribute("aria-label", `Correct ${name} set ${ref.index + 1}`);
-      const open = () => row.replaceWith(setForm(ref, set, type));
+      const open = () => row.replaceWith(setForm(ref, set, type, increment));
       row.addEventListener("click", open);
       row.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") open();
@@ -149,10 +158,11 @@ export function pastWorkoutView({ forge, id }) {
      * @param {SetRef} ref
      * @param {WorkoutSet} set
      * @param {ExerciseType} type the exercise's
+     * @param {(unit: "lb" | "kg") => number} increment the exercise's, by unit
      */
-    function setForm(ref, set, type) {
+    function setForm(ref, set, type, increment) {
       const choices = setChoices(type, set);
-      const fields = fieldsFor(type, set.unit, forge.loadStep(ref.exerciseId));
+      const fields = fieldsFor(type, set.unit, increment(set.unit));
       const inputs = fields.map((field) =>
         h("input", {
           class: `small-number${field.mode === "decimal" ? " wide" : ""}`,

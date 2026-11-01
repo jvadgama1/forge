@@ -201,10 +201,10 @@ describe("the exercise to show", () => {
 });
 
 describe("load steppers", () => {
-  it("move by the exercise's increment: 5 lb upper body, 10 lb lower", () => {
+  it("move by the exercise's increment: 5 lb upper body, 10 lb lower", async () => {
     const f = setup().forge();
-    expect(f.loadStep("bench-press")).toBe(5);
-    expect(f.loadStep("leg-press")).toBe(10);
+    expect((await f.exerciseSettings("bench-press")).increment).toBe(5);
+    expect((await f.exerciseSettings("leg-press")).increment).toBe(10);
   });
 });
 
@@ -501,7 +501,7 @@ describe("an abandoned workout (#45)", () => {
 describe("rest after a set (#12)", () => {
   it("is 90 seconds for a single exercise, by default", async () => {
     const { f } = await started();
-    expect(f.restAfterSet("bench-press")).toBe(90);
-    expect(f.restAfterSet("leg-press")).toBe(90);
+    expect(await f.restAfterSet("bench-press")).toBe(90);
+    expect(await f.restAfterSet("leg-press")).toBe(90);
   });
 });

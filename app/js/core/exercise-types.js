@@ -20,6 +20,13 @@
  *   the workout's date, for e1RM and the heaviest record.
  */
 
+/**
+ * Cardio's distance unit, picked by the exercise's unit (#21): miles for an
+ * lb exercise, km for a kg one.
+ * @param {"lb" | "kg"} unit
+ */
+export const distanceUnit = (unit) => (unit === "kg" ? "km" : "mi");
+
 /** @type {Record<ExerciseType, TypeRules>} */
 export const TYPE_RULES = {
   "weight-reps": {

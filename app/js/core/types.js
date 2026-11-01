@@ -18,6 +18,19 @@
  * @property {MuscleGroup[]} primary
  * @property {MuscleGroup[]} secondary
  * @property {"upper" | "lower"} body Picks the default increment.
+ * @property {true} [custom] Made by the user (#21), so it can be edited.
+ */
+
+/**
+ * A custom exercise as its editor saves it: a new one has no id yet (#21).
+ * @typedef {Omit<Exercise, "id" | "custom"> & { id?: string }} ExerciseDraft
+ */
+
+/**
+ * An exercise's settings with their defaults filled in (#21): its unit,
+ * increment, rest default (seconds, or "off" for no rest timer) and any
+ * pinned note.
+ * @typedef {{ unit: Load["unit"], increment: number, rest: number | "off", note?: string }} ExerciseSettings
  */
 
 /**

@@ -60,15 +60,21 @@ export function exercisesView({ forge, title = "Exercises", onPick, onBack }) {
         h(
           "li",
           {},
-          ...(onPick
-            ? [
-                h(
-                  "button",
-                  { class: "pick", type: "button", onclick: () => onPick(e) },
-                  ...exerciseSummary(e),
-                ),
-              ]
-            : exerciseSummary(e)),
+          onPick
+            ? h(
+                "button",
+                { class: "pick", type: "button", onclick: () => onPick(e) },
+                ...exerciseSummary(e),
+              )
+            : // Its settings, and a custom one's details (#21).
+              h(
+                "a",
+                {
+                  class: "pick",
+                  href: `#/exercises/${encodeURIComponent(e.id)}`,
+                },
+                ...exerciseSummary(e),
+              ),
         ),
       ),
     );
@@ -127,6 +133,15 @@ export function exercisesView({ forge, title = "Exercises", onPick, onBack }) {
           ),
         ]
       : []),
+    ...(onPick
+      ? []
+      : [
+          h(
+            "a",
+            { class: "chip new-exercise", href: "#/exercises/new" },
+            "New exercise",
+          ),
+        ]),
     gymPicker,
     ...exerciseFilter(filter, refresh),
     h("div", { class: "count-row" }, count, showAllChip),

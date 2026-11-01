@@ -28,6 +28,7 @@ const SHELL = [
   "js/screens/workout-done.js",
   "js/screens/add-exercise.js",
   "js/screens/exercises.js",
+  "js/screens/exercise.js",
   "js/screens/exercise-list.js",
   "js/screens/gyms.js",
   "js/screens/gym.js",

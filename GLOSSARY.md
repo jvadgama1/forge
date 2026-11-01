@@ -69,7 +69,7 @@ _Avoid_: Circuit, paired set, giant set
 One set of each exercise in a superset, done back to back.
 
 **Rest default**:
-How long to rest after a set of an exercise, which the rest timer counts down: 90 s unless set for the exercise.
+How long to rest after a set of an exercise, which the rest timer counts down: 90 s unless set for the exercise. It can be Off: no rest timer for that exercise.
 
 **Pinned note**:
 A note attached to an exercise, shown every time it is logged (seat height, grip).
@@ -102,7 +102,7 @@ The load the app proposes for an exercise's next working sets, computed without 
 The rule behind suggested weights: hold the load until every working set reaches the top of the rep range, then add the exercise's increment; two workouts below the bottom of the range suggests holding or dropping.
 
 **Increment**:
-The load step for an exercise's progression (default +5 lb upper body, +10 lb lower body).
+The load step for an exercise's progression. By default it follows the exercise's body half: +5 lb upper body, +10 lb lower body (2.5 kg and 5 kg for an exercise in kg).
 
 **Comeback**:
 The first workout with an exercise after 14 or more days without it; its suggested weight is about 90% of the last working weight.

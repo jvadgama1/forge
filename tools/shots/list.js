@@ -494,6 +494,18 @@ const TYPES = {
   ],
 };
 
+/** The workout in progress, with bench press settings and a pinned note (#21). */
+const NOTED = {
+  ...WORKOUT,
+  exerciseSettings: [
+    {
+      id: "barbell-bench-press",
+      rest: 120,
+      note: "Bench on notch 3, feet flat",
+    },
+  ],
+};
+
 /** Made-up body weight entries (#18). */
 const WEIGHTS = {
   ...GYMS,
@@ -560,6 +572,36 @@ export const SHOTS = [
         .click();
       await page.getByRole("button", { name: "Delete set" }).waitFor();
     },
+  },
+  {
+    // An exercise's settings, with a pinned note (#21).
+    name: "exercise-settings",
+    as: "owner",
+    route: "/exercises/barbell-bench-press",
+    seed: NOTED,
+  },
+  {
+    name: "exercise-new",
+    as: "owner",
+    route: "/exercises/new",
+    seed: GYMS,
+    steps: async (page) => {
+      await page.getByRole("textbox", { name: "Name" }).fill("Band Row");
+      await page
+        .getByRole("group", { name: "Primary muscle groups" })
+        .getByRole("button", { name: "Lats / upper back" })
+        .click();
+      await page
+        .getByRole("group", { name: "Secondary muscle groups" })
+        .getByRole("button", { name: "Biceps" })
+        .click();
+    },
+  },
+  {
+    name: "pinned-note",
+    as: "owner",
+    route: "/log",
+    seed: NOTED,
   },
   {
     name: "log-earlier-date",

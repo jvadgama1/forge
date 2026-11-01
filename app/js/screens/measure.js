@@ -1,7 +1,7 @@
 // How each exercise type's sets read and are entered (#19), so the logging
 // screen, history and the past-workout editor show a set the same way. The
 // rules (what's measured, what's optional) come from the core's TYPE_RULES.
-import { TYPE_RULES } from "../core/exercise-types.js";
+import { TYPE_RULES, distanceUnit } from "../core/exercise-types.js";
 import { pad2 } from "./screen.js";
 
 /** @import { ExerciseType, Load, Measure, SetInput } from "../core/types.js" */
@@ -91,6 +91,7 @@ export function shortText(set, type) {
  */
 export function fieldsFor(type, unit, increment) {
   const optionalLoad = TYPE_RULES[type].load !== "needed";
+  const per = distanceUnit(unit);
   /**
    * @param {string} label
    * @param {string} name
@@ -160,9 +161,9 @@ export function fieldsFor(type, unit, increment) {
           read: (value) => ({ seconds: Math.round(value * 60) }),
         },
         {
-          // The core takes a distance as miles until #21.
-          label: "mi",
-          name: "Distance in mi",
+          // The exercise's unit picks miles or km (#21).
+          label: per,
+          name: `Distance in ${per}`,
           what: "distance",
           mode: "decimal",
           step: 0.1,
