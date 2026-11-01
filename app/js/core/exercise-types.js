@@ -6,6 +6,9 @@
 /**
  * @typedef {object} TypeRules
  * @property {"reps" | "seconds" | "time-distance"} measure What a set counts.
+ * @property {"strength" | "timed" | "cardio"} kind What a swap may replace
+ *   it with: strength for strength, a timed hold for a timed hold, cardio
+ *   for cardio (GLOSSARY: Swap; #16).
  * @property {"needed" | "optional" | "none"} load Whether a set has a load:
  *   bodyweight's is added and assisted's is the assist, so 0 is a real value;
  *   cardio has none.
@@ -31,6 +34,7 @@ export const distanceUnit = (unit) => (unit === "kg" ? "km" : "mi");
 export const TYPE_RULES = {
   "weight-reps": {
     measure: "reps",
+    kind: "strength",
     load: "needed",
     effort: true,
     harder: "heavier",
@@ -40,6 +44,7 @@ export const TYPE_RULES = {
   },
   "bodyweight-reps": {
     measure: "reps",
+    kind: "strength",
     load: "optional",
     effort: true,
     harder: "heavier",
@@ -49,6 +54,7 @@ export const TYPE_RULES = {
   },
   assisted: {
     measure: "reps",
+    kind: "strength",
     load: "optional",
     effort: true,
     harder: "lighter",
@@ -58,6 +64,7 @@ export const TYPE_RULES = {
   },
   timed: {
     measure: "seconds",
+    kind: "timed",
     load: "optional",
     effort: false,
     harder: undefined,
@@ -67,6 +74,7 @@ export const TYPE_RULES = {
   },
   cardio: {
     measure: "time-distance",
+    kind: "cardio",
     load: "none",
     effort: false,
     harder: undefined,

@@ -386,6 +386,59 @@ async function supersetLine(forge, workout, exerciseId, changed) {
 }
 
 /**
+ * For a routine slot's exercise this gym doesn't have, or one swapped in
+ * (#16): says so, with a chip per swap candidate, best first. One tap swaps
+ * it for this workout and opens the one swapped in. Before its first set.
+ * @param {Forge} forge
+ * @param {Workout} workout
+ * @param {string} exerciseId
+ * @param {string} gymName
+ * @param {(swappedIn: string) => void} swapped
+ */
+async function swapLine(forge, workout, exerciseId, gymName, swapped) {
+  const offer = await forge.swapOffer(workout, exerciseId);
+  if (!offer) return null;
+  const nameOf = exerciseNamer(forge);
+  const { candidates, swappedFor } = offer;
+  const why = swappedFor
+    ? `Swapped for ${await nameOf(swappedFor)}`
+    : `Not at ${gymName}`;
+  // Missing is a warning; swapped is just so, and needs no "nothing here".
+  const rest = candidates.length
+    ? " · swap for"
+    : swappedFor
+      ? ""
+      : " · nothing here to swap for";
+  return h(
+    "div",
+    { class: swappedFor ? "swap swapped" : "swap" },
+    h("p", { class: "label" }, `${why}${rest}`),
+    candidates.length
+      ? h(
+          "div",
+          { class: "chips", role: "group", "aria-label": "Swap for" },
+          ...(await Promise.all(
+            candidates.map(async (id) =>
+              h(
+                "button",
+                {
+                  class: "chip",
+                  type: "button",
+                  onclick: async () => {
+                    await forge.swapExercise(workout.id, exerciseId, id);
+                    swapped(id);
+                  },
+                },
+                await nameOf(id),
+              ),
+            ),
+          )),
+        )
+      : null,
+  );
+}
+
+/**
  * The logging screen for one exercise of the workout in progress.
  * @param {{ forge: Forge, workout: Workout, exerciseId: string, gymName: string, logged?: Logged, onLogged: (logged?: Logged | { back: string }) => void }} screen
  *   `logged` is the set just logged, if any, to celebrate.
@@ -602,6 +655,9 @@ export async function workoutScreen({
         )
       : null,
     superset.top,
+    await swapLine(forge, workout, exerciseId, gymName, (id) =>
+      onLogged({ back: id }),
+    ),
     suggested ? suggestionLine(suggested, type) : null,
     // The pinned note, every time the exercise is logged (#21).
     settings.note

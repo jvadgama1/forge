@@ -1191,3 +1191,21 @@ a.pick {
 .pair-next {
   margin-top: 8px;
 }
+
+/* An exercise this gym doesn't have, with swaps (#16). */
+.swap {
+  margin-top: 6px;
+}
+
+.swap .label {
+  margin: 0;
+  color: var(--secondary);
+}
+
+.swap .chips {
+  padding-top: 6px;
+}
+
+.swap.swapped .label {
+  color: var(--text);
+}

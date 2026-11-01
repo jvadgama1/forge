@@ -92,6 +92,8 @@
  * @typedef {object} WorkoutEntry
  * @property {string} exerciseId
  * @property {boolean} [skipped]
+ * @property {string} [swappedFor] The routine slot's exercise it replaces
+ *   for this workout (#16), so it keeps the slot's targets.
  * @property {WorkoutSet[]} sets
  */
 

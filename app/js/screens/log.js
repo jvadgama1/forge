@@ -24,7 +24,8 @@ export function logView({ forge, id: asked }) {
   /**
    * @param {Logged | { back: string }} [after] the set just logged: its
    *   records to celebrate once (#13), and the exercise to move to, a
-   *   superset partner (#17); or the exercise an undo went back to
+   *   superset partner (#17); or the exercise to go back to: an undo's
+   *   (#17) or one just swapped in (#16)
    */
   async function show(after) {
     const logged = after && "next" in after ? after : undefined;
