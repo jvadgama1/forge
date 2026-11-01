@@ -523,6 +523,80 @@ const desktop = (name, route, seed) => ({
   viewport: { width: 1280, height: 800 },
 });
 
+/**
+ * Push A in progress with bench press and lat pulldown paired, a round of
+ * each logged (#17), after an Oct 20 workout that paired them too.
+ */
+const PAIRED = {
+  ...pushAfter("2026-10-20"),
+  workouts: [
+    {
+      ...benchDay("2026-10-20", [
+        [135, 10],
+        [135, 10],
+      ]),
+      entries: [
+        {
+          exerciseId: "barbell-bench-press",
+          sets: [135, 135].map((load, i) => ({
+            load,
+            unit: "lb",
+            reps: 10,
+            loggedAt: `2026-10-20T18:1${i}:00.000Z`,
+            superset: { id: "s-old", round: i + 1 },
+          })),
+        },
+        {
+          exerciseId: "lat-pulldown",
+          sets: [120, 120].map((load, i) => ({
+            load,
+            unit: "lb",
+            reps: 10,
+            loggedAt: `2026-10-20T18:1${i}:30.000Z`,
+            superset: { id: "s-old", round: i + 1 },
+          })),
+        },
+      ],
+    },
+    {
+      id: "w-push",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:00:00.000Z",
+      gymId: "gym-work",
+      supersets: [
+        { id: "s-now", exerciseIds: ["barbell-bench-press", "lat-pulldown"] },
+      ],
+      entries: [
+        {
+          exerciseId: "barbell-bench-press",
+          sets: [
+            {
+              load: 135,
+              unit: "lb",
+              reps: 10,
+              loggedAt: "2026-10-25T18:05:00.000Z",
+              superset: { id: "s-now", round: 1 },
+            },
+          ],
+        },
+        {
+          exerciseId: "lat-pulldown",
+          sets: [
+            {
+              load: 120,
+              unit: "lb",
+              reps: 10,
+              loggedAt: "2026-10-25T18:06:00.000Z",
+              superset: { id: "s-now", round: 1 },
+            },
+          ],
+        },
+        { exerciseId: "triceps-pushdown", sets: [] },
+      ],
+    },
+  ],
+};
+
 /** Made-up body weight entries (#18). */
 const WEIGHTS = {
   ...GYMS,
@@ -660,6 +734,45 @@ export const SHOTS = [
     route: "/log",
     seed: WORKOUT,
     viewport: { width: 360, height: 740 },
+  },
+  // Supersets (#17): paired, logging a set moves to the partner with no
+  // rest, pairing in two taps, and the routine editor's planned pairs.
+  {
+    name: "superset",
+    as: "owner",
+    route: "/log/ex/barbell-bench-press",
+    seed: PAIRED,
+  },
+  {
+    name: "superset-logged",
+    as: "owner",
+    route: "/log/ex/barbell-bench-press",
+    seed: PAIRED,
+    steps: async (page) => {
+      await page.getByRole("button", { name: /Log set 02/ }).click();
+      await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
+    },
+  },
+  {
+    name: "superset-pick",
+    as: "owner",
+    route: "/log/ex/triceps-pushdown",
+    seed: PAIRED,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "Superset with…" }).click();
+    },
+  },
+  {
+    name: "routine-pairs",
+    as: "owner",
+    route: "/routines/r-ppl",
+    seed: ROUTINE,
+    steps: async (page) => {
+      await page
+        .getByRole("button", { name: "Superset with next" })
+        .first()
+        .click();
+    },
   },
   {
     name: "log-earlier-date",

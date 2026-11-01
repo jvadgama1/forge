@@ -6,7 +6,8 @@ import { screen } from "./screen.js";
 import { workoutHeader, workoutScreen } from "./workout.js";
 
 /** @import { ScreenContext } from "./screen.js" */
-/** @import { RecordKind, RoutineDayRef } from "../core/types.js" */
+/** @import { RoutineDayRef } from "../core/types.js" */
+/** @import { Logged } from "./workout.js" */
 
 /**
  * The Log tab (#11): the workout in progress, on the exercise asked for (a
@@ -14,16 +15,23 @@ import { workoutHeader, workoutScreen } from "./workout.js";
  * a freestyle workout at a gym.
  * @param {Pick<ScreenContext, "forge" | "id">} context
  */
-export function logView({ forge, id }) {
+export function logView({ forge, id: asked }) {
   const root = h("div");
+  let id = asked;
   show();
   return root;
 
   /**
-   * @param {RecordKind[]} [records] the records the set just logged beat
-   *   (#13), to celebrate once
+   * @param {Logged} [logged] the set just logged: its records to celebrate
+   *   once (#13), and the exercise to move to, a superset partner (#17)
    */
-  async function show(records = []) {
+  async function show(logged) {
+    if (logged && logged.next !== id) {
+      id = logged.next;
+      // The address follows without a fresh render, which would lose the
+      // celebration (#17).
+      history.replaceState(null, "", `#/log/ex/${encodeURIComponent(id)}`);
+    }
     const workout = await forge.currentWorkout();
     if (!workout) {
       root.replaceChildren(await startScreen());
@@ -77,7 +85,7 @@ export function logView({ forge, id }) {
         workout,
         exerciseId,
         gymName,
-        records,
+        logged,
         onLogged: show,
       }),
     );

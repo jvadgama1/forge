@@ -3,7 +3,7 @@ import { exercisesView } from "./exercises.js";
 import { versionText } from "./routines.js";
 import { screen } from "./screen.js";
 
-/** @import { RoutineDayDraft } from "../core/types.js" */
+/** @import { RoutineDayDraft, Slot } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
 /**
@@ -154,6 +154,37 @@ export function routineView({ forge, id }) {
       return field;
     };
 
+    /**
+     * A toggle pairing a slot with the next as a planned superset (#17): the
+     * pair takes the first slot's group, so a third joins as a tri-set.
+     * @param {Slot[]} slots
+     * @param {number} i
+     */
+    const pairWithNext = (slots, i) => {
+      const slot = slots[i];
+      const next = slots[i + 1];
+      if (!next) return null;
+      const paired =
+        slot.superset !== undefined && slot.superset === next.superset;
+      return h(
+        "button",
+        {
+          class: "chip pair-next",
+          type: "button",
+          "aria-pressed": String(paired),
+          onclick: () => {
+            if (paired) delete next.superset;
+            else {
+              slot.superset ??= slot.exerciseId;
+              next.superset = slot.superset;
+            }
+            draw();
+          },
+        },
+        "Superset with next",
+      );
+    };
+
     function draw() {
       body.replaceChildren(
         ...days.map((day, d) => {
@@ -252,6 +283,7 @@ export function routineView({ forge, id }) {
                     h("span", { class: "label" }, "RIR"),
                     rir,
                   ),
+                  pairWithNext(day.slots, i),
                 );
               }),
             ),
