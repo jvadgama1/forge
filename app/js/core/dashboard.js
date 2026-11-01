@@ -1,5 +1,8 @@
-// The dashboard's rules (spec #80; #82), with no DOM or Firestore inside:
-// the core gathers workouts and hands them here to count.
+// The Stats board's own rules (spec #80; #82): its range, which workouts
+// count, and the e1RM headline. The Forge core reads the store and applies
+// them; no DOM or Firestore here.
+
+/** @import { Workout } from "./types.js" */
 
 /** @typedef {"4w" | "12w" | "1y"} RangeId */
 
@@ -26,6 +29,17 @@ const dayNumber = (date) => Date.parse(`${date}T00:00:00Z`) / DAY;
 
 /** @param {number} day */
 const dateOf = (day) => new Date(day * DAY).toISOString().slice(0, 10);
+
+/**
+ * Whether a workout counts on the board (spec #80, Rules: Counted
+ * workouts): finished, and dated in the range, back-dated or not.
+ * @param {Range} range
+ * @returns {(workout: Workout) => boolean}
+ */
+export const countsIn = (range) => (workout) =>
+  Boolean(workout.finishedAt) &&
+  workout.date >= range.from &&
+  workout.date <= range.to;
 
 /**
  * The e1RM card's headline (spec #80, Rules: e1RM trend): the latest point

@@ -125,6 +125,21 @@ describe("dashboard range (spec #80; #82)", () => {
     });
   });
 
+  it("counts workouts from the first day of 4 weeks or a year back", async () => {
+    const { f } = await withWorkouts(
+      past("1y-out", "2025-11-02", "bench-press", [set(150, 6)]),
+      past("1y-in", "2025-11-03", "bench-press", [set(150, 6)]),
+      past("4w-out", "2026-10-04", "bench-press", [set(150, 6)]),
+      past("4w-in", "2026-10-05", "bench-press", [set(150, 6)]),
+    );
+    const shown = async () =>
+      (await f.dashboard()).e1rm?.points.map((p) => p.workoutId);
+    await f.chooseDashboard({ range: "4w" });
+    expect(await shown()).toEqual(["4w-in"]);
+    await f.chooseDashboard({ range: "1y" });
+    expect(await shown()).toEqual(["1y-in", "4w-out", "4w-in"]);
+  });
+
   it("remembers the range chosen, on every device", async () => {
     const { f, store, now } = await withWorkouts();
     await f.chooseDashboard({ range: "4w" });
@@ -260,13 +275,58 @@ describe("dashboard e1RM trend (spec #80; #82)", () => {
     expect((await f.dashboard()).e1rm).toBeUndefined();
   });
 
-  it("counts the body weight on the day for a bodyweight exercise, as the history chart does", async () => {
+  it("counts the body weight on the day for a bodyweight exercise", async () => {
     const { f } = await withWorkouts(
       past("pull-ups", "2026-10-20", "pull-up", [set(20, 6)]),
     );
     await f.addBodyWeight({ date: "2026-10-01", load: 180, unit: "lb" });
     const { e1rm } = await f.dashboard();
     expect(e1rm?.latest).toBeCloseTo(240, 2); // (180 + 20) × (1 + 6/30)
-    expect(e1rm?.points).toEqual((await f.e1rmTrend("pull-up")).points);
+    expect(toCents(e1rm?.points)).toEqual([
+      { workoutId: "pull-ups", date: "2026-10-20", value: 240 },
+    ]);
+  });
+
+  it("starts on the most recently logged exercise with an e1RM in the latest workout", async () => {
+    const { f } = await withWorkouts(
+      {
+        ...past("today", "2026-10-27", "bench-press", []),
+        entries: [
+          // Only warm-ups today, though bench had an e1RM last month.
+          {
+            exerciseId: "bench-press",
+            sets: [set(95, 10, { warmUp: true })],
+          },
+          {
+            exerciseId: "lat-pulldown",
+            sets: [set(120, 10, { loggedAt: "2026-10-27T18:10:00.000Z" })],
+          },
+          {
+            exerciseId: "leg-press",
+            sets: [set(300, 10, { loggedAt: "2026-10-27T18:40:00.000Z" })],
+          },
+        ],
+      },
+      past("last month", "2026-09-29", "bench-press", [set(150, 6)]),
+    );
+    expect((await f.dashboard()).e1rm?.exerciseId).toBe("leg-press");
+  });
+
+  it("offers no exercise that is no longer in the library", async () => {
+    const { f } = await withWorkouts(
+      past("bench", "2026-10-20", "bench-press", [set(150, 6)]),
+      past("gone", "2026-10-22", "deleted-exercise", [set(100, 8)]),
+    );
+    await f.chooseDashboard({ exerciseId: "deleted-exercise" });
+    const { e1rm } = await f.dashboard();
+    expect(e1rm?.exerciseId).toBe("bench-press");
+    expect(e1rm?.choices.map((c) => c.id)).toEqual(["bench-press"]);
+  });
+
+  it("names the exercise shown", async () => {
+    const { f } = await withWorkouts(
+      past("bench", "2026-10-20", "bench-press", [set(150, 6)]),
+    );
+    expect((await f.dashboard()).e1rm?.name).toBe("Bench Press");
   });
 });

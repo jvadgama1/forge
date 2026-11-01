@@ -28,7 +28,7 @@ export function e1rmChart(trend) {
   if (trend.points.length === 0) return [];
   return [
     h("h2", { class: "label section" }, `e1RM · ${trend.unit}`),
-    ...e1rmTrendChart(trend),
+    ...e1rmChartBody(trend),
   ];
 }
 
@@ -38,7 +38,7 @@ export function e1rmChart(trend) {
  * @param {Pick<Trend, "unit" | "points">} trend at least one point
  * @returns {Node[]}
  */
-export function e1rmTrendChart({ unit, points }) {
+export function e1rmChartBody({ unit, points }) {
   const { width, height, pad } = FRAME;
   const values = points.map((p) => p.value);
   const { low, high } = niceRange(values);

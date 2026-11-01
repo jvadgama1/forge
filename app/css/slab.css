@@ -842,6 +842,16 @@ a {
   font: 800 18px var(--font-display);
 }
 
+/* Read by a screen reader, not shown (#82). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* The Stats board (#82), as the Slab progress board: range chips, then
    each card's hero number beside its unit and change. */
 .range {

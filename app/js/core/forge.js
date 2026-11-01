@@ -2,9 +2,19 @@
 /** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
-import { DEFAULT_RANGE, e1rmHeadline, rangeFor } from "./dashboard.js";
+import {
+  DEFAULT_RANGE,
+  countsIn,
+  e1rmHeadline,
+  rangeFor,
+} from "./dashboard.js";
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
+
+/**
+ * Each workout's best e1RM for an exercise, oldest first, in one unit.
+ * @typedef {{ unit: Load["unit"], points: { workoutId: string, date: string, value: number }[] }} E1rmTrend
+ */
 
 // A workout left this long after its last set (or its start, with no sets)
 // was abandoned, not paused: no real workout rests 3 hours (#45).
@@ -1145,6 +1155,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * history chart and list: compared in kg and given in the unit of the
      * latest one, so a unit change doesn't put lb and kg on one axis.
      * @param {string} exerciseId
+     * @returns {Promise<E1rmTrend>}
      */
     e1rmTrend: (exerciseId) => e1rmTrendOf(exerciseId),
 
@@ -1449,15 +1460,12 @@ export function createForge({ store, library, now = () => new Date() }) {
       const { dashboardRange = DEFAULT_RANGE, dashboardExerciseId } =
         await settings();
       const range = rangeFor(dashboardRange, localDate(now()));
-      // Finished workouts in the range, on their own date (spec #80, Rules:
-      // Counted workouts).
-      /** @param {Workout} w */
-      const counts = (w) =>
-        w.finishedAt !== undefined &&
-        w.date >= range.from &&
-        w.date <= range.to;
-      const choices = await e1rmChoices();
-      // The one chosen while it still has an e1RM, else the most recent.
+      // One read of the workouts for the whole board, so opening Stats
+      // costs one Firestore query however many exercises there are.
+      const workouts = await listWorkouts();
+      const choices = await e1rmChoices(workouts);
+      // The one chosen while it's still offered, else the most recent
+      // (spec #80, Rules: Default exercise).
       const exerciseId =
         choices.find((id) => id === dashboardExerciseId) ?? choices[0];
       return {
@@ -1465,7 +1473,7 @@ export function createForge({ store, library, now = () => new Date() }) {
         e1rm:
           exerciseId === undefined
             ? undefined
-            : await e1rmCard(exerciseId, counts, choices),
+            : await e1rmCard(exerciseId, countsIn(range), choices, workouts),
       };
     },
   };
@@ -2274,11 +2282,13 @@ export function createForge({ store, library, now = () => new Date() }) {
    * Every workout with sets of the exercise, newest first by workout date
    * (spec #3, story 50), the one in progress included.
    * @param {string} exerciseId
+   * @param {Workout[]} [workouts] every workout, if already read
    * @returns {Promise<ExerciseInWorkout[]>}
    */
-  async function history(exerciseId) {
-    const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
-    return workouts
+  async function history(exerciseId, workouts) {
+    const all =
+      workouts ?? /** @type {Workout[]} */ (await store.list("workouts"));
+    return all
       .map((workout) => ({
         workout,
         sets:
@@ -2294,12 +2304,15 @@ export function createForge({ store, library, now = () => new Date() }) {
    * one, so a unit change doesn't put lb and kg on one axis.
    * @param {string} exerciseId
    * @param {(workout: Workout) => boolean} [keep] which workouts count
-   * @returns {Promise<{ unit: Load["unit"], points: { workoutId: string, date: string, value: number }[] }>}
+   * @param {Workout[]} [workouts] every workout, if already read
+   * @returns {Promise<E1rmTrend>}
    */
-  async function e1rmTrendOf(exerciseId, keep = () => true) {
+  async function e1rmTrendOf(exerciseId, keep = () => true, workouts) {
     const type = await typeOf(exerciseId);
     if (!TYPE_RULES[type].e1rm) return { unit: "lb", points: [] };
-    const entries = (await history(exerciseId)).filter((h) => keep(h.workout));
+    const entries = (await history(exerciseId, workouts)).filter((h) =>
+      keep(h.workout),
+    );
     const each = await counted(entries, type);
     const best = entries
       .map(({ workout }, i) => {
@@ -2331,9 +2344,10 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {string} exerciseId
    * @param {(workout: Workout) => boolean} counts
    * @param {string[]} choices the exercises it offers
+   * @param {Workout[]} workouts every workout
    */
-  async function e1rmCard(exerciseId, counts, choices) {
-    const trend = await e1rmTrendOf(exerciseId, counts);
+  async function e1rmCard(exerciseId, counts, choices, workouts) {
+    const trend = await e1rmTrendOf(exerciseId, counts, workouts);
     const named = await Promise.all(
       choices.map(async (id) => ({
         id,
@@ -2342,6 +2356,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     );
     return {
       exerciseId,
+      name: named.find((c) => c.id === exerciseId)?.name ?? exerciseId,
       ...trend,
       ...e1rmHeadline(trend.points),
       choices: named.sort((a, b) => a.name.localeCompare(b.name)),
@@ -2350,22 +2365,38 @@ export function createForge({ store, library, now = () => new Date() }) {
 
   /**
    * The exercises the board's e1RM card offers (spec #80, story 17): those
-   * with an e1RM in a finished workout, most recently done first, so the
-   * first is the default (Rules: Default exercise).
+   * in the library with an e1RM in a finished workout. The first is the
+   * default (Rules: Default exercise; story 12): the one whose latest e1RM
+   * is in the most recent workout, and within it the one logged last.
+   * @param {Workout[]} workouts every workout, newest first
    * @returns {Promise<string[]>}
    */
-  async function e1rmChoices() {
+  async function e1rmChoices(workouts) {
     /** @param {Workout} w */
-    const finished = (w) => w.finishedAt !== undefined;
+    const finished = (w) => Boolean(w.finishedAt);
     const done = new Set(
-      (await listWorkouts())
+      workouts
         .filter(finished)
         .flatMap((w) => w.entries.map((e) => e.exerciseId)),
     );
-    const choices = [];
-    for (const id of done)
-      if ((await e1rmTrendOf(id, finished)).points.length > 0) choices.push(id);
-    return choices;
+    /** @type {{ id: string, order: number, loggedAt: string }[]} */
+    const offered = [];
+    for (const id of done) {
+      if (!(await findExercise(id))) continue;
+      const latest = (await e1rmTrendOf(id, finished, workouts)).points.at(-1);
+      if (!latest) continue;
+      const order = workouts.findIndex((w) => w.id === latest.workoutId);
+      const sets =
+        workouts[order].entries.find((e) => e.exerciseId === id)?.sets ?? [];
+      const loggedAt = sets.reduce(
+        (last, set) => (set.loggedAt > last ? set.loggedAt : last),
+        "",
+      );
+      offered.push({ id, order, loggedAt });
+    }
+    return offered
+      .sort((a, b) => a.order - b.order || b.loggedAt.localeCompare(a.loggedAt))
+      .map((o) => o.id);
   }
 
   /**
