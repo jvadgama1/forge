@@ -3,9 +3,9 @@
 // them; no DOM or Firestore here.
 
 import { TYPE_RULES } from "./exercise-types.js";
-import { MUSCLE_GROUPS } from "./muscle-groups.js";
+import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
 
-/** @import { Exercise, MuscleGroup, Region, Workout, WorkoutSet } from "./types.js" */
+/** @import { Exercise, MuscleGroup, Workout, WorkoutSet } from "./types.js" */
 
 /** @typedef {"4w" | "12w" | "1y"} RangeId */
 
@@ -79,12 +79,9 @@ function mondayOf(date) {
 // The weekly hard-set target band (DESIGN.md § Dashboard; spec #80).
 export const TARGET = { min: 10, max: 20 };
 
-/** @type {Region[]} */
-const REGION_ORDER = ["push", "pull", "legs", "core"];
-
 // The muscle groups by region, then in GLOSSARY.md's order within each.
-const BY_REGION = REGION_ORDER.flatMap((region) =>
-  MUSCLE_GROUPS.filter((m) => m.region === region),
+const BY_REGION = REGIONS.flatMap((region) =>
+  MUSCLE_GROUPS.filter((m) => m.region === region.id),
 );
 
 /**
@@ -111,7 +108,8 @@ const isHardSet = (set, exercise) =>
  * Hard sets per week for every muscle group (spec #80, Rules: Hard sets,
  * Hard sets per week): each set counts 1 for each primary muscle group and
  * 0.5 for each secondary, totalled over the counted workouts and divided by
- * the training weeks (weeks with a workout), so a break doesn't lower it.
+ * the training weeks (GLOSSARY: Training week), so a break doesn't lower
+ * it.
  * @param {Workout[]} workouts the counted ones
  * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
  */
@@ -131,7 +129,7 @@ export function hardSetsCard(workouts, exerciseOf) {
   const trainingWeeks = new Set(workouts.map((w) => mondayOf(w.date))).size;
   return {
     trainingWeeks,
-    muscles: BY_REGION.map(({ id, label, region }) => {
+    muscleGroups: BY_REGION.map(({ id, label, region }) => {
       // To 0.1, so the number shown and its band always agree.
       const perWeek = trainingWeeks
         ? Math.round(((total.get(id) ?? 0) / trainingWeeks) * 10) / 10

@@ -1470,11 +1470,21 @@ export function createForge({ store, library, now = () => new Date() }) {
       const exerciseId =
         choices.find((id) => id === dashboardExerciseId) ?? choices[0];
       const counted = workouts.filter(countsIn(range));
-      const exercises = new Map();
-      for (const { entries } of counted)
-        for (const { exerciseId } of entries)
-          if (!exercises.has(exerciseId))
-            exercises.set(exerciseId, await findExercise(exerciseId));
+      // Looked up together: a custom exercise is a store read each.
+      const ids = new Set(
+        counted.flatMap((w) => w.entries.map((e) => e.exerciseId)),
+      );
+      const exercises = new Map(
+        await Promise.all(
+          [...ids].map(
+            async (id) =>
+              /** @type {[string, Exercise | undefined]} */ ([
+                id,
+                await findExercise(id),
+              ]),
+          ),
+        ),
+      );
       return {
         range,
         e1rm:
