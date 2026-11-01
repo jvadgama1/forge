@@ -597,6 +597,28 @@ const PAIRED = {
   ],
 };
 
+/** Push A just started at Home, which has no barbell bench press (#16). */
+const SWAP = {
+  ...ROUTINE,
+  settings: [
+    { id: "user", lastGymId: "gym-home", workoutInProgress: "w-home" },
+  ],
+  workouts: [
+    {
+      id: "w-home",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T18:00:00.000Z",
+      gymId: "gym-home",
+      routine: { routineId: "r-ppl", version: 1, dayId: "d-push" },
+      entries: [
+        { exerciseId: "barbell-bench-press", sets: [] },
+        { exerciseId: "incline-db-press", sets: [] },
+        { exerciseId: "triceps-pushdown", sets: [] },
+      ],
+    },
+  ],
+};
+
 /** Made-up body weight entries (#18). */
 const WEIGHTS = {
   ...GYMS,
@@ -784,6 +806,26 @@ export const SHOTS = [
         .getByRole("button", { name: "Superset with next" })
         .first()
         .click();
+    },
+  },
+  // Swaps (#16): Push A at Home, which has no barbell bench press.
+  {
+    name: "swap",
+    as: "owner",
+    route: "/log",
+    seed: SWAP,
+  },
+  {
+    name: "swapped",
+    as: "owner",
+    route: "/log",
+    seed: SWAP,
+    steps: async (page) => {
+      await page
+        .getByRole("group", { name: "Swap for" })
+        .getByRole("button", { name: "DB Bench Press" })
+        .click();
+      await page.getByRole("heading", { name: "DB Bench Press" }).waitFor();
     },
   },
   {

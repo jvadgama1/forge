@@ -696,9 +696,10 @@ export function createForge({ store, library, now = () => new Date() }) {
     async routineChanges(workout) {
       const day = workout && (await dayNow(workout));
       if (!workout || !day) return false;
+      // A swap is for this workout only (#16): it reads as its slot.
       const live = workout.entries
         .filter((e) => !e.skipped)
-        .map((e) => e.exerciseId);
+        .map((e) => e.swappedFor ?? e.exerciseId);
       // A pair made or broken counts too (#17): each exercise's partners.
       /** @param {string[][]} groups */
       const partners = (groups) =>
@@ -712,11 +713,90 @@ export function createForge({ store, library, now = () => new Date() }) {
         JSON.stringify(day.slots.map((s) => s.exerciseId)) !==
           JSON.stringify(live) ||
         partners(planned) !==
-          partners((workout.supersets ?? []).map((s) => s.exerciseIds))
+          partners(
+            (workout.supersets ?? []).map((s) =>
+              s.exerciseIds.map((id) => slotIdOf(workout, id)),
+            ),
+          )
       );
     },
 
     supersetOf,
+
+    /**
+     * Whether an exercise is at the workout's gym (#16): one that isn't is
+     * marked, with swaps offered. Every exercise counts as here once the
+     * gym is gone.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     */
+    async atGym(workout, exerciseId) {
+      const gym = await findGym(workout.gymId);
+      return !gym || gym.exerciseIds.includes(exerciseId);
+    },
+
+    /**
+     * The exercises a slot's exercise can be swapped for (spec #3, Rules:
+     * swap candidates; #16): at the workout's gym, the same kind (strength,
+     * timed hold or cardio), not already in the workout, sharing at least
+     * one primary muscle group; most shared first, then by name.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     * @returns {Promise<string[]>} exercise ids
+     */
+    async swapCandidates(workout, exerciseId) {
+      const target = await findExercise(exerciseId);
+      const gym = await findGym(workout.gymId);
+      if (!target || !gym) return [];
+      const kind = TYPE_RULES[target.type].kind;
+      const inWorkout = new Set(workout.entries.map((e) => e.exerciseId));
+      /** @param {Exercise} e */
+      const shared = (e) =>
+        e.primary.filter((m) => target.primary.includes(m)).length;
+      return (await searchExercises({}))
+        .filter(
+          (e) =>
+            gym.exerciseIds.includes(e.id) &&
+            !inWorkout.has(e.id) &&
+            TYPE_RULES[e.type].kind === kind &&
+            shared(e) > 0,
+        )
+        .sort((a, b) => shared(b) - shared(a) || a.name.localeCompare(b.name))
+        .map((e) => e.id);
+    },
+
+    /**
+     * Swaps an exercise in the workout for another (#16; spec #3, story
+     * 26): for this workout only, keeping the slot's targets and place, and
+     * any superset. The one swapped in is logged as itself. Before its
+     * first set, so no set is logged under the wrong exercise.
+     * @param {string} workoutId
+     * @param {string} exerciseId
+     * @param {string} replacementId
+     */
+    swapExercise(workoutId, exerciseId, replacementId) {
+      return changeWorkout(workoutId, (w) => {
+        if (inPlay(w, exerciseId).sets.length)
+          throw new Error("Swap before logging a set");
+        if (w.entries.some((e) => e.exerciseId === replacementId))
+          throw new Error("That exercise is in the workout already");
+        return {
+          ...changeEntry(w, exerciseId, (e) => ({
+            exerciseId: replacementId,
+            swappedFor: e.swappedFor ?? exerciseId,
+            sets: [],
+          })),
+          ...(w.supersets && {
+            supersets: w.supersets.map((s) => ({
+              ...s,
+              exerciseIds: s.exerciseIds.map((id) =>
+                id === exerciseId ? replacementId : id,
+              ),
+            })),
+          }),
+        };
+      });
+    },
 
     /**
      * The exercises a set of `exerciseId` can be supersetted with (#17):
@@ -1596,8 +1676,22 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {string} exerciseId
    */
   async function followedSlot(workout, exerciseId) {
+    const slotId = slotIdOf(workout, exerciseId);
     return (await followedDay(workout))?.slots.find(
-      (s) => s.exerciseId === exerciseId,
+      (s) => s.exerciseId === slotId,
+    );
+  }
+
+  /**
+   * The routine slot's exercise an entry stands for: the one it was
+   * swapped for (#16), or itself.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  function slotIdOf(workout, exerciseId) {
+    return (
+      workout.entries.find((e) => e.exerciseId === exerciseId)?.swappedFor ??
+      exerciseId
     );
   }
 
@@ -1951,15 +2045,23 @@ export function createForge({ store, library, now = () => new Date() }) {
     const slots = workout.entries
       .filter((e) => !e.skipped)
       .map((e) => {
+        // A swapped-in exercise saves as its slot: a swap is for this
+        // workout only (#16).
+        const slotId = e.swappedFor ?? e.exerciseId;
         // eslint-disable-next-line no-unused-vars -- replaced just below
         const { superset: planned, ...slot } =
-          day.slots.find((s) => s.exerciseId === e.exerciseId) ??
-          newSlot(e.exerciseId, e.sets.filter(working).length || undefined);
+          day.slots.find((s) => s.exerciseId === slotId) ??
+          newSlot(slotId, e.sets.filter(working).length || undefined);
         // The pairs as they stand now become the day's planned pairs (#17),
         // each named by its first exercise, so saving the same pairs again
         // adds no version.
         const members = supersetOf(workout, e.exerciseId);
-        return members ? { ...slot, superset: groupName(members) } : slot;
+        return members
+          ? {
+              ...slot,
+              superset: groupName(members.map((id) => slotIdOf(workout, id))),
+            }
+          : slot;
       });
     await saveVersion(
       routine,

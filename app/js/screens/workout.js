@@ -386,6 +386,55 @@ async function supersetLine(forge, workout, exerciseId, changed) {
 }
 
 /**
+ * For an exercise this gym doesn't have (#16): says so, with a chip per
+ * swap candidate, best first. One tap swaps it for this workout and opens
+ * the one swapped in.
+ * @param {Forge} forge
+ * @param {Workout} workout
+ * @param {string} exerciseId
+ * @param {string} gymName
+ * @param {(swappedIn: string) => void} swapped
+ */
+async function swapLine(forge, workout, exerciseId, gymName, swapped) {
+  if (await forge.atGym(workout, exerciseId)) return null;
+  const nameOf = exerciseNamer(forge);
+  const candidates = await forge.swapCandidates(workout, exerciseId);
+  return h(
+    "div",
+    { class: "swap" },
+    h(
+      "p",
+      { class: "label" },
+      candidates.length
+        ? `Not at ${gymName} · swap for`
+        : `Not at ${gymName} · nothing here to swap for`,
+    ),
+    candidates.length
+      ? h(
+          "div",
+          { class: "chips", role: "group", "aria-label": "Swap for" },
+          ...(await Promise.all(
+            candidates.map(async (id) =>
+              h(
+                "button",
+                {
+                  class: "chip",
+                  type: "button",
+                  onclick: async () => {
+                    await forge.swapExercise(workout.id, exerciseId, id);
+                    swapped(id);
+                  },
+                },
+                await nameOf(id),
+              ),
+            ),
+          )),
+        )
+      : null,
+  );
+}
+
+/**
  * The logging screen for one exercise of the workout in progress.
  * @param {{ forge: Forge, workout: Workout, exerciseId: string, gymName: string, logged?: Logged, onLogged: (logged?: Logged | { back: string }) => void }} screen
  *   `logged` is the set just logged, if any, to celebrate.
@@ -602,6 +651,11 @@ export async function workoutScreen({
         )
       : null,
     superset.top,
+    sets.length
+      ? null
+      : await swapLine(forge, workout, exerciseId, gymName, (id) =>
+          onLogged({ back: id }),
+        ),
     suggested ? suggestionLine(suggested, type) : null,
     // The pinned note, every time the exercise is logged (#21).
     settings.note
