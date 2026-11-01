@@ -147,6 +147,20 @@ function recordsOf(counted, type) {
 }
 
 /**
+ * Rows as CSV (RFC 4180, #22): a field with a comma, quote or line break is
+ * quoted, quotes doubled; a missing value is empty; lines end in CRLF.
+ * @param {(string | number | undefined)[][]} rows
+ */
+function csv(rows) {
+  /** @param {string | number | undefined} value */
+  const field = (value) => {
+    const text = value === undefined ? "" : String(value);
+    return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+  return rows.map((row) => row.map(field).join(",")).join("\r\n") + "\r\n";
+}
+
+/**
  * The Forge core: every phase 1 rule, with no DOM or Firestore inside.
  * @param {{ store: Store, library: Exercise[], now?: () => Date }} deps
  *   `now` is the clock; tests pass a fixed one.
@@ -1301,6 +1315,105 @@ export function createForge({ store, library, now = () => new Date() }) {
         // A skipped exercise leaves its superset (#17).
         supersets: withoutMember(w.supersets ?? [], exerciseId),
       }));
+    },
+
+    /**
+     * All the user's data, as one JSON-ready object (#22; spec #3, story
+     * 58): every gym, custom exercise, exercise setting, routine with all
+     * its versions, workout and body weight entry, and the settings, for
+     * their own backup.
+     */
+    async exportJson() {
+      const [gyms, customExercises, exerciseSettings, routines, workouts] =
+        await Promise.all([
+          listGyms(),
+          store.list("customExercises"),
+          store.list("exerciseSettings"),
+          store.list("routines"),
+          store.list("workouts"),
+        ]);
+      return {
+        app: "Forge",
+        exportedAt: now().toISOString(),
+        gyms,
+        customExercises,
+        exerciseSettings,
+        routines,
+        workouts: /** @type {Workout[]} */ (workouts).sort(byWorkoutDate),
+        bodyWeights: await listBodyWeights(),
+        settings: await settings(),
+      };
+    },
+
+    /**
+     * Every set as CSV, one row per set, oldest workout first (#22): its
+     * workout's date and gym, the exercise, the set's number and measure,
+     * RIR, flags, and its superset (numbered within the workout) and round.
+     */
+    async exportSetsCsv() {
+      const workouts = /** @type {Workout[]} */ (await store.list("workouts"))
+        .sort(byWorkoutDate)
+        .reverse();
+      const gyms = new Map((await listGyms()).map((g) => [g.id, g.name]));
+      /** @type {(string | number | undefined)[][]} */
+      const rows = [
+        [
+          "date",
+          "gym",
+          "exercise",
+          "set",
+          "load",
+          "unit",
+          "reps",
+          "seconds",
+          "distance",
+          "distance_unit",
+          "rir",
+          "warm_up",
+          "drop_set",
+          "superset",
+          "round",
+        ],
+      ];
+      for (const w of workouts) {
+        /** @type {Map<string, number>} */
+        const numbers = new Map();
+        for (const e of w.entries) {
+          const name = (await findExercise(e.exerciseId))?.name ?? e.exerciseId;
+          e.sets.forEach((s, i) => {
+            const id = s.superset?.id;
+            if (id !== undefined && !numbers.has(id))
+              numbers.set(id, numbers.size + 1);
+            rows.push([
+              w.date,
+              gyms.get(w.gymId) ?? "",
+              name,
+              i + 1,
+              s.load,
+              s.unit,
+              s.reps,
+              s.seconds,
+              s.distance,
+              s.distanceUnit,
+              s.rir,
+              s.warmUp ? "yes" : "",
+              s.drop ? "yes" : "",
+              id === undefined ? "" : numbers.get(id),
+              s.superset?.round,
+            ]);
+          });
+        }
+      }
+      return csv(rows);
+    },
+
+    /** Body weight entries as CSV, oldest first (#22). */
+    async exportBodyWeightCsv() {
+      const entries = (await listBodyWeights()).reverse();
+      return csv([
+        ["date", "weight", "unit"],
+        ...entries.map((e) => [e.date, e.load, e.unit]),
+      ]);
     },
 
     /**
