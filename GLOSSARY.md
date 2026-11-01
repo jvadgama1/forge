@@ -102,7 +102,7 @@ The load the app proposes for an exercise's next working sets, computed without 
 The rule behind suggested weights: hold the load until every working set reaches the top of the rep range, then add the exercise's increment; two workouts below the bottom of the range suggests holding or dropping.
 
 **Increment**:
-The load step for an exercise's progression (default +5 lb upper body, +10 lb lower body).
+The load step for an exercise's progression. By default it follows the exercise's body half: +5 lb upper body, +10 lb lower body (2.5 kg and 5 kg for an exercise in kg).
 
 **Comeback**:
 The first workout with an exercise after 14 or more days without it; its suggested weight is about 90% of the last working weight.

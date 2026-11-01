@@ -366,7 +366,9 @@ export async function workoutScreen({
           });
           // A rest default of Off starts no rest (#52).
           const rest = await forge.restAfterSet(exerciseId);
-          if (rest !== undefined) startRest(rest);
+          // ...and clears any rest still running from an earlier set.
+          if (rest === undefined) endRest();
+          else startRest(rest);
           onLogged(await forge.recordsSetBy(logged, exerciseId));
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;

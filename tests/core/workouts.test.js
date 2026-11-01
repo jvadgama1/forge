@@ -203,8 +203,8 @@ describe("the exercise to show", () => {
 describe("load steppers", () => {
   it("move by the exercise's increment: 5 lb upper body, 10 lb lower", async () => {
     const f = setup().forge();
-    expect(await f.loadStep("bench-press")).toBe(5);
-    expect(await f.loadStep("leg-press")).toBe(10);
+    expect((await f.exerciseSettings("bench-press")).increment).toBe(5);
+    expect((await f.exerciseSettings("leg-press")).increment).toBe(10);
   });
 });
 

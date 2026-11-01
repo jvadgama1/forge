@@ -57,7 +57,13 @@ export function pastWorkoutView({ forge, id }) {
         const exercise = await forge.getExercise(entry.exerciseId);
         const name = exercise?.name ?? entry.exerciseId;
         const type = await forge.exerciseType(entry.exerciseId);
-        const { increment } = await forge.exerciseSettings(entry.exerciseId);
+        const settings = await forge.exerciseSettings(entry.exerciseId);
+        // A set logged before a change of unit steps by its own unit (#21).
+        /** @param {"lb" | "kg"} unit */
+        const increment = (unit) =>
+          unit === settings.unit
+            ? settings.increment
+            : forge.defaultIncrement(exercise?.body, unit);
         return h(
           "section",
           { class: "past-exercise" },
@@ -129,7 +135,7 @@ export function pastWorkoutView({ forge, id }) {
      * @param {string} name the exercise's
      * @param {WorkoutSet} set
      * @param {ExerciseType} type the exercise's
-     * @param {number} increment the exercise's
+     * @param {(unit: "lb" | "kg") => number} increment the exercise's, by unit
      */
     function editableSet(ref, name, set, type, increment) {
       const row = setRow(set, ref.index, type);
@@ -152,11 +158,11 @@ export function pastWorkoutView({ forge, id }) {
      * @param {SetRef} ref
      * @param {WorkoutSet} set
      * @param {ExerciseType} type the exercise's
-     * @param {number} increment the exercise's
+     * @param {(unit: "lb" | "kg") => number} increment the exercise's, by unit
      */
     function setForm(ref, set, type, increment) {
       const choices = setChoices(type, set);
-      const fields = fieldsFor(type, set.unit, increment);
+      const fields = fieldsFor(type, set.unit, increment(set.unit));
       const inputs = fields.map((field) =>
         h("input", {
           class: `small-number${field.mode === "decimal" ? " wide" : ""}`,

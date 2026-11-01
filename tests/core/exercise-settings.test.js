@@ -141,6 +141,15 @@ describe("exercise settings (#21)", () => {
     expect((await f.exerciseSettings("leg-press")).increment).toBe(10);
   });
 
+  it("start a new exercise at lb, 5 lb and a 90 s rest", async () => {
+    const { f } = await setup();
+    expect(await f.exerciseSettings()).toEqual({
+      unit: "lb",
+      increment: 5,
+      rest: 90,
+    });
+  });
+
   it("default to 2.5 kg upper body and 5 kg lower once the unit is kg", async () => {
     const { f } = await setup();
     await f.saveExerciseSettings("bench-press", { unit: "kg" });
@@ -193,7 +202,7 @@ describe("exercise settings (#21)", () => {
   it("step the load by the increment", async () => {
     const { f } = await setup();
     await f.saveExerciseSettings("bench-press", { increment: 2.5 });
-    expect(await f.loadStep("bench-press")).toBe(2.5);
+    expect((await f.exerciseSettings("bench-press")).increment).toBe(2.5);
   });
 });
 

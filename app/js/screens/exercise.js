@@ -45,16 +45,10 @@ export function exerciseView({ forge, id }) {
     }
     const editable = isNew || !!exercise?.custom;
     /** @type {ExerciseSettings} */
-    const settings = exercise
-      ? await forge.exerciseSettings(exercise.id)
-      : {
-          unit: "lb",
-          increment: forge.defaultIncrement("upper", "lb"),
-          rest: 90,
-        };
+    const settings = await forge.exerciseSettings(exercise?.id);
 
-    // The custom exercise's details, as chosen so far.
-    const draft = {
+    // The custom exercise's details as chosen so far, in Sets for the chips.
+    const chosenDetails = {
       type: /** @type {ExerciseType} */ (exercise?.type ?? "weight-reps"),
       body: exercise?.body ?? "upper",
       primary: new Set(exercise?.primary ?? []),
@@ -80,11 +74,11 @@ export function exerciseView({ forge, id }) {
     const followDefault = (/** @type {() => void} */ change) => {
       const wasDefault =
         typedNumber(increment) ===
-        forge.defaultIncrement(draft.body, chosen.unit);
+        forge.defaultIncrement(chosenDetails.body, chosen.unit);
       change();
       if (wasDefault)
         increment.value = String(
-          forge.defaultIncrement(draft.body, chosen.unit),
+          forge.defaultIncrement(chosenDetails.body, chosen.unit),
         );
     };
     const note = h("textarea", {
@@ -129,7 +123,7 @@ export function exerciseView({ forge, id }) {
     );
     // Cardio's unit is its distance's, and it has no load to step (#19).
     const showUnits = () => {
-      const cardio = isCardio(draft.type);
+      const cardio = isCardio(chosenDetails.type);
       const [lb, kg] = units.children;
       lb.textContent = cardio ? "mi" : "lb";
       kg.textContent = cardio ? "km" : "kg";
@@ -141,6 +135,17 @@ export function exerciseView({ forge, id }) {
       ? [
           h("p", { class: "label field" }, "Name"),
           name,
+          ...(!isNew && exercise
+            ? [
+                h("p", { class: "label field" }, "Type"),
+                // Its sets are measured by it (#19), so it can't change.
+                h(
+                  "p",
+                  { class: "meta" },
+                  `${TYPE_LABELS[exercise.type]} · fixed once made`,
+                ),
+              ]
+            : []),
           ...(isNew
             ? [
                 h("p", { class: "label field" }, "Type"),
@@ -149,10 +154,10 @@ export function exerciseView({ forge, id }) {
                   options: /** @type {ExerciseType[]} */ (
                     Object.keys(TYPE_LABELS)
                   ).map((t) => ({ value: t, text: TYPE_LABELS[t] })),
-                  selected: draft.type,
+                  selected: chosenDetails.type,
                   onChoose: (t) => {
                     if (!t) return;
-                    draft.type = t;
+                    chosenDetails.type = t;
                     showUnits();
                   },
                 }),
@@ -162,13 +167,13 @@ export function exerciseView({ forge, id }) {
           toggleChips({
             label: "Primary muscle groups",
             options: muscleOptions,
-            selected: draft.primary,
+            selected: chosenDetails.primary,
           }),
           h("p", { class: "label field" }, "Secondary muscle groups"),
           toggleChips({
             label: "Secondary muscle groups",
             options: muscleOptions,
-            selected: draft.secondary,
+            selected: chosenDetails.secondary,
           }),
           h("p", { class: "label field" }, "Body"),
           choiceChips({
@@ -177,9 +182,9 @@ export function exerciseView({ forge, id }) {
               { value: /** @type {const} */ ("upper"), text: "Upper" },
               { value: /** @type {const} */ ("lower"), text: "Lower" },
             ],
-            selected: draft.body,
+            selected: chosenDetails.body,
             onChoose: (body) => {
-              if (body) followDefault(() => (draft.body = body));
+              if (body) followDefault(() => (chosenDetails.body = body));
             },
           }),
         ]
@@ -228,15 +233,15 @@ export function exerciseView({ forge, id }) {
                   ? await forge.saveCustomExercise({
                       ...(exercise ? { id: exercise.id } : {}),
                       name: name.value,
-                      type: draft.type,
-                      body: draft.body,
-                      primary: [...draft.primary],
-                      secondary: [...draft.secondary],
+                      type: chosenDetails.type,
+                      body: chosenDetails.body,
+                      primary: [...chosenDetails.primary],
+                      secondary: [...chosenDetails.secondary],
                     })
                   : /** @type {Exercise} */ (exercise);
                 await forge.saveExerciseSettings(saved.id, {
                   unit: chosen.unit,
-                  ...(isCardio(draft.type)
+                  ...(isCardio(chosenDetails.type)
                     ? {}
                     : { increment: typedNumber(increment) }),
                   rest: chosen.rest,

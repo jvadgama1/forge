@@ -1,6 +1,6 @@
 /** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
-import { TYPE_RULES } from "./exercise-types.js";
+import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -760,8 +760,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     /**
      * Logs a set for an exercise in the workout (spec #3, stories 29–32),
      * measured as its exercise type needs (#19), with optional RIR and a
-     * warm-up or drop-set flag. Loads are in lb until per-exercise units
-     * arrive (#21).
+     * warm-up or drop-set flag, in the exercise's unit (#21).
      * @param {string} workoutId
      * @param {string} exerciseId
      * @param {SetInput} set
@@ -818,8 +817,6 @@ export function createForge({ store, library, now = () => new Date() }) {
             latest = { exerciseId: entry.exerciseId, loggedAt: set.loggedAt };
       return latest?.exerciseId ?? live[0]?.exerciseId;
     },
-
-    loadStep,
 
     /**
      * The suggested weight for an exercise's working sets in `workout`
@@ -1091,30 +1088,30 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * The load steppers' step: the exercise's increment (GLOSSARY: Increment;
-   * #21).
-   * @param {string} exerciseId
-   */
-  async function loadStep(exerciseId) {
-    return (await exerciseSettings(exerciseId)).increment;
-  }
-
-  /**
    * An exercise's settings, with the defaults for any not set (#21): lb,
-   * the body half's increment in that unit, and a 90 s rest.
-   * @param {string} exerciseId
+   * the body half's increment in that unit, and a 90 s rest. With no
+   * exercise, the defaults a new one starts with.
+   * @param {string} [exerciseId]
    * @returns {Promise<ExerciseSettings>}
    */
   async function exerciseSettings(exerciseId) {
-    const saved = /** @type {Partial<ExerciseSettings> | undefined} */ (
-      await store.get("exerciseSettings", exerciseId)
-    );
+    const saved =
+      exerciseId === undefined
+        ? undefined
+        : /** @type {Partial<ExerciseSettings> | undefined} */ (
+            await store.get("exerciseSettings", exerciseId)
+          );
     const unit = saved?.unit ?? "lb";
     return {
       unit,
       increment:
         saved?.increment ??
-        defaultIncrement((await findExercise(exerciseId))?.body, unit),
+        defaultIncrement(
+          exerciseId === undefined
+            ? undefined
+            : (await findExercise(exerciseId))?.body,
+          unit,
+        ),
       rest: saved?.rest ?? REST_DEFAULT,
       ...(saved?.note ? { note: saved.note } : {}),
     };
@@ -1153,7 +1150,8 @@ export function createForge({ store, library, now = () => new Date() }) {
     const lastSet = /** @type {WorkoutSet} */ (lastSets.at(-1));
     const { unit, increment: step } = await exerciseSettings(exerciseId);
     const load = inUnit(lastSet, unit, step);
-    // Across a unit change, the comeback takes 90% of the exact load.
+    // Across a unit change (#21), the comeback takes 90% of the exact load,
+    // not of the load rounded to the new increment.
     const exact =
       lastSet.unit === unit ? lastSet.load : fromKg(inKg(lastSet), unit);
     const range = await repRange(workout, exerciseId);
@@ -1401,11 +1399,9 @@ export function createForge({ store, library, now = () => new Date() }) {
       measure = { seconds: time };
       if (distance !== undefined) {
         if (!(distance > 0)) throw new Error("Distance must be more than 0");
-        // The exercise's unit picks miles or km (#21).
-        const distanceUnit = set.distanceUnit ?? (unit === "kg" ? "km" : "mi");
-        if (distanceUnit !== "mi" && distanceUnit !== "km")
-          throw new Error("Pick mi or km");
-        measure = { ...measure, distance, distanceUnit };
+        const per = set.distanceUnit ?? distanceUnit(unit);
+        if (per !== "mi" && per !== "km") throw new Error("Pick mi or km");
+        measure = { ...measure, distance, distanceUnit: per };
       }
     } else {
       if (!(Number.isInteger(reps) && Number(reps) >= 1))
