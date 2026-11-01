@@ -481,8 +481,20 @@ describe("workouts behind a mark (spec #80; #84)", () => {
       range: "12w",
     });
     expect(behind.workouts).toEqual([
-      { workoutId: "oct-22", date: "2026-10-22", gymId: "gym", value: 3.5 },
-      { workoutId: "oct-20", date: "2026-10-20", gymId: "gym", value: 4 },
+      {
+        workoutId: "oct-22",
+        date: "2026-10-22",
+        gymId: "gym",
+        title: "Freestyle",
+        value: 3.5,
+      },
+      {
+        workoutId: "oct-20",
+        date: "2026-10-20",
+        gymId: "gym",
+        title: "Freestyle",
+        value: 4,
+      },
     ]);
     expect(behind.total).toBe(7.5);
     expect(behind.trainingWeeks).toBe(2); // Oct 19 and Oct 26 weeks

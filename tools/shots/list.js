@@ -1248,5 +1248,18 @@ export const SHOTS = [
     "/stats/workout/hard-sets:chest:12w~w-2026-10-21",
     STATS,
   ),
+  {
+    name: "stats-mark-workout",
+    as: "owner",
+    route: "/stats/workout/hard-sets:chest:12w~w-2026-10-21",
+    seed: STATS,
+  },
+  {
+    name: "stats-point",
+    as: "owner",
+    route: "/stats/point/w-2026-10-21",
+    seed: STATS,
+  },
+  desktop("desktop-stats-point", "/stats/point/w-2026-10-21", STATS),
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

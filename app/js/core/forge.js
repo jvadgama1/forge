@@ -703,9 +703,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * What a workout is called (#14): its routine day's name, or Freestyle.
      * @param {Workout} workout
      */
-    async workoutTitle(workout) {
-      return (await followedDay(workout))?.name ?? "Freestyle";
-    },
+    workoutTitle,
 
     /**
      * The exercise's targets in a routine workout (spec #3, story 23), from
@@ -1491,9 +1489,25 @@ export function createForge({ store, library, now = () => new Date() }) {
     async workoutsBehind({ muscleGroup, range: rangeId }) {
       const range = rangeFor(rangeId, localDate(now()));
       const counted = (await listWorkouts()).filter(countsIn(range));
+      const behind = hardSetsBehind(
+        counted,
+        await exercisesIn(counted),
+        muscleGroup,
+      );
+      // Each row's title too, so the list needn't read its workouts again.
+      const byId = new Map(counted.map((w) => [w.id, w]));
       return {
         range,
-        ...hardSetsBehind(counted, await exercisesIn(counted), muscleGroup),
+        ...behind,
+        workouts: await Promise.all(
+          behind.workouts.map(async (w) => {
+            const workout = byId.get(w.workoutId);
+            return {
+              ...w,
+              title: workout ? await workoutTitle(workout) : "",
+            };
+          }),
+        ),
       };
     },
   };
@@ -2356,6 +2370,14 @@ export function createForge({ store, library, now = () => new Date() }) {
         value: fromKg(b.kg, unit),
       })),
     };
+  }
+
+  /**
+   * A workout's name: the routine day it followed, else Freestyle.
+   * @param {Workout} workout
+   */
+  async function workoutTitle(workout) {
+    return (await followedDay(workout))?.name ?? "Freestyle";
   }
 
   /**

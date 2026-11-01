@@ -4,8 +4,9 @@
 // mark and its range, so a reload shows the same list.
 import { h } from "../dom.js";
 import { isRangeId } from "../core/dashboard.js";
-import { MUSCLE_GROUPS } from "../core/muscle-groups.js";
-import { listDate, screen, setCount } from "./screen.js";
+import { MUSCLE_GROUPS, muscleGroup } from "../core/muscle-groups.js";
+import { countOf, listDate, rangeWords, screen, setCount } from "./screen.js";
+import { pastWorkoutView } from "./past-workout.js";
 
 /** @import { ScreenContext } from "./screen.js" */
 /** @import { Mark } from "../core/dashboard.js" */
@@ -25,10 +26,10 @@ export const markId = ({ kind, muscleGroup, range }) =>
  * @returns {Mark | undefined}
  */
 export function parseMark(id) {
-  const [kind, muscleGroup, range] = (id ?? "").split(":");
-  const group = MUSCLE_GROUPS.find((m) => m.id === muscleGroup);
-  if (kind !== "hard-sets" || !group || !isRangeId(range)) return undefined;
-  return { kind, muscleGroup: group.id, range };
+  const [kind, group, range] = (id ?? "").split(":");
+  const known = MUSCLE_GROUPS.find((m) => m.id === group);
+  if (kind !== "hard-sets" || !known || !isRangeId(range)) return undefined;
+  return { kind, muscleGroup: known.id, range };
 }
 
 // A workout opened from the list keeps the mark in its route, so on a wide
@@ -54,6 +55,46 @@ export function splitMarkWorkout(id) {
 }
 
 /**
+ * A workout opened from the list (#84): its back link and a delete return
+ * to the list, not to Workouts (story 54).
+ * @param {Pick<ScreenContext, "forge" | "id">} context
+ */
+export function markWorkoutView(context) {
+  const { mark, workoutId } = splitMarkWorkout(context.id);
+  const parsed = parseMark(mark);
+  return pastWorkoutView(
+    { ...context, id: workoutId },
+    parsed
+      ? {
+          href: `#/stats/${markId(parsed)}`,
+          label: muscleGroup(parsed.muscleGroup).label,
+        }
+      : { href: "#/stats", label: "Stats" },
+  );
+}
+
+/**
+ * The list beside a workout opened from it, on a wide screen.
+ * @param {Pick<ScreenContext, "forge" | "id">} context
+ */
+export const markBesideView = (context) =>
+  markView({ ...context, id: splitMarkWorkout(context.id).mark });
+
+/**
+ * A workout opened from an e1RM point (#84; stories 51, 60): back to the
+ * board.
+ * @param {Pick<ScreenContext, "forge" | "id">} context
+ */
+export const pointWorkoutView = (context) =>
+  pastWorkoutView(context, { href: "#/stats", label: "Stats" });
+
+/**
+ * Hard sets with their noun: "1 hard set", "4.5 hard sets".
+ * @param {number} n
+ */
+const hardSets = (n) => `${setCount(n)} ${n === 1 ? "hard set" : "hard sets"}`;
+
+/**
  * @param {Pick<ScreenContext, "forge" | "id">} context
  */
 export function markView({ forge, id }) {
@@ -64,10 +105,13 @@ export function markView({ forge, id }) {
     return screen(
       "Nothing here",
       back,
-      h("p", { class: "lede" }, "This link doesn't name a mark on the board."),
+      h(
+        "p",
+        { class: "lede" },
+        "This link doesn't match anything on the Stats board.",
+      ),
     );
-  const group = MUSCLE_GROUPS.find((m) => m.id === mark.muscleGroup);
-  const name = group?.label ?? mark.muscleGroup;
+  const name = muscleGroup(mark.muscleGroup).label;
   show(mark);
   return screen(name, back, root);
 
@@ -79,37 +123,29 @@ export function markView({ forge, id }) {
     ]);
     const today = forge.today();
     const gymNames = new Map(gyms.map((g) => [g.id, g.name]));
-    const weeks =
-      behind.range.weeks === 52 ? "year" : `${behind.range.weeks} weeks`;
-    const rows = await Promise.all(
-      behind.workouts.map(async (w) => {
-        const workout = await forge.getWorkout(w.workoutId);
-        const title = workout ? await forge.workoutTitle(workout) : "";
-        return h(
-          "a",
-          { class: "workout-link", href: workoutHref(mark, w.workoutId) },
+    const weeks = rangeWords(behind.range.weeks);
+    const rows = behind.workouts.map((w) =>
+      h(
+        "a",
+        { class: "workout-link", href: workoutHref(mark, w.workoutId) },
+        h(
+          "span",
+          { class: "workout-link-main" },
           h(
             "span",
-            { class: "workout-link-main" },
-            h(
-              "span",
-              { class: "name" },
-              [listDate(w.date, today), title].filter(Boolean).join(" · "),
-            ),
-            h(
-              "span",
-              { class: "label" },
-              [
-                gymNames.get(w.gymId),
-                `${name} · ${setCount(w.value)} hard set${w.value === 1 ? "" : "s"}`,
-              ]
-                .filter(Boolean)
-                .join(" · "),
-            ),
+            { class: "name" },
+            `${listDate(w.date, today)} · ${w.title}`,
           ),
-          h("span", { "aria-hidden": "true" }, "→"),
-        );
-      }),
+          h(
+            "span",
+            { class: "label" },
+            [gymNames.get(w.gymId), `${name} · ${hardSets(w.value)}`]
+              .filter(Boolean)
+              .join(" · "),
+          ),
+        ),
+        h("span", { "aria-hidden": "true" }, "→"),
+      ),
     );
     root.replaceChildren(
       h("p", { class: "label" }, `Hard sets · last ${weeks}`),
@@ -117,7 +153,7 @@ export function markView({ forge, id }) {
         ? h(
             "p",
             { class: "lede" },
-            `${setCount(behind.total)} hard sets over ${behind.trainingWeeks} training week${behind.trainingWeeks === 1 ? "" : "s"}: ${setCount(behind.perWeek)} a week.`,
+            `${hardSets(behind.total)} over ${countOf(behind.trainingWeeks, "training week")}: ${setCount(behind.perWeek)} a week.`,
           )
         : h(
             "p",

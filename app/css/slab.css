@@ -933,6 +933,7 @@ a {
   grid-template-columns: 126px minmax(0, 1fr) 36px 60px;
   align-items: center;
   gap: 8px;
+  /* Each row opens its workouts (#84), so it's a tap target. */
   min-height: 32px;
 }
 

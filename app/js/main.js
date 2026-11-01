@@ -21,7 +21,12 @@ import { workoutsView } from "./screens/workouts.js";
 import { pastWorkoutView } from "./screens/past-workout.js";
 import { moreView } from "./screens/more.js";
 import { statsView } from "./screens/stats.js";
-import { markView, splitMarkWorkout } from "./screens/mark.js";
+import {
+  markBesideView,
+  markView,
+  markWorkoutView,
+  pointWorkoutView,
+} from "./screens/mark.js";
 
 /** @import { ScreenContext } from "./screens/screen.js" */
 
@@ -70,16 +75,13 @@ const routes = {
   },
   "/stats/workout/:id": {
     tab: "stats",
-    render: (context) =>
-      pastWorkoutView({
-        ...context,
-        id: splitMarkWorkout(context.id).workoutId,
-      }),
-    beside: {
-      render: (context) =>
-        markView({ ...context, id: splitMarkWorkout(context.id).mark }),
-      list: true,
-    },
+    render: markWorkoutView,
+    beside: { render: markBesideView, list: true },
+  },
+  "/stats/point/:id": {
+    tab: "stats",
+    render: pointWorkoutView,
+    beside: { render: statsView, list: false },
   },
   "/coach": {
     tab: "coach",

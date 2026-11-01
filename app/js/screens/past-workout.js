@@ -18,8 +18,13 @@ import { setChoices, setRow } from "./workout.js";
  * One workout (#20; spec #3, stories 53-54): its exercises and sets, any of
  * which can be corrected or deleted, and the whole workout deleted.
  * @param {Pick<ScreenContext, "forge" | "id">} context
+ * @param {{ href: string, label: string }} [back] where its back link and a
+ *   delete lead: Workouts, or the Stats board it was opened from (#84).
  */
-export function pastWorkoutView({ forge, id }) {
+export function pastWorkoutView(
+  { forge, id },
+  back = { href: "#/workouts", label: "Workouts" },
+) {
   const root = h("div");
   show();
   return root;
@@ -33,8 +38,8 @@ export function pastWorkoutView({ forge, id }) {
           h("p", { class: "lede" }, "It may have been deleted."),
           h(
             "a",
-            { class: "button", href: "#/workouts" },
-            "Workouts",
+            { class: "button", href: back.href },
+            back.label,
             h("span", { "aria-hidden": "true" }, "→"),
           ),
         ),
@@ -87,7 +92,7 @@ export function pastWorkoutView({ forge, id }) {
     root.replaceChildren(
       screen(
         title,
-        h("a", { class: "chip back", href: "#/workouts" }, "← Workouts"),
+        h("a", { class: "chip back", href: back.href }, `← ${back.label}`),
         h(
           "p",
           { class: "label" },
@@ -123,7 +128,7 @@ export function pastWorkoutView({ forge, id }) {
           act: async () => {
             await forge.deleteWorkout(workoutId);
             changed();
-            location.hash = "#/workouts";
+            location.hash = back.href;
           },
         }),
       ),
@@ -233,7 +238,7 @@ export function pastWorkoutView({ forge, id }) {
               changed();
               // The workout's last set took the workout with it.
               if (left) show();
-              else location.hash = "#/workouts";
+              else location.hash = back.href;
             },
           }),
         ),

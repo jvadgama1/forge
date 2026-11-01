@@ -108,7 +108,7 @@ export function e1rmChartBody({ unit, points }, hrefOf) {
   const tip = explore(chart, FRAME, xs, (i) => ({
     value: `${whole(values[i])} ${unit}`,
     label: ` e1RM · ${monthDay(points[i].date)}`,
-    ...(hrefOf && { href: hrefOf(points[i]), link: "Open workout" }),
+    ...(hrefOf && { open: { href: hrefOf(points[i]), words: "Open workout" } }),
   }));
 
   return [chart, tip];
