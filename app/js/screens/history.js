@@ -1,7 +1,8 @@
 // An exercise's history (#13): its records, a small e1RM trend chart and
 // every workout's sets, newest first. Opened from the last-workout line.
 import { h } from "../dom.js";
-import { e1rmChart, whole } from "./e1rm-chart.js";
+import { e1rmChart } from "./e1rm-chart.js";
+import { whole } from "./chart.js";
 import { TYPE_RULES } from "../core/exercise-types.js";
 import { setText } from "./measure.js";
 import { monthDay, screen } from "./screen.js";
