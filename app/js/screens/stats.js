@@ -3,6 +3,7 @@
 // dashboard query returns; the rules live in the core.
 import { h } from "../dom.js";
 import { e1rmChartBody } from "./e1rm-chart.js";
+import { hardSetsCard } from "./hard-sets-card.js";
 import { screen, whole } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
@@ -35,6 +36,8 @@ export function statsView({ forge }) {
         await forge.chooseDashboard({ exerciseId });
         show();
       }),
+      h("hr", { class: "rule" }),
+      ...hardSetsCard(dashboard.hardSets, rangeWords(dashboard.range.weeks)),
     );
   }
 }

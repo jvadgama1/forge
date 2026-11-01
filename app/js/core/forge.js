@@ -6,6 +6,7 @@ import {
   DEFAULT_RANGE,
   countsIn,
   e1rmHeadline,
+  hardSetsCard,
   rangeFor,
 } from "./dashboard.js";
 
@@ -1468,12 +1469,19 @@ export function createForge({ store, library, now = () => new Date() }) {
       // (spec #80, Rules: Default exercise).
       const exerciseId =
         choices.find((id) => id === dashboardExerciseId) ?? choices[0];
+      const counted = workouts.filter(countsIn(range));
+      const exercises = new Map();
+      for (const { entries } of counted)
+        for (const { exerciseId } of entries)
+          if (!exercises.has(exerciseId))
+            exercises.set(exerciseId, await findExercise(exerciseId));
       return {
         range,
         e1rm:
           exerciseId === undefined
             ? undefined
             : await e1rmCard(exerciseId, countsIn(range), choices, workouts),
+        hardSets: hardSetsCard(counted, (id) => exercises.get(id)),
       };
     },
   };

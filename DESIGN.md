@@ -26,7 +26,7 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 - **Gym**: a named list of available exercises (Work, Apartment, Home). The gym does **not** affect comparability of weights (may revisit: then each gym gets its own equipment per exercise). Each workout records its gym anyway.
 - **Exercise library**: about 150 common exercises seeded with muscle tags; custom exercises can be added (the coach can suggest tags).
 - **Muscle groups (17)**: chest, front delts, side delts, rear delts, biceps, triceps, forearms, lats/upper back, traps, lower back, abs, obliques, glutes, quads, hamstrings, adductors, calves.
-- **Hard sets**: warm-up sets excluded; a set counts 1 for each primary muscle and 0.5 for each secondary.
+- **Hard sets**: warm-up sets and sets logged at RIR 4+ excluded (no RIR recorded still counts); a set counts 1 for each primary muscle and 0.5 for each secondary.
 - **Routine → routine day → slot**: a slot has target sets, a rep range and an optional target RIR. Routines are versioned; a new version is created when a coach proposal is accepted or the user saves changes.
 - **Workout**: a date, gym, optional routine day, optional note, and ordered exercises each with sets. Editable and deletable after the fact; can be back-dated.
 - **Set**: weight (or added/assist load), reps (or seconds, or time + distance), optional RIR, flags: warm-up, drop set.

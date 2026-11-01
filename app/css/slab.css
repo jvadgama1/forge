@@ -894,6 +894,96 @@ a {
   color: var(--secondary);
 }
 
+/* A card heading with a note at its right (#83): "HARD SETS / WEEK ·
+   TARGET 10–20". */
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Hard sets per week (#83): a row per muscle group, its bar in the
+   region's colour over the 10–20 band, then its number and its state. */
+.hard-sets-note {
+  margin: -4px 0 0;
+}
+
+.hard-sets-region {
+  margin: 14px 0 4px;
+}
+
+.hard-sets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hard-sets[data-region="push"] {
+  --region: var(--push);
+}
+.hard-sets[data-region="pull"] {
+  --region: var(--pull);
+}
+.hard-sets[data-region="legs"] {
+  --region: var(--legs);
+}
+.hard-sets[data-region="core"] {
+  --region: var(--core);
+}
+
+.hard-set {
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr) 36px 60px;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.hard-set-name {
+  font: 600 12px var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hard-set-track {
+  position: relative;
+  height: 14px;
+}
+
+/* The band: a neutral tint between dashed edges, as the prototype. */
+.hard-set-band {
+  position: absolute;
+  inset: 0 auto 0 var(--band-from);
+  width: var(--band-width);
+  background: var(--rule);
+  border-inline: 1px dashed var(--muted);
+}
+
+.hard-set-bar {
+  position: absolute;
+  inset: 2px auto 2px 0;
+  width: var(--value);
+  background: var(--region);
+}
+
+.hard-set-value {
+  font: 800 16px var(--font-display);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hard-set-state {
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hard-set[data-band="in"] .hard-set-state {
+  color: var(--text);
+}
+
 /* Routines (#14) */
 .routine-day {
   margin-top: 18px;
