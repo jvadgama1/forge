@@ -15,6 +15,8 @@
  * @property {string} [route] The hash route, for the owner's screens.
  * @property {Record<string, object[]>} [seed] Documents the in-memory store starts with, by collection.
  * @property {(page: Page) => Promise<void>} [steps] Interactions to run before the shot.
+ * @property {{ width: number, height: number }} [viewport] The screen, if
+ *   not a 390 × 844 phone (#23).
  */
 
 /** Three made-up gyms, Work last used. */
@@ -602,6 +604,36 @@ export const SHOTS = [
     as: "owner",
     route: "/log",
     seed: NOTED,
+  },
+  // The wide layout (#23): a side rail, and list-and-item pages in two
+  // panes. One at 1920 px and one at a 360 px phone check the extremes.
+  ...[
+    ["desktop-log", "/log", WORKOUT],
+    ["desktop-workouts", "/workouts", WORKOUT],
+    ["desktop-workout", "/workouts/w-2026-10-14", WORKOUT],
+    ["desktop-routine", "/routines/r-ppl", ROUTINE],
+    ["desktop-history", "/log/history/barbell-bench-press", WORKOUT],
+    ["desktop-more", "/more", GYMS],
+  ].map(([name, route, seed]) => ({
+    name: /** @type {string} */ (name),
+    as: /** @type {const} */ ("owner"),
+    route: /** @type {string} */ (route),
+    seed: /** @type {Record<string, object[]>} */ (seed),
+    viewport: { width: 1280, height: 800 },
+  })),
+  {
+    name: "desktop-1920",
+    as: "owner",
+    route: "/workouts/w-2026-10-14",
+    seed: WORKOUT,
+    viewport: { width: 1920, height: 1080 },
+  },
+  {
+    name: "phone-360",
+    as: "owner",
+    route: "/log",
+    seed: WORKOUT,
+    viewport: { width: 360, height: 740 },
   },
   {
     name: "log-earlier-date",

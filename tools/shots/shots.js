@@ -1,5 +1,7 @@
-// Photographs every screen at phone size (#33): `npm run shots -- <label>`
-// saves one 390 × 844 PNG per entry in list.js to .shots/<label>/. Drives the
+// Photographs every screen (#33): `npm run shots -- <label>` saves one PNG
+// per entry in list.js to .shots/<label>/, at 390 × 844 unless the entry
+// gives a desktop or other viewport (#23), and fails a screen that scrolls
+// sideways. Drives the
 // installed Microsoft Edge, so nothing downloads a browser. Sign-in and
 // Firestore are stubbed: no personal data reaches a shot (ADR-0005).
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -88,10 +90,13 @@ const browser = await chromium.launch({
   ],
 });
 
-/** A phone-sized context serving app/, with the stubs, at ORIGIN; no service worker. */
-async function phoneContext() {
+/**
+ * A context serving app/, with the stubs, at ORIGIN; no service worker.
+ * @param {{ width: number, height: number }} viewport
+ */
+async function newContext(viewport) {
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
+    viewport,
     serviceWorkers: "block",
   });
   await context.route(`${ORIGIN}/**`, async (route) => {
@@ -138,7 +143,9 @@ const errors = new Set();
  * @param {Shot} shot
  */
 async function render(shot) {
-  const context = await phoneContext();
+  const context = await newContext(
+    shot.viewport ?? { width: 390, height: 844 },
+  );
   try {
     // Read by the store stub as its starting documents.
     await context.addInitScript((seed) => {
@@ -154,6 +161,13 @@ async function render(shot) {
       await shot.steps(page);
       await settle(page);
     }
+    // No screen may scroll sideways at any width (#23).
+    const wider = await page.evaluate(
+      () =>
+        globalThis.document.documentElement.scrollWidth - globalThis.innerWidth,
+    );
+    if (wider > 0)
+      errors.add(`${shot.name}: ${wider} px wider than the screen`);
     return await page.screenshot();
   } finally {
     await context.close();

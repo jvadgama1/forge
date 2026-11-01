@@ -24,7 +24,11 @@ import { moreView } from "./screens/more.js";
 /** @import { ScreenContext } from "./screens/screen.js" */
 
 // A route ending in /:id matches any last segment, passed to the screen as `id`.
-/** @type {Record<string, { tab: string, render: (context: ScreenContext) => Node }>} */
+// On a wide screen (#23), a route with a `beside` screen shows it on the left
+// and its own on the right: a list beside the item open from it, or the
+// logging screen beside an exercise's history. `empty` is the right pane
+// before anything is open.
+/** @type {Record<string, { tab: string, render: (context: ScreenContext) => Node, beside?: (context: ScreenContext) => Node, empty?: string }>} */
 const routes = {
   "/log": { tab: "log", render: logView },
   "/log/ex/:id": { tab: "log", render: logView },
@@ -32,7 +36,7 @@ const routes = {
   "/log/add": { tab: "log", render: addExerciseView },
   "/log/done": { tab: "log", render: workoutDoneView },
   "/log/done/:id": { tab: "log", render: workoutDoneView },
-  "/log/history/:id": { tab: "log", render: historyView },
+  "/log/history/:id": { tab: "log", render: historyView, beside: logView },
   "/exercises": { tab: "log", render: exercisesView },
   "/exercises/:id": { tab: "log", render: exerciseView },
   "/stats": {
@@ -47,11 +51,23 @@ const routes = {
   "/more": { tab: "more", render: moreView },
   "/gyms": { tab: "more", render: gymsView },
   "/gyms/:id": { tab: "more", render: gymView },
-  "/routines": { tab: "more", render: routinesView },
-  "/routines/:id": { tab: "more", render: routineView },
+  "/routines": {
+    tab: "more",
+    render: routinesView,
+    empty: "Pick a routine to see or change it.",
+  },
+  "/routines/:id": { tab: "more", render: routineView, beside: routinesView },
   "/body-weight": { tab: "more", render: bodyWeightView },
-  "/workouts": { tab: "more", render: workoutsView },
-  "/workouts/:id": { tab: "more", render: pastWorkoutView },
+  "/workouts": {
+    tab: "more",
+    render: workoutsView,
+    empty: "Pick a workout to see or correct it.",
+  },
+  "/workouts/:id": {
+    tab: "more",
+    render: pastWorkoutView,
+    beside: workoutsView,
+  },
 };
 
 /**
@@ -65,6 +81,10 @@ function resolve(path) {
   if (route) return { route, id: decodeURIComponent(path.slice(cut + 1)) };
   return { route: routes["/log"], id: undefined };
 }
+
+// The desktop layout (#23): a side rail, and two panes where a route has
+// them. Matches slab.css's breakpoint.
+const wide = matchMedia("(min-width: 960px)");
 
 const auth = startAuth({
   onChange: () => {
@@ -95,14 +115,37 @@ function render() {
     return;
   }
   const { route, id } = resolve(location.hash.slice(1));
+  /** @type {ScreenContext} */
+  const context = {
+    user: state.user,
+    forge: state.forge,
+    signOut: auth.signOut,
+    id,
+  };
+  const main = route.render(context);
   view?.replaceChildren(
-    route.render({
-      user: state.user,
-      forge: state.forge,
-      signOut: auth.signOut,
-      id,
-    }),
+    wide.matches && (route.beside || route.empty)
+      ? h(
+          "div",
+          { class: "panes" },
+          h(
+            "div",
+            { class: "pane pane-list" },
+            route.beside?.(context) ?? main,
+          ),
+          h(
+            "div",
+            { class: "pane" },
+            route.beside ? main : h("p", { class: "lede" }, route.empty ?? ""),
+          ),
+        )
+      : main,
   );
+  view?.classList.toggle(
+    "two-pane",
+    wide.matches && !!(route.beside || route.empty),
+  );
+  markOpen();
   for (const a of document.querySelectorAll(".tabs a")) {
     if (a.getAttribute("data-tab") === route.tab)
       a.setAttribute("aria-current", "page");
@@ -111,6 +154,24 @@ function render() {
   window.scrollTo(0, 0);
 }
 
+/**
+ * Marks the link to the item open beside a list (#23). The list may still
+ * be loading, so it marks again as rows arrive.
+ */
+function markOpen() {
+  const list = document.querySelector(".pane-list");
+  if (!list) return;
+  const mark = () => {
+    for (const a of list.querySelectorAll("a[href]"))
+      if (a.getAttribute("href") === location.hash)
+        a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
+  };
+  mark();
+  new MutationObserver(mark).observe(list, { childList: true, subtree: true });
+}
+
+wide.addEventListener("change", render);
 window.addEventListener("hashchange", render);
 /**
  * Finishes a workout abandoned while the app was closed or away (#45), on

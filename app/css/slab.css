@@ -1072,3 +1072,89 @@ a.pick {
   display: block;
   text-decoration: none;
 }
+
+/* The wide layout (#23): above 960 px the tabs become a side rail and the
+   screen gets room, without stretching: one screen stays a phone's width
+   or a little more, and list-and-item routes show two panes. Matches
+   main.js's breakpoint. */
+@media (min-width: 960px) {
+  .app {
+    max-width: 1240px;
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .tabs {
+    order: -1;
+    position: sticky;
+    top: 0;
+    width: 168px;
+    height: 100dvh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 72px 16px 0 0;
+    border-top: 0;
+    border-right: 2px solid var(--rule);
+  }
+
+  .tabs a {
+    min-height: 44px;
+    justify-content: flex-start;
+    margin: 0 -2px 0 0;
+    padding-left: 16px;
+    border-top: 0;
+    border-right: 3px solid transparent;
+  }
+
+  .tabs a[aria-current="page"] {
+    border-right-color: var(--accent);
+  }
+
+  .view {
+    flex: 1;
+    min-width: 0;
+    max-width: 600px;
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .view.two-pane {
+    max-width: none;
+  }
+
+  .panes {
+    display: grid;
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
+  }
+
+  /* The list stays in view while the item beside it scrolls. */
+  .pane-list {
+    position: sticky;
+    top: 0;
+    max-height: 100dvh;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
+}
+
+@media (min-width: 960px) {
+  /* The list already shows the way back, and one wordmark is enough; its
+     space stays, so both panes' titles line up. */
+  .pane:not(.pane-list) .back {
+    display: none;
+  }
+
+  .pane:not(.pane-list) .wordmark {
+    visibility: hidden;
+  }
+
+  /* The item open beside the list, marked in it by more than colour. */
+  .pane-list a[aria-current="page"] {
+    box-shadow: inset 3px 0 0 var(--accent);
+    padding-left: 12px;
+  }
+}
