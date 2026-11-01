@@ -4,12 +4,15 @@
 // validated colour beside the region's name, against the 10–20 band, with
 // each muscle group's state in words so neither colour nor length carries
 // it alone. Each bar carries its number, so it needs no tip (spec #80,
-// Look).
+// Look); a row opens the workouts behind it (#84).
 import { h } from "../dom.js";
 import { TARGET } from "../core/dashboard.js";
 import { REGIONS } from "../core/muscle-groups.js";
+import { markId } from "./mark.js";
+import { setCount } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
+/** @import { RangeId } from "../core/dashboard.js" */
 /** @typedef {Awaited<ReturnType<Forge["dashboard"]>>["hardSets"]} HardSets */
 /** @typedef {HardSets["muscleGroups"][number]["band"]} Band */
 
@@ -17,17 +20,11 @@ import { REGIONS } from "../core/muscle-groups.js";
 const BAND_WORDS = { under: "Under", in: "In band", over: "Over" };
 
 /**
- * A count as the card shows it: whole, or to 0.1 where it isn't ("9.5").
- * @param {number} n
- */
-const setCount = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-/**
  * @param {HardSets} hardSets
- * @param {string} rangeWords e.g. "12 weeks"
+ * @param {{ id: RangeId, words: string }} range e.g. 12w, "12 weeks"
  * @returns {Node[]}
  */
-export function hardSetsCardView({ trainingWeeks, muscleGroups }, rangeWords) {
+export function hardSetsCardView({ trainingWeeks, muscleGroups }, range) {
   const heading = h(
     "h2",
     { class: "label section card-head" },
@@ -37,7 +34,7 @@ export function hardSetsCardView({ trainingWeeks, muscleGroups }, rangeWords) {
   if (trainingWeeks === 0)
     return [
       heading,
-      h("p", { class: "lede" }, `No workouts in the last ${rangeWords}.`),
+      h("p", { class: "lede" }, `No workouts in the last ${range.words}.`),
     ];
   // Room past the band, so "over" shows as over.
   const scale = Math.max(TARGET.max + 5, ...muscleGroups.map((m) => m.perWeek));
@@ -72,20 +69,28 @@ export function hardSetsCardView({ trainingWeeks, muscleGroups }, rangeWords) {
           .map((m) =>
             h(
               "li",
-              { class: "hard-set", "data-band": m.band },
-              h("span", { class: "hard-set-name" }, m.label),
+              {},
               h(
-                "span",
+                "a",
                 {
-                  class: "hard-set-track",
-                  "aria-hidden": "true",
-                  style: `--band-from: ${pct(TARGET.min)}; --band-width: ${pct(TARGET.max - TARGET.min)}; --value: ${pct(m.perWeek)}`,
+                  class: "hard-set",
+                  "data-band": m.band,
+                  href: `#/stats/${markId({ kind: "hard-sets", muscleGroup: m.id, range: range.id })}`,
                 },
-                h("span", { class: "hard-set-band" }),
-                h("span", { class: "hard-set-bar" }),
+                h("span", { class: "hard-set-name" }, m.label),
+                h(
+                  "span",
+                  {
+                    class: "hard-set-track",
+                    "aria-hidden": "true",
+                    style: `--band-from: ${pct(TARGET.min)}; --band-width: ${pct(TARGET.max - TARGET.min)}; --value: ${pct(m.perWeek)}`,
+                  },
+                  h("span", { class: "hard-set-band" }),
+                  h("span", { class: "hard-set-bar" }),
+                ),
+                h("span", { class: "hard-set-value" }, setCount(m.perWeek)),
+                h("span", { class: "hard-set-state" }, BAND_WORDS[m.band]),
               ),
-              h("span", { class: "hard-set-value" }, setCount(m.perWeek)),
-              h("span", { class: "hard-set-state" }, BAND_WORDS[m.band]),
             ),
           ),
       ),

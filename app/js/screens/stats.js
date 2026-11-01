@@ -37,10 +37,10 @@ export function statsView({ forge }) {
         show();
       }),
       h("hr", { class: "rule" }),
-      ...hardSetsCardView(
-        dashboard.hardSets,
-        rangeWords(dashboard.range.weeks),
-      ),
+      ...hardSetsCardView(dashboard.hardSets, {
+        id: dashboard.range.id,
+        words: rangeWords(dashboard.range.weeks),
+      }),
     );
   }
 }
@@ -127,7 +127,11 @@ function e1rmCard({ range, e1rm }, choose) {
         change ? changeLine(change, unit) : false,
       ),
     ),
-    ...e1rmChartBody({ unit, points }),
+    // A point's reading offers its workout (#84; story 51).
+    ...e1rmChartBody(
+      { unit, points },
+      (point) => `#/workouts/${encodeURIComponent(point.workoutId)}`,
+    ),
   ];
 }
 

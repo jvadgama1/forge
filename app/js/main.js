@@ -21,6 +21,7 @@ import { workoutsView } from "./screens/workouts.js";
 import { pastWorkoutView } from "./screens/past-workout.js";
 import { moreView } from "./screens/more.js";
 import { statsView } from "./screens/stats.js";
+import { markView, splitMarkWorkout } from "./screens/mark.js";
 
 /** @import { ScreenContext } from "./screens/screen.js" */
 
@@ -61,6 +62,25 @@ const routes = {
   "/exercises": { tab: "log", render: exercisesView },
   "/exercises/:id": { tab: "log", render: exerciseView },
   "/stats": { tab: "stats", render: statsView },
+  // The workouts behind a mark, and one of them beside the list (#84).
+  "/stats/:id": {
+    tab: "stats",
+    render: markView,
+    empty: "Pick a workout to see what it gave.",
+  },
+  "/stats/workout/:id": {
+    tab: "stats",
+    render: (context) =>
+      pastWorkoutView({
+        ...context,
+        id: splitMarkWorkout(context.id).workoutId,
+      }),
+    beside: {
+      render: (context) =>
+        markView({ ...context, id: splitMarkWorkout(context.id).mark }),
+      list: true,
+    },
+  },
   "/coach": {
     tab: "coach",
     render: () => placeholderView("Coach", "The coach arrives in phase 3."),

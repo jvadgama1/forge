@@ -34,11 +34,13 @@ export function e1rmChart(trend) {
 
 /**
  * The chart and the line that reads out the chosen workout, without a
- * heading: the Stats board heads it with its hero number (#82).
+ * heading: the Stats board heads it with its hero number (#82), and links
+ * the reading to its workout (#84).
  * @param {Pick<Trend, "unit" | "points">} trend at least one point
+ * @param {(point: Trend["points"][number]) => string} [hrefOf]
  * @returns {Node[]}
  */
-export function e1rmChartBody({ unit, points }) {
+export function e1rmChartBody({ unit, points }, hrefOf) {
   const { width, height, pad } = FRAME;
   const values = points.map((p) => p.value);
   const { low, high } = niceRange(values);
@@ -106,6 +108,7 @@ export function e1rmChartBody({ unit, points }) {
   const tip = explore(chart, FRAME, xs, (i) => ({
     value: `${whole(values[i])} ${unit}`,
     label: ` e1RM · ${monthDay(points[i].date)}`,
+    ...(hrefOf && { href: hrefOf(points[i]), link: "Open workout" }),
   }));
 
   return [chart, tip];

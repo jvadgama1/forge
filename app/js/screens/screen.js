@@ -44,6 +44,13 @@ export const pad2 = (n) => String(n).padStart(2, "0");
 export const whole = (value) => String(Math.round(value));
 
 /**
+ * A count of hard sets as the board shows it (#83): whole, or to 0.1 where
+ * it isn't ("9.5").
+ * @param {number} n
+ */
+export const setCount = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+/**
  * A typed number, forgiving a decimal comma ("2,5"); blank is no number, so
  * the core refuses it with a message.
  * @param {HTMLInputElement} field

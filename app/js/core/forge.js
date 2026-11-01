@@ -1,4 +1,4 @@
-/** @import { RangeId } from "./dashboard.js" */
+/** @import { Mark, RangeId } from "./dashboard.js" */
 /** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
@@ -6,6 +6,7 @@ import {
   DEFAULT_RANGE,
   countsIn,
   e1rmHeadline,
+  hardSetsBehind,
   hardSetsCard,
   rangeFor,
 } from "./dashboard.js";
@@ -1470,28 +1471,29 @@ export function createForge({ store, library, now = () => new Date() }) {
       const exerciseId =
         choices.find((id) => id === dashboardExerciseId) ?? choices[0];
       const counted = workouts.filter(countsIn(range));
-      // Looked up together: a custom exercise is a store read each.
-      const ids = new Set(
-        counted.flatMap((w) => w.entries.map((e) => e.exerciseId)),
-      );
-      const exercises = new Map(
-        await Promise.all(
-          [...ids].map(
-            async (id) =>
-              /** @type {[string, Exercise | undefined]} */ ([
-                id,
-                await findExercise(id),
-              ]),
-          ),
-        ),
-      );
+      const exerciseOf = await exercisesIn(counted);
       return {
         range,
         e1rm:
           exerciseId === undefined
             ? undefined
             : await e1rmCard(exerciseId, countsIn(range), choices, workouts),
-        hardSets: hardSetsCard(counted, (id) => exercises.get(id)),
+        hardSets: hardSetsCard(counted, exerciseOf),
+      };
+    },
+
+    /**
+     * The workouts behind a mark on the Stats board (#84; spec #80,
+     * stories 51–52), over the range the mark was made in, so a reloaded
+     * list stays the same. For now, a muscle group's hard-sets bar.
+     * @param {Mark} mark
+     */
+    async workoutsBehind({ muscleGroup, range: rangeId }) {
+      const range = rangeFor(rangeId, localDate(now()));
+      const counted = (await listWorkouts()).filter(countsIn(range));
+      return {
+        range,
+        ...hardSetsBehind(counted, await exercisesIn(counted), muscleGroup),
       };
     },
   };
@@ -2354,6 +2356,30 @@ export function createForge({ store, library, now = () => new Date() }) {
         value: fromKg(b.kg, unit),
       })),
     };
+  }
+
+  /**
+   * The exercises the workouts have, looked up together, since a custom
+   * exercise is a store read each.
+   * @param {Workout[]} workouts
+   * @returns {Promise<(exerciseId: string) => Exercise | undefined>}
+   */
+  async function exercisesIn(workouts) {
+    const ids = new Set(
+      workouts.flatMap((w) => w.entries.map((e) => e.exerciseId)),
+    );
+    const exercises = new Map(
+      await Promise.all(
+        [...ids].map(
+          async (id) =>
+            /** @type {[string, Exercise | undefined]} */ ([
+              id,
+              await findExercise(id),
+            ]),
+        ),
+      ),
+    );
+    return (id) => exercises.get(id);
   }
 
   /**

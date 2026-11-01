@@ -13,8 +13,9 @@ const SVG = "http://www.w3.org/2000/svg";
  */
 
 /**
- * What a chart's tip line reads out for one mark.
- * @typedef {{ value: string, label: string }} Reading
+ * What a chart's tip line reads out for one mark, and where the mark's
+ * workouts open, if it links there (#84).
+ * @typedef {{ value: string, label: string, href?: string, link?: string }} Reading
  */
 
 /**
@@ -122,11 +123,14 @@ export function explore(chart, { height, pad, width }, xs, read) {
   chart.append(crosshair);
   const value = h("strong", {});
   const label = h("span", { class: "label" });
+  const open = h("a", { class: "chart-open" });
+  open.hidden = true;
   const tip = h(
     "p",
     { class: "chart-tip", "aria-live": "polite" },
     value,
     label,
+    open,
   );
   let shown = -1;
   /** @param {number} i */
@@ -138,6 +142,11 @@ export function explore(chart, { height, pad, width }, xs, read) {
     const reading = read(shown);
     value.textContent = reading.value;
     label.textContent = reading.label;
+    open.hidden = !reading.href;
+    if (reading.href) {
+      open.href = reading.href;
+      open.textContent = `${reading.link ?? "Open"} →`;
+    }
   };
   /** @param {Event} e */
   const nearest = (e) => {

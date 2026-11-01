@@ -843,6 +843,13 @@ a {
   font: 800 18px var(--font-display);
 }
 
+/* A reading's workout, at the tip's end (#84). */
+.chart-open {
+  margin-left: 10px;
+  font: 700 12px var(--font-mono);
+  text-transform: uppercase;
+}
+
 /* Read by a screen reader, not shown (#82). */
 .visually-hidden {
   position: absolute;
@@ -920,11 +927,13 @@ a {
 }
 
 .hard-set {
+  color: inherit;
+  text-decoration: none;
   display: grid;
   grid-template-columns: 126px minmax(0, 1fr) 36px 60px;
   align-items: center;
   gap: 8px;
-  min-height: 24px;
+  min-height: 32px;
 }
 
 .hard-set-name {
