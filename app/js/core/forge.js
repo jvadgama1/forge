@@ -1,4 +1,4 @@
-/** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 
@@ -387,6 +387,11 @@ export function createForge({ store, library, now = () => new Date() }) {
             exerciseId: slot.exerciseId,
             sets: [],
           }));
+          // The day's planned pairs (#17), each with an id of its own.
+          const supersets = plannedPairs(routineDay.slots).map(
+            (exerciseIds) => ({ id: crypto.randomUUID(), exerciseIds }),
+          );
+          if (supersets.length) workout.supersets = supersets;
         }
         await store.put("workouts", workout);
         // Its gym is now the one last trained at (story 8).
@@ -691,12 +696,157 @@ export function createForge({ store, library, now = () => new Date() }) {
     async routineChanges(workout) {
       const day = workout && (await dayNow(workout));
       if (!workout || !day) return false;
+      const live = workout.entries
+        .filter((e) => !e.skipped)
+        .map((e) => e.exerciseId);
+      // A pair made or broken counts too (#17): each exercise's partners.
+      /** @param {string[][]} groups */
+      const partners = (groups) =>
+        JSON.stringify(
+          live.map((id) =>
+            [...(groups.find((g) => g.includes(id)) ?? [])].sort().join(),
+          ),
+        );
+      const planned = plannedPairs(day.slots);
       return (
         JSON.stringify(day.slots.map((s) => s.exerciseId)) !==
-        JSON.stringify(
-          workout.entries.filter((e) => !e.skipped).map((e) => e.exerciseId),
-        )
+          JSON.stringify(live) ||
+        partners(planned) !==
+          partners((workout.supersets ?? []).map((s) => s.exerciseIds))
       );
+    },
+
+    supersetOf,
+
+    /**
+     * The exercises a set of `exerciseId` can be supersetted with (#17):
+     * the others in the workout, not skipped and not already in its
+     * superset.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     */
+    partnersFor(workout, exerciseId) {
+      const members = supersetOf(workout, exerciseId) ?? [exerciseId];
+      return workout.entries
+        .filter((e) => !e.skipped && !members.includes(e.exerciseId))
+        .map((e) => e.exerciseId);
+    },
+
+    /**
+     * Pairs a routine day's slot with the next as a planned superset, or
+     * splits them (#17), returning the slots: a group is a run of slots
+     * named by its first one's exercise, so splitting a run of three in the
+     * middle leaves the first alone and the rest a group of their own.
+     * @param {Slot[]} slots
+     * @param {number} i
+     * @param {boolean} paired
+     * @returns {Slot[]}
+     */
+    pairWithNext(slots, i, paired) {
+      const next = slots[i + 1];
+      if (!next) return slots;
+      const runs = slots.map((s) => s.superset);
+      if (paired) {
+        const group = runs[i] ?? slots[i].exerciseId;
+        const old = runs[i + 1];
+        runs[i] = group;
+        // The next slot joins, bringing any run it was in.
+        for (let j = i + 1; j < slots.length; j++) {
+          if (j > i + 1 && (old === undefined || runs[j] !== old)) break;
+          runs[j] = group;
+        }
+      } else {
+        const old = runs[i];
+        for (let j = i + 1; j < slots.length && runs[j] === old; j++)
+          runs[j] = slots[i + 1].exerciseId;
+      }
+      // Named by their first slot's exercise; a group of one is no group.
+      return slots.map((s, j) => {
+        // eslint-disable-next-line no-unused-vars -- set again just below
+        const { superset, ...slot } = s;
+        const group = runs[j];
+        const members = slots.filter((_, k) => runs[k] === group);
+        return group !== undefined && members.length > 1
+          ? { ...slot, superset: groupName(members.map((m) => m.exerciseId)) }
+          : slot;
+      });
+    },
+
+    /**
+     * The exercise whose set an undo on `exerciseId`'s screen takes back
+     * (#17): in a superset, the members' most recent set, so undoing just
+     * after moving to the partner takes back the set just logged.
+     * @param {Workout} workout
+     * @param {string} exerciseId
+     */
+    undoTarget(workout, exerciseId) {
+      let latest = { exerciseId, at: "" };
+      for (const id of supersetOf(workout, exerciseId) ?? [exerciseId]) {
+        const at =
+          workout.entries.find((e) => e.exerciseId === id)?.sets.at(-1)
+            ?.loggedAt ?? "";
+        if (at > latest.at) latest = { exerciseId: id, at };
+      }
+      return latest.exerciseId;
+    },
+
+    /**
+     * Pairs an exercise with another in the workout (#17; spec #3, story
+     * 62): the other joins the first's superset, or a new one, leaving any
+     * superset it was in, so a third joining a pair makes a superset of
+     * three (story 70). Changes only sets logged afterwards, and only this
+     * workout.
+     * @param {string} workoutId
+     * @param {string} exerciseId
+     * @param {string} partnerId
+     */
+    pairExercises(workoutId, exerciseId, partnerId) {
+      return changeWorkout(workoutId, (w) => {
+        inPlay(w, exerciseId);
+        inPlay(w, partnerId);
+        const others = withoutMember(w.supersets ?? [], partnerId);
+        const mine = others.find((s) => s.exerciseIds.includes(exerciseId));
+        /** @type {Superset[]} */
+        const supersets = mine
+          ? others.map((s) =>
+              s === mine
+                ? { ...s, exerciseIds: [...s.exerciseIds, partnerId] }
+                : s,
+            )
+          : [
+              ...others,
+              { id: crypto.randomUUID(), exerciseIds: [exerciseId, partnerId] },
+            ];
+        return { ...w, supersets };
+      });
+    },
+
+    /**
+     * Takes an exercise out of its superset (#17); a pair left with one
+     * member ends. Sets already logged keep their membership.
+     * @param {string} workoutId
+     * @param {string} exerciseId
+     */
+    unpairExercise(workoutId, exerciseId) {
+      return changeWorkout(workoutId, (w) => ({
+        ...w,
+        supersets: withoutMember(w.supersets ?? [], exerciseId),
+      }));
+    },
+
+    /**
+     * The exercise to log next after a set of `exerciseId` (#17; spec #3,
+     * Rules: next set to log): within a superset, the next member that
+     * still has target sets left and hasn't done this round, in member
+     * order; after the round's last set, the first member with sets left.
+     * A member with none left drops out; alone, or outside a superset, it's
+     * the same exercise.
+     * @param {Workout} workout as logged
+     * @param {string} exerciseId
+     * @returns {Promise<string>}
+     */
+    async nextExercise(workout, exerciseId) {
+      return (await roundAfter(workout, exerciseId)).next;
     },
 
     /**
@@ -774,9 +924,15 @@ export function createForge({ store, library, now = () => new Date() }) {
       );
       return changeWorkout(workoutId, (w) => {
         inPlay(w, exerciseId);
+        // Its superset and round, from how it was logged (#17): the round
+        // under way, or the next once this exercise has done it. A warm-up
+        // or drop set is outside the rotation.
+        const group = groupOf(w, exerciseId);
+        const membership = group &&
+          working(logged) && { superset: nextRound(w, group, exerciseId) };
         return changeEntry(w, exerciseId, (e) => ({
           ...e,
-          sets: [...e.sets, logged],
+          sets: [...e.sets, { ...logged, ...membership }],
         }));
       });
     },
@@ -831,15 +987,25 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * Seconds to rest after a set of the exercise: its rest default (spec
-     * #3, story 38; #21), or none when that's Off (#52). Rest within
-     * supersets arrives with #17.
+     * Seconds to rest after a set of the exercise (spec #3, story 38; Rules:
+     * rest after a set): its rest default (#21), or none when that's Off
+     * (#52). In a superset (#17), none within a round, and after the
+     * round's last set the longest rest default of the members that did the
+     * round, an Off one counting as 0 s.
      * @param {string} exerciseId
+     * @param {Workout} [workout] as logged, for a superset
      * @returns {Promise<number | undefined>}
      */
-    async restAfterSet(exerciseId) {
-      const { rest } = await exerciseSettings(exerciseId);
-      return rest === "off" ? undefined : rest;
+    async restAfterSet(exerciseId, workout) {
+      const round = workout && (await roundAfter(workout, exerciseId));
+      if (round && !round.complete) return undefined;
+      const rests = await Promise.all(
+        (round?.members ?? [exerciseId]).map(
+          async (id) => (await exerciseSettings(id)).rest,
+        ),
+      );
+      const longest = Math.max(...rests.map((r) => (r === "off" ? 0 : r)));
+      return longest > 0 ? longest : undefined;
     },
 
     lastWorkout,
@@ -847,20 +1013,30 @@ export function createForge({ store, library, now = () => new Date() }) {
     /**
      * The last workout as the logging screen's line shows it (spec #3,
      * story 25): its date, its working sets (what to beat) and the last
-     * one's RIR. No sets means it had only warm-ups or drop sets.
+     * one's RIR. No sets means it had only warm-ups or drop sets. Any
+     * exercises it was supersetted with are its `partners` (#17).
      * @param {string} exerciseId
      * @param {string} [excluding] the workout in progress
-     * @returns {Promise<{ date: string, sets: Measure[], rir?: number } | undefined>}
+     * @returns {Promise<{ date: string, sets: Measure[], rir?: number, partners?: string[] } | undefined>}
      */
     async lastWorkoutLine(exerciseId, excluding) {
       const last = await lastWorkout(exerciseId, excluding);
       if (!last) return undefined;
       const done = last.sets.filter(working);
       const rir = done.at(-1)?.rir;
+      const ids = new Set(last.sets.map((s) => s.superset?.id));
+      const partners = last.workout.entries
+        .filter(
+          (e) =>
+            e.exerciseId !== exerciseId &&
+            e.sets.some((s) => s.superset && ids.has(s.superset.id)),
+        )
+        .map((e) => e.exerciseId);
       return {
         date: last.workout.date,
         sets: done.map(measureOf),
         ...(rir === undefined ? {} : { rir }),
+        ...(partners.length ? { partners } : {}),
       };
     },
 
@@ -1055,9 +1231,11 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @param {string} exerciseId
      */
     skipExercise(workoutId, exerciseId) {
-      return changeWorkout(workoutId, (w) =>
-        changeEntry(w, exerciseId, (e) => ({ ...e, skipped: true })),
-      );
+      return changeWorkout(workoutId, (w) => ({
+        ...changeEntry(w, exerciseId, (e) => ({ ...e, skipped: true })),
+        // A skipped exercise leaves its superset (#17).
+        supersets: withoutMember(w.supersets ?? [], exerciseId),
+      }));
     },
 
     /**
@@ -1071,6 +1249,151 @@ export function createForge({ store, library, now = () => new Date() }) {
       return gyms.find((g) => g.id === lastGymId) ?? gyms[0];
     },
   };
+
+  /**
+   * The members of the exercise's superset in the workout, in member order;
+   * none when it isn't in one (#17).
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   * @returns {string[] | undefined}
+   */
+  function supersetOf(workout, exerciseId) {
+    return groupOf(workout, exerciseId)?.exerciseIds;
+  }
+
+  /**
+   * The exercise's superset in the workout, if any (#17).
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  function groupOf(workout, exerciseId) {
+    return (workout.supersets ?? []).find((s) =>
+      s.exerciseIds.includes(exerciseId),
+    );
+  }
+
+  /**
+   * The round a set of `exerciseId` joins (#17): the superset's latest
+   * round, or the one after once this exercise has done it. One joining a
+   * pair mid-workout joins the round under way.
+   * @param {Workout} workout
+   * @param {Superset} group
+   * @param {string} exerciseId
+   * @returns {SupersetRound}
+   */
+  function nextRound(workout, group, exerciseId) {
+    const rounds = workout.entries.flatMap((e) =>
+      e.sets
+        .filter((s) => s.superset?.id === group.id)
+        .map((s) => ({
+          exerciseId: e.exerciseId,
+          round: s.superset?.round ?? 0,
+        })),
+    );
+    const latest = Math.max(0, ...rounds.map((r) => r.round));
+    const done = rounds.some(
+      (r) => r.exerciseId === exerciseId && r.round === latest,
+    );
+    return { id: group.id, round: latest === 0 || done ? latest + 1 : latest };
+  }
+
+  /**
+   * A planned group's name in a routine (#17): its first exercise, so the
+   * same pairs saved again compare equal and add no version.
+   * @param {string[]} members exercise ids, in order
+   */
+  function groupName(members) {
+    return members[0];
+  }
+
+  /**
+   * A routine day's planned superset groups, as exercise ids in slot order
+   * (#17); a group needs two slots.
+   * @param {Slot[]} slots
+   * @returns {string[][]}
+   */
+  function plannedPairs(slots) {
+    /** @type {Map<string, string[]>} */
+    const groups = new Map();
+    for (const { superset, exerciseId } of slots)
+      if (superset !== undefined)
+        groups.set(superset, [...(groups.get(superset) ?? []), exerciseId]);
+    return [...groups.values()].filter((ids) => ids.length > 1);
+  }
+
+  /**
+   * Supersets without an exercise, dropping any left with one member (#17).
+   * @param {Superset[]} supersets
+   * @param {string} exerciseId
+   */
+  function withoutMember(supersets, exerciseId) {
+    return supersets
+      .map((s) => ({
+        ...s,
+        exerciseIds: s.exerciseIds.filter((id) => id !== exerciseId),
+      }))
+      .filter((s) => s.exerciseIds.length > 1);
+  }
+
+  /**
+   * Where a superset's round stands after a set of `exerciseId` (#17; spec
+   * #3, Rules): whether the round is complete, the members that did it, and
+   * the exercise to log next. A member with target sets left is still in
+   * the rotation; one without targets (freestyle) always is. Outside a
+   * superset the round is that one set.
+   * @param {Workout} workout as logged
+   * @param {string} exerciseId
+   */
+  async function roundAfter(workout, exerciseId) {
+    const entry = workout.entries.find((e) => e.exerciseId === exerciseId);
+    const membership = entry?.sets.at(-1)?.superset;
+    const group = (workout.supersets ?? []).find(
+      (s) => s.id === membership?.id,
+    );
+    if (!membership || !group)
+      return { complete: true, members: [exerciseId], next: exerciseId };
+    const { round } = membership;
+    /** @param {string} id */
+    const setsOf = (id) =>
+      workout.entries.find((e) => e.exerciseId === id)?.sets ?? [];
+    // Targets count working sets, as progression does (#15).
+    /** @param {string} id */
+    const workingSets = (id) => setsOf(id).filter(working).length;
+    /** @param {string} id */
+    const didRound = (id) =>
+      setsOf(id).some(
+        (s) => s.superset?.id === group.id && s.superset.round === round,
+      );
+    const order = group.exerciseIds;
+    // Target sets from the routine day it follows; none in freestyle.
+    const targets = new Map(
+      await Promise.all(
+        order.map(
+          async (id) =>
+            /** @type {const} */ ([
+              id,
+              (await followedSlot(workout, id))?.sets,
+            ]),
+        ),
+      ),
+    );
+    /** @param {string} id */
+    const inRotation = (id) => {
+      const target = targets.get(id);
+      return target === undefined || workingSets(id) < target;
+    };
+    const after = [
+      ...order.slice(order.indexOf(exerciseId) + 1),
+      ...order.slice(0, order.indexOf(exerciseId)),
+    ];
+    const pending = after.find((id) => inRotation(id) && !didRound(id));
+    if (pending) return { complete: false, members: [], next: pending };
+    return {
+      complete: true,
+      members: order.filter(didRound),
+      next: order.find(inRotation) ?? exerciseId,
+    };
+  }
 
   /**
    * The exercise's last workout (spec #3, Rules): the most recent finished
@@ -1541,32 +1864,45 @@ export function createForge({ store, library, now = () => new Date() }) {
       return {
         id: day.id ?? crypto.randomUUID(),
         name,
-        slots: day.slots.map(({ exerciseId, sets, repMin, repMax, rir }) => {
-          const exercise = names.get(exerciseId);
-          if (!exercise) throw new Error(`${name}: unknown exercise`);
-          if (seen.has(exerciseId))
-            throw new Error(`${name}: ${exercise} appears twice`);
-          seen.add(exerciseId);
-          /** @param {string} problem */
-          const refuse = (problem) =>
-            new Error(`${name}, ${exercise}: ${problem}`);
-          if (!(Number.isInteger(sets) && sets >= 1 && sets <= 20))
-            throw refuse("target sets are 1 to 20");
-          if (!(
-            Number.isInteger(repMin) &&
-            Number.isInteger(repMax) &&
-            repMin >= 1 &&
-            repMin <= repMax &&
-            repMax <= 100
-          ))
-            throw refuse("the rep range runs from low to high, 1 to 100");
-          if (
-            rir !== undefined &&
-            !(Number.isInteger(rir) && rir >= 0 && rir <= 4)
-          )
-            throw refuse("target RIR is 0 to 4");
-          return { exerciseId, sets, repMin, repMax, ...withRir(rir) };
-        }),
+        slots: day.slots.map(
+          ({ exerciseId, sets, repMin, repMax, rir, superset }) => {
+            const exercise = names.get(exerciseId);
+            if (!exercise) throw new Error(`${name}: unknown exercise`);
+            if (seen.has(exerciseId))
+              throw new Error(`${name}: ${exercise} appears twice`);
+            seen.add(exerciseId);
+            /** @param {string} problem */
+            const refuse = (problem) =>
+              new Error(`${name}, ${exercise}: ${problem}`);
+            if (!(Number.isInteger(sets) && sets >= 1 && sets <= 20))
+              throw refuse("target sets are 1 to 20");
+            if (!(
+              Number.isInteger(repMin) &&
+              Number.isInteger(repMax) &&
+              repMin >= 1 &&
+              repMin <= repMax &&
+              repMax <= 100
+            ))
+              throw refuse("the rep range runs from low to high, 1 to 100");
+            if (
+              rir !== undefined &&
+              !(Number.isInteger(rir) && rir >= 0 && rir <= 4)
+            )
+              throw refuse("target RIR is 0 to 4");
+            // A planned pair needs two slots of the day (#17).
+            const paired =
+              superset !== undefined &&
+              day.slots.filter((s) => s.superset === superset).length > 1;
+            return {
+              exerciseId,
+              sets,
+              repMin,
+              repMax,
+              ...withRir(rir),
+              ...(paired ? { superset } : {}),
+            };
+          },
+        ),
       };
     });
   }
@@ -1614,11 +1950,17 @@ export function createForge({ store, library, now = () => new Date() }) {
     if (!version) return;
     const slots = workout.entries
       .filter((e) => !e.skipped)
-      .map(
-        (e) =>
+      .map((e) => {
+        // eslint-disable-next-line no-unused-vars -- replaced just below
+        const { superset: planned, ...slot } =
           day.slots.find((s) => s.exerciseId === e.exerciseId) ??
-          newSlot(e.exerciseId, e.sets.filter(working).length || undefined),
-      );
+          newSlot(e.exerciseId, e.sets.filter(working).length || undefined);
+        // The pairs as they stand now become the day's planned pairs (#17),
+        // each named by its first exercise, so saving the same pairs again
+        // adds no version.
+        const members = supersetOf(workout, e.exerciseId);
+        return members ? { ...slot, superset: groupName(members) } : slot;
+      });
     await saveVersion(
       routine,
       version.days.map((d) => (d.id === day.id ? { ...d, slots } : d)),

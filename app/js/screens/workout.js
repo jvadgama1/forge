@@ -196,18 +196,27 @@ export function setChoices(type, set = {}) {
  * The exercise's last workout on one line (spec #3, story 25), in DESIGN.md's
  * order (date, each working set, RIR) and the Slab prototype's coral-edged
  * card. Tapping it opens the full history (#13).
+ * Supersetted then, it names the partners (#17).
  * @param {string} exerciseId
  * @param {ExerciseType} type
  * @param {NonNullable<Awaited<ReturnType<Forge["lastWorkoutLine"]>>>} last
+ * @param {string[]} partners their names
  */
-function lastWorkoutLine(exerciseId, type, { date, sets, rir }) {
+function lastWorkoutLine(exerciseId, type, { date, sets, rir }, partners) {
   return h(
     "a",
     {
       class: "last-workout",
       href: `#/log/history/${encodeURIComponent(exerciseId)}`,
     },
-    h("span", { class: "label last-head" }, `Last · ${monthDay(date)}`),
+    h(
+      "span",
+      { class: "label last-head" },
+      [
+        `Last · ${monthDay(date)}`,
+        ...(partners.length ? [`superset w/ ${partners.join(", ")}`] : []),
+      ].join(" · "),
+    ),
     h(
       "span",
       { class: "last-sets" },
@@ -261,31 +270,132 @@ const recordName = (record, set, type) =>
   })[record];
 
 /**
- * A small celebration for a set that beat a record (spec #3, story 40):
- * a star and the record's name, so it isn't colour alone.
- * @param {RecordKind[]} records
- * @param {WorkoutSet} set the set that beat them
- * @param {ExerciseType} type
+ * Looks up exercises' names, falling back to the id of one since deleted.
+ * @param {Forge} forge
  */
-function celebration(records, set, type) {
+const exerciseNamer = (forge) => async (/** @type {string} */ id) =>
+  (await forge.getExercise(id))?.name ?? id;
+
+/**
+ * A set just logged, for the screen that follows it: the records it beat
+ * (#13), and the exercise to log next (#17).
+ * @typedef {{ exerciseId: string, set: WorkoutSet, records: RecordKind[], next: string }} Logged
+ */
+
+/**
+ * A small celebration for a set that beat a record (spec #3, story 40):
+ * a star and the record's name, so it isn't colour alone. When the screen
+ * has moved on to a superset partner (#17), it names the exercise.
+ * @param {Forge} forge
+ * @param {Logged} logged
+ * @param {string} onScreen the exercise now shown
+ */
+async function celebration(forge, { exerciseId, set, records }, onScreen) {
+  const type = await forge.exerciseType(exerciseId);
+  const names = records.map((r) => recordName(r, set, type)).join(", ");
+  const which =
+    exerciseId === onScreen
+      ? ""
+      : ` on ${await exerciseNamer(forge)(exerciseId)}`;
   return h(
     "p",
     { class: "record", role: "status" },
     h("span", { "aria-hidden": "true" }, "★ "),
-    `New record: ${records.map((r) => recordName(r, set, type)).join(", ")}`,
+    `New record${which}: ${names}`,
   );
 }
 
 /**
+ * The superset line (#17): the partners and Unpair at the top when paired;
+ * and at the foot, by the links to other exercises (pairing is once per
+ * exercise, so the top stays short: #63), `Superset with…`, or `Add to
+ * superset…` once paired, which opens a chip per exercise it can take:
+ * two taps to pair.
+ * @param {Forge} forge
+ * @param {Workout} workout
+ * @param {string} exerciseId
+ * @param {() => void} changed
+ */
+async function supersetLine(forge, workout, exerciseId, changed) {
+  const nameOf = exerciseNamer(forge);
+  const members = forge.supersetOf(workout, exerciseId);
+  const top = members
+    ? h(
+        "div",
+        { class: "superset" },
+        h(
+          "span",
+          { class: "label" },
+          `Superset with ${(
+            await Promise.all(
+              members.filter((id) => id !== exerciseId).map(nameOf),
+            )
+          ).join(", ")}`,
+        ),
+        h(
+          "button",
+          {
+            class: "chip",
+            type: "button",
+            onclick: async () => {
+              await forge.unpairExercise(workout.id, exerciseId);
+              changed();
+            },
+          },
+          "Unpair",
+        ),
+      )
+    : null;
+  const candidates = forge.partnersFor(workout, exerciseId);
+  if (!candidates.length) return { top, foot: null };
+  const choices = h(
+    "div",
+    { class: "chips", role: "group", "aria-label": "Superset with" },
+    ...(await Promise.all(
+      candidates.map(async (id) =>
+        h(
+          "button",
+          {
+            class: "chip",
+            type: "button",
+            onclick: async () => {
+              await forge.pairExercises(workout.id, exerciseId, id);
+              changed();
+            },
+          },
+          await nameOf(id),
+        ),
+      ),
+    )),
+  );
+  choices.hidden = true;
+  const open = h(
+    "button",
+    {
+      class: "chip",
+      type: "button",
+      "aria-expanded": "false",
+      onclick: () => {
+        choices.hidden = !choices.hidden;
+        open.setAttribute("aria-expanded", String(!choices.hidden));
+      },
+    },
+    members ? "Add to superset…" : "Superset with…",
+  );
+  return { top, foot: h("div", { class: "superset" }, open, choices) };
+}
+
+/**
  * The logging screen for one exercise of the workout in progress.
- * @param {{ forge: Forge, workout: Workout, exerciseId: string, gymName: string, records?: RecordKind[], onLogged: (records?: RecordKind[]) => void }} screen
+ * @param {{ forge: Forge, workout: Workout, exerciseId: string, gymName: string, logged?: Logged, onLogged: (logged?: Logged | { back: string }) => void }} screen
+ *   `logged` is the set just logged, if any, to celebrate.
  */
 export async function workoutScreen({
   forge,
   workout,
   exerciseId,
   gymName,
-  records = [],
+  logged: justLogged,
   onLogged,
 }) {
   const live = workout.entries.filter((e) => !e.skipped);
@@ -364,12 +474,20 @@ export async function workoutScreen({
             ...readFields(fields, inputs.map(typed)),
             ...choices.read(),
           });
-          // A rest default of Off starts no rest (#52).
-          const rest = await forge.restAfterSet(exerciseId);
-          // ...and clears any rest still running from an earlier set.
+          // A rest default of Off, or a set within a superset's round,
+          // starts no rest (#52, #17), and clears any still running.
+          const rest = await forge.restAfterSet(exerciseId, logged);
           if (rest === undefined) endRest();
           else startRest(rest);
-          onLogged(await forge.recordsSetBy(logged, exerciseId));
+          const set = /** @type {WorkoutSet} */ (
+            logged.entries.find((e) => e.exerciseId === exerciseId)?.sets.at(-1)
+          );
+          onLogged({
+            exerciseId,
+            set,
+            records: await forge.recordsSetBy(logged, exerciseId),
+            next: await forge.nextExercise(logged, exerciseId),
+          });
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
           logButton.disabled = false;
@@ -381,28 +499,38 @@ export async function workoutScreen({
   );
 
   // Undo the last set (#42): two taps, since the set is gone afterwards.
-  const last = sets.at(-1);
+  const nameOf = exerciseNamer(forge);
+  // In a superset, undo takes back the members' latest set, which may be
+  // the partner's just logged (#17), and goes back to it.
+  const undoFrom = forge.undoTarget(workout, exerciseId);
+  const undoing = workout.entries
+    .find((e) => e.exerciseId === undoFrom)
+    ?.sets.at(-1);
+  const undoType = await forge.exerciseType(undoFrom);
   let armed = false;
   const undo = h(
     "button",
     {
       class: "chip undo",
       type: "button",
-      hidden: !last,
+      hidden: !undoing,
       onclick: async () => {
-        if (!last || undo.disabled) return;
+        if (!undoing || undo.disabled) return;
         if (!armed) {
           armed = true;
-          undo.textContent = `Tap again to undo ${setText(last, type)}`;
+          // Name it when it's the partner's (#17).
+          const whose =
+            undoFrom === exerciseId ? "" : `${await nameOf(undoFrom)} `;
+          undo.textContent = `Tap again to undo ${whose}${setText(undoing, undoType)}`;
           return;
         }
         undo.disabled = true;
         status.textContent = "";
         try {
-          await forge.undoLastSet(workout.id, exerciseId);
+          await forge.undoLastSet(workout.id, undoFrom);
           // The rest was for that set: it goes with it.
           endRest();
-          onLogged();
+          onLogged(undoFrom === exerciseId ? undefined : { back: undoFrom });
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
           armed = false;
@@ -416,8 +544,9 @@ export async function workoutScreen({
 
   const before = live[index - 1];
   const after = live[index + 1];
-  /** @param {string} id */
-  const nameOf = async (id) => (await forge.getExercise(id))?.name ?? id;
+  const superset = await supersetLine(forge, workout, exerciseId, () =>
+    onLogged(),
+  );
   const nav = h(
     "div",
     { class: "workout-nav" },
@@ -438,6 +567,7 @@ export async function workoutScreen({
   );
 
   const lastWorkout = await forge.lastWorkoutLine(exerciseId, workout.id);
+  const partners = await Promise.all((lastWorkout?.partners ?? []).map(nameOf));
   const targets = await forge.targets(workout, exerciseId);
   const suggested = await forge.suggestedWeight(workout, exerciseId);
   const primary = exercise && muscleGroup(exercise.primary[0]);
@@ -471,6 +601,7 @@ export async function workoutScreen({
           targets.rir === undefined ? "" : ` · RIR ${rirLabel(targets.rir)}`,
         )
       : null,
+    superset.top,
     suggested ? suggestionLine(suggested, type) : null,
     // The pinned note, every time the exercise is logged (#21).
     settings.note
@@ -481,7 +612,9 @@ export async function workoutScreen({
           settings.note,
         )
       : null,
-    lastWorkout ? lastWorkoutLine(exerciseId, type, lastWorkout) : null,
+    lastWorkout
+      ? lastWorkoutLine(exerciseId, type, lastWorkout, partners)
+      : null,
     h(
       "ol",
       { class: "sets", "aria-label": "Sets logged" },
@@ -493,7 +626,9 @@ export async function workoutScreen({
         h("span", { class: "set-what" }, "Now"),
       ),
     ),
-    records.length && last ? celebration(records, last, type) : null,
+    justLogged?.records.length
+      ? await celebration(forge, justLogged, exerciseId)
+      : null,
     undo,
     restBar(),
     h(
@@ -513,5 +648,6 @@ export async function workoutScreen({
     logButton,
     status,
     nav,
+    superset.foot,
   );
 }

@@ -641,7 +641,12 @@ a {
 /* Undo the last set (#42): small, out of the thumb's way, right-aligned. */
 .undo {
   display: block;
+  max-width: 100%;
   margin: 6px 0 4px auto;
+  /* "Tap again to undo" can name a superset partner (#17): wrap, never
+     push the screen sideways. */
+  padding-block: 6px;
+  text-align: right;
 }
 
 .undo[hidden] {
@@ -1156,4 +1161,33 @@ a.pick {
     box-shadow: inset 3px 0 0 var(--accent);
     padding-left: 12px;
   }
+}
+
+/* The superset line on the logging screen (#17): who it's paired with and
+   Unpair, or the chips to pair with. */
+.superset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+
+.superset .label {
+  color: var(--text);
+}
+
+.superset .chips {
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  padding-top: 0;
+}
+
+.superset .chips[hidden] {
+  display: none;
+}
+
+/* A routine slot's planned pair with the next one (#17). */
+.pair-next {
+  margin-top: 8px;
 }
