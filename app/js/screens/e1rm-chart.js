@@ -24,8 +24,21 @@ const FRAME = {
  * @param {Trend} trend
  * @returns {Node[]}
  */
-export function e1rmChart({ unit, points }) {
-  if (points.length === 0) return [];
+export function e1rmChart(trend) {
+  if (trend.points.length === 0) return [];
+  return [
+    h("h2", { class: "label section" }, `e1RM · ${trend.unit}`),
+    ...e1rmTrendChart(trend),
+  ];
+}
+
+/**
+ * The chart and the line that reads out the chosen workout, without a
+ * heading: the Stats board heads it with its hero number (#82).
+ * @param {Pick<Trend, "unit" | "points">} trend at least one point
+ * @returns {Node[]}
+ */
+export function e1rmTrendChart({ unit, points }) {
   const { width, height, pad } = FRAME;
   const values = points.map((p) => p.value);
   const { low, high } = niceRange(values);
@@ -95,5 +108,5 @@ export function e1rmChart({ unit, points }) {
     label: ` e1RM · ${monthDay(points[i].date)}`,
   }));
 
-  return [h("h2", { class: "label section" }, `e1RM · ${unit}`), chart, tip];
+  return [chart, tip];
 }

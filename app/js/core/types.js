@@ -207,6 +207,10 @@
  *   is found without listing every workout (spec #3, story 43).
  * @property {string} [autoFinished] A workout finished automatically, not yet
  *   mentioned on the Log tab (#45).
+ * @property {import("./dashboard.js").RangeId} [dashboardRange] The Stats
+ *   board's range last chosen (spec #80, story 4).
+ * @property {string} [dashboardExerciseId] The exercise last chosen for the
+ *   board's e1RM trend (spec #80, story 13).
  */
 
 /**

@@ -1,6 +1,8 @@
+/** @import { RangeId } from "./dashboard.js" */
 /** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
+import { DEFAULT_RANGE, e1rmHeadline, rangeFor } from "./dashboard.js";
 
 /** @typedef {ReturnType<typeof createForge>} Forge */
 
@@ -1143,36 +1145,8 @@ export function createForge({ store, library, now = () => new Date() }) {
      * history chart and list: compared in kg and given in the unit of the
      * latest one, so a unit change doesn't put lb and kg on one axis.
      * @param {string} exerciseId
-     * @returns {Promise<{ unit: Load["unit"], points: { workoutId: string, date: string, value: number }[] }>}
      */
-    async e1rmTrend(exerciseId) {
-      const type = await typeOf(exerciseId);
-      if (!TYPE_RULES[type].e1rm) return { unit: "lb", points: [] };
-      const entries = await history(exerciseId);
-      const each = await counted(entries, type);
-      const best = entries
-        .map(({ workout }, i) => {
-          const top = recordsOf(each[i], type).bestE1rm;
-          return (
-            top && {
-              workout,
-              kg: inKg({ ...top.set, load: top.value }),
-              unit: top.set.unit,
-            }
-          );
-        })
-        .filter((b) => b !== undefined)
-        .reverse();
-      const unit = best.at(-1)?.unit ?? "lb";
-      return {
-        unit,
-        points: best.map((b) => ({
-          workoutId: b.workout.id,
-          date: b.workout.date,
-          value: fromKg(b.kg, unit),
-        })),
-      };
-    },
+    e1rmTrend: (exerciseId) => e1rmTrendOf(exerciseId),
 
     /**
      * The records the exercise's latest set in `workout` beats (spec #3,
@@ -1450,6 +1424,49 @@ export function createForge({ store, library, now = () => new Date() }) {
       const gyms = await listGyms();
       const { lastGymId } = await settings();
       return gyms.find((g) => g.id === lastGymId) ?? gyms[0];
+    },
+
+    /**
+     * Remembers the Stats board's range or e1RM exercise (spec #80, stories
+     * 4 and 13), in the settings, so the phone and the computer agree.
+     * @param {{ range?: RangeId, exerciseId?: string }} choice
+     */
+    chooseDashboard({ range, exerciseId }) {
+      return inTurn(async () => {
+        await store.put("settings", {
+          ...(await settings()),
+          ...(range && { dashboardRange: range }),
+          ...(exerciseId && { dashboardExerciseId: exerciseId }),
+        });
+      });
+    },
+
+    /**
+     * Everything the Stats board draws (spec #80), for the range last
+     * chosen.
+     */
+    async dashboard() {
+      const { dashboardRange = DEFAULT_RANGE, dashboardExerciseId } =
+        await settings();
+      const range = rangeFor(dashboardRange, localDate(now()));
+      // Finished workouts in the range, on their own date (spec #80, Rules:
+      // Counted workouts).
+      /** @param {Workout} w */
+      const counts = (w) =>
+        w.finishedAt !== undefined &&
+        w.date >= range.from &&
+        w.date <= range.to;
+      const choices = await e1rmChoices();
+      // The one chosen while it still has an e1RM, else the most recent.
+      const exerciseId =
+        choices.find((id) => id === dashboardExerciseId) ?? choices[0];
+      return {
+        range,
+        e1rm:
+          exerciseId === undefined
+            ? undefined
+            : await e1rmCard(exerciseId, counts, choices),
+      };
     },
   };
 
@@ -2269,6 +2286,86 @@ export function createForge({ store, library, now = () => new Date() }) {
       }))
       .filter((h) => h.sets.length > 0)
       .sort((a, b) => byWorkoutDate(a.workout, b.workout));
+  }
+
+  /**
+   * Each kept workout's best e1RM for the exercise, oldest first (spec #3,
+   * story 51; spec #80): compared in kg and given in the unit of the latest
+   * one, so a unit change doesn't put lb and kg on one axis.
+   * @param {string} exerciseId
+   * @param {(workout: Workout) => boolean} [keep] which workouts count
+   * @returns {Promise<{ unit: Load["unit"], points: { workoutId: string, date: string, value: number }[] }>}
+   */
+  async function e1rmTrendOf(exerciseId, keep = () => true) {
+    const type = await typeOf(exerciseId);
+    if (!TYPE_RULES[type].e1rm) return { unit: "lb", points: [] };
+    const entries = (await history(exerciseId)).filter((h) => keep(h.workout));
+    const each = await counted(entries, type);
+    const best = entries
+      .map(({ workout }, i) => {
+        const top = recordsOf(each[i], type).bestE1rm;
+        return (
+          top && {
+            workout,
+            kg: inKg({ ...top.set, load: top.value }),
+            unit: top.set.unit,
+          }
+        );
+      })
+      .filter((b) => b !== undefined)
+      .reverse();
+    const unit = best.at(-1)?.unit ?? "lb";
+    return {
+      unit,
+      points: best.map((b) => ({
+        workoutId: b.workout.id,
+        date: b.workout.date,
+        value: fromKg(b.kg, unit),
+      })),
+    };
+  }
+
+  /**
+   * The board's e1RM card for an exercise (spec #80): its trend over the
+   * counted workouts and the headline above it.
+   * @param {string} exerciseId
+   * @param {(workout: Workout) => boolean} counts
+   * @param {string[]} choices the exercises it offers
+   */
+  async function e1rmCard(exerciseId, counts, choices) {
+    const trend = await e1rmTrendOf(exerciseId, counts);
+    const named = await Promise.all(
+      choices.map(async (id) => ({
+        id,
+        name: (await findExercise(id))?.name ?? id,
+      })),
+    );
+    return {
+      exerciseId,
+      ...trend,
+      ...e1rmHeadline(trend.points),
+      choices: named.sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
+
+  /**
+   * The exercises the board's e1RM card offers (spec #80, story 17): those
+   * with an e1RM in a finished workout, most recently done first, so the
+   * first is the default (Rules: Default exercise).
+   * @returns {Promise<string[]>}
+   */
+  async function e1rmChoices() {
+    /** @param {Workout} w */
+    const finished = (w) => w.finishedAt !== undefined;
+    const done = new Set(
+      (await listWorkouts())
+        .filter(finished)
+        .flatMap((w) => w.entries.map((e) => e.exerciseId)),
+    );
+    const choices = [];
+    for (const id of done)
+      if ((await e1rmTrendOf(id, finished)).points.length > 0) choices.push(id);
+    return choices;
   }
 
   /**

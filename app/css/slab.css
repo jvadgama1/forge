@@ -842,6 +842,48 @@ a {
   font: 800 18px var(--font-display);
 }
 
+/* The Stats board (#82), as the Slab progress board: range chips, then
+   each card's hero number beside its unit and change. */
+.range {
+  padding-top: 0;
+}
+
+.exercise-pick {
+  margin-top: 6px;
+  font-weight: 700;
+}
+
+.hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin: 22px 0 0;
+}
+
+.hero-value {
+  font: 900 112px/0.8 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.hero-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.hero-unit {
+  font: 900 28px/1 var(--font-display);
+  text-transform: uppercase;
+}
+
+.hero-change {
+  font: 800 13px var(--font-mono);
+  letter-spacing: 1px;
+  color: var(--secondary);
+}
+
 /* Routines (#14) */
 .routine-day {
   margin-top: 18px;
