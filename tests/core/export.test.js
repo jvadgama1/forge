@@ -55,6 +55,23 @@ async function setup() {
 }
 
 describe("export (#22)", () => {
+  it("writes a name that starts like a formula as text, and marks a workout in progress", async () => {
+    const store = createMemoryStore();
+    const f = createForge({
+      store,
+      library,
+      now: () => new Date(2026, 9, 25, 18, 0),
+    });
+    const gym = await f.createGym("=HYPERLINK()");
+    let w = await f.startWorkout(gym.id);
+    w = await f.addExercise(w.id, "bench-press");
+    await f.logSet(w.id, "bench-press", { load: 100, reps: 5 });
+    const row = (await f.exportSetsCsv()).slice(1).split("\r\n")[1];
+    expect(row).toBe(
+      "2026-10-25,'=HYPERLINK(),Bench Press,1,100,lb,5,,,,,,,,,,,yes",
+    );
+  });
+
   it("as JSON has every gym, custom exercise, setting, routine version, workout and body weight entry", async () => {
     const { f, band } = await setup();
     const data = await f.exportJson();
@@ -74,20 +91,25 @@ describe("export (#22)", () => {
 
   it("as CSV has one row per set, with its date, gym, exercise, measure, RIR, flags and superset", async () => {
     const { f } = await setup();
-    const rows = (await f.exportSetsCsv()).trim().split("\r\n");
+    const text = await f.exportSetsCsv();
+    // A byte-order mark, so Excel reads it as UTF-8.
+    expect(text.startsWith("\uFEFF")).toBe(true);
+    const rows = text.slice(1).trim().split("\r\n");
     expect(rows[0]).toBe(
-      "date,gym,exercise,set,load,unit,reps,seconds,distance,distance_unit,rir,warm_up,drop_set,superset,round",
+      "date,gym,exercise,set,load,unit,reps,seconds,distance,distance_unit,rir,warm_up,drop_set,superset,round,superset_with,swapped_for,in_progress",
     );
     expect(rows.slice(1)).toEqual([
-      '2026-10-25,"Work, upstairs",Bench Press,1,95,lb,10,,,,,yes,,,',
-      '2026-10-25,"Work, upstairs",Bench Press,2,135,lb,8,,,,2,,,1,1',
-      '2026-10-25,"Work, upstairs","Band ""Pull"" Apart",1,20,lb,15,,,,,,,1,1',
+      '2026-10-25,"Work, upstairs",Bench Press,1,95,lb,10,,,,,yes,,,,,,',
+      '2026-10-25,"Work, upstairs",Bench Press,2,135,lb,8,,,,2,,,1,1,"Band ""Pull"" Apart",,',
+      '2026-10-25,"Work, upstairs","Band ""Pull"" Apart",1,20,lb,15,,,,,,,1,1,Bench Press,,',
     ]);
   });
 
   it("as CSV has body weight entries, oldest first", async () => {
     const { f } = await setup();
-    expect((await f.exportBodyWeightCsv()).trim().split("\r\n")).toEqual([
+    expect(
+      (await f.exportBodyWeightCsv()).slice(1).trim().split("\r\n"),
+    ).toEqual([
       "date,weight,unit",
       "2026-10-20,181.6,lb",
       "2026-10-24,82.5,kg",

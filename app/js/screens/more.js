@@ -11,9 +11,13 @@ import { accountId, screen } from "./screen.js";
  */
 function download(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
-  const link = h("a", { href: url, download: name });
+  const link = h("a", { href: url, download: name, hidden: true });
+  // In the page, so a phone's installed app follows the click too.
+  document.body.append(link);
   link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  link.remove();
+  // Released once the save has had time to read it; at once can cut it off.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 /** @param {Pick<ScreenContext, "user" | "signOut" | "forge">} context */
