@@ -13,8 +13,9 @@ const SVG = "http://www.w3.org/2000/svg";
  */
 
 /**
- * What a chart's tip line reads out for one mark.
- * @typedef {{ value: string, label: string }} Reading
+ * What a chart's tip line reads out for one mark, and where the mark's
+ * workouts open, if it links there (#84).
+ * @typedef {{ value: string, label: string, open?: { href: string, words: string } }} Reading
  */
 
 /**
@@ -122,13 +123,18 @@ export function explore(chart, { height, pad, width }, xs, read) {
   chart.append(crosshair);
   const value = h("strong", {});
   const label = h("span", { class: "label" });
+  const open = h("a", { class: "chart-open" });
+  open.hidden = true;
   const tip = h(
     "p",
     { class: "chart-tip", "aria-live": "polite" },
     value,
     label,
+    open,
   );
   let shown = -1;
+  /** @type {string | undefined} the shown mark's link */
+  let href;
   /** @param {number} i */
   const show = (i) => {
     shown = Math.max(0, Math.min(end, i));
@@ -138,6 +144,12 @@ export function explore(chart, { height, pad, width }, xs, read) {
     const reading = read(shown);
     value.textContent = reading.value;
     label.textContent = reading.label;
+    href = reading.open?.href;
+    open.hidden = !reading.open;
+    if (reading.open) {
+      open.href = reading.open.href;
+      open.textContent = `${reading.open.words} →`;
+    }
   };
   /** @param {Event} e */
   const nearest = (e) => {
@@ -156,6 +168,13 @@ export function explore(chart, { height, pad, width }, xs, read) {
     const key = /** @type {KeyboardEvent} */ (e).key;
     if (key === "ArrowLeft") show(shown - 1);
     else if (key === "ArrowRight") show(shown + 1);
+    else if (key === "Enter" && href) location.hash = href;
+  });
+  // A mouse hovers to read, so its click opens the mark (story 51); a tap
+  // only reads, and the tip's link opens it (story 49).
+  chart.addEventListener("click", (e) => {
+    if (/** @type {PointerEvent} */ (e).pointerType === "mouse" && href)
+      location.hash = href;
   });
   return tip;
 }

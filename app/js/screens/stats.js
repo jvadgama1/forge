@@ -4,7 +4,7 @@
 import { h } from "../dom.js";
 import { e1rmChartBody } from "./e1rm-chart.js";
 import { hardSetsCardView } from "./hard-sets-card.js";
-import { screen, whole } from "./screen.js";
+import { rangeWords, screen, whole } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
 /** @import { Forge } from "../core/forge.js" */
@@ -37,10 +37,10 @@ export function statsView({ forge }) {
         show();
       }),
       h("hr", { class: "rule" }),
-      ...hardSetsCardView(
-        dashboard.hardSets,
-        rangeWords(dashboard.range.weeks),
-      ),
+      ...hardSetsCardView(dashboard.hardSets, {
+        id: dashboard.range.id,
+        words: rangeWords(dashboard.range.weeks),
+      }),
     );
   }
 }
@@ -127,12 +127,13 @@ function e1rmCard({ range, e1rm }, choose) {
         change ? changeLine(change, unit) : false,
       ),
     ),
-    ...e1rmChartBody({ unit, points }),
+    // A point opens its workout within Stats (#84; stories 51, 60).
+    ...e1rmChartBody(
+      { unit, points },
+      (point) => `#/stats/point/${encodeURIComponent(point.workoutId)}`,
+    ),
   ];
 }
-
-/** @param {number} weeks e.g. 12 → "12 weeks"; 52 → "year" */
-const rangeWords = (weeks) => (weeks === 52 ? "year" : `${weeks} weeks`);
 
 /**
  * The change as the prototype writes it, with an arrow and a sign so the

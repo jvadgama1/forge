@@ -1225,5 +1225,41 @@ export const SHOTS = [
       await heading.evaluate((el) => el.scrollIntoView());
     },
   },
+  {
+    name: "stats-tapped",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      await page.locator(".chart").focus();
+      await page.keyboard.press("ArrowLeft");
+      await page.getByRole("link", { name: /Open workout/ }).waitFor();
+    },
+  },
+  {
+    name: "stats-mark",
+    as: "owner",
+    route: "/stats/hard-sets:chest:12w",
+    seed: STATS,
+  },
+  desktop("desktop-stats-mark", "/stats/hard-sets:chest:12w", STATS),
+  desktop(
+    "desktop-stats-mark-workout",
+    "/stats/workout/hard-sets:chest:12w~w-2026-10-21",
+    STATS,
+  ),
+  {
+    name: "stats-mark-workout",
+    as: "owner",
+    route: "/stats/workout/hard-sets:chest:12w~w-2026-10-21",
+    seed: STATS,
+  },
+  {
+    name: "stats-point",
+    as: "owner",
+    route: "/stats/point/w-2026-10-21",
+    seed: STATS,
+  },
+  desktop("desktop-stats-point", "/stats/point/w-2026-10-21", STATS),
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

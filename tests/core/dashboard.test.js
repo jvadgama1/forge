@@ -459,3 +459,60 @@ describe("dashboard hard sets (spec #80; #83)", () => {
     expect(await band(...twoWeeks(21, 20))).toBe("over"); // 20.5
   });
 });
+
+describe("workouts behind a mark (spec #80; #84)", () => {
+  it("lists the workouts behind a muscle group's bar, newest first, with the hard sets each gave", async () => {
+    const { f } = await withWorkouts(
+      past("old", "2026-08-03", "bench-press", sets(5)), // before the range
+      past("oct-20", "2026-10-20", "bench-press", sets(4)), // chest 4
+      {
+        ...past("oct-22", "2026-10-22", "incline-db-press", sets(3)),
+        entries: [
+          { exerciseId: "incline-db-press", sets: sets(3) }, // chest 3
+          { exerciseId: "assisted-dip", sets: sets(1) }, // chest 0.5
+        ],
+      },
+      past("oct-27", "2026-10-27", "lat-pulldown", sets(5)), // no chest
+      inProgress(past("today", "2026-10-28", "bench-press", sets(3))),
+    );
+    const behind = await f.workoutsBehind({
+      kind: "hard-sets",
+      muscleGroup: "chest",
+      range: "12w",
+    });
+    expect(behind.workouts).toEqual([
+      {
+        workoutId: "oct-22",
+        date: "2026-10-22",
+        gymId: "gym",
+        title: "Freestyle",
+        value: 3.5,
+      },
+      {
+        workoutId: "oct-20",
+        date: "2026-10-20",
+        gymId: "gym",
+        title: "Freestyle",
+        value: 4,
+      },
+    ]);
+    expect(behind.total).toBe(7.5);
+    expect(behind.trainingWeeks).toBe(2); // Oct 19 and Oct 26 weeks
+    expect(behind.perWeek).toBe(3.8); // 7.5 / 2, as the bar shows
+    expect(muscleGroup(await f.dashboard(), "chest")?.perWeek).toBe(3.8);
+  });
+
+  it("covers the range the mark was made in", async () => {
+    const { f } = await withWorkouts(
+      past("sep", "2026-09-15", "bench-press", sets(4)),
+      past("oct", "2026-10-20", "bench-press", sets(4)),
+    );
+    const behind = await f.workoutsBehind({
+      kind: "hard-sets",
+      muscleGroup: "chest",
+      range: "4w",
+    });
+    expect(behind.range.id).toBe("4w");
+    expect(behind.workouts.map((w) => w.workoutId)).toEqual(["oct"]);
+  });
+});
