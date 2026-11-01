@@ -403,16 +403,16 @@ async function swapLine(forge, workout, exerciseId, gymName, swapped) {
   const why = swappedFor
     ? `Swapped for ${await nameOf(swappedFor)}`
     : `Not at ${gymName}`;
+  // Missing is a warning; swapped is just so, and needs no "nothing here".
+  const rest = candidates.length
+    ? " · swap for"
+    : swappedFor
+      ? ""
+      : " · nothing here to swap for";
   return h(
     "div",
-    { class: "swap" },
-    h(
-      "p",
-      { class: "label" },
-      candidates.length
-        ? `${why} · swap for`
-        : `${why} · nothing here to swap for`,
-    ),
+    { class: swappedFor ? "swap swapped" : "swap" },
+    h("p", { class: "label" }, `${why}${rest}`),
     candidates.length
       ? h(
           "div",

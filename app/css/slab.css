@@ -1205,3 +1205,7 @@ a.pick {
 .swap .chips {
   padding-top: 6px;
 }
+
+.swap.swapped .label {
+  color: var(--text);
+}
