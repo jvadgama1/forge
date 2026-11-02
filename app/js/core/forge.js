@@ -9,6 +9,8 @@ import {
   dayBehind,
   displayUnit,
   inWeek,
+  regionBehind,
+  regionSplitCard,
   tonnageBehind,
   tonnageCard,
   countsIn,
@@ -1480,6 +1482,7 @@ export function createForge({ store, library, now = () => new Date() }) {
           range,
           displayUnit(finishedOf(workouts)),
         ),
+        regionSplit: regionSplitCard(counted, exerciseOf, range),
       };
     },
 
@@ -1491,6 +1494,19 @@ export function createForge({ store, library, now = () => new Date() }) {
      */
     async workoutsBehind(mark) {
       const finished = finishedOf(await listWorkouts());
+      if (mark.kind === "region") {
+        const weekWorkouts = finished.filter((w) => inWeek(w.date, mark.week));
+        const behind = regionBehind(
+          weekWorkouts,
+          await exercisesIn(weekWorkouts),
+          mark.region,
+        );
+        return {
+          kind: mark.kind,
+          ...behind,
+          workouts: await titled(weekWorkouts, behind.workouts),
+        };
+      }
       if (mark.kind === "tonnage") {
         const weekWorkouts = finished.filter((w) => inWeek(w.date, mark.week));
         const behind = tonnageBehind(

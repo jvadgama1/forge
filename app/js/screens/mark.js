@@ -5,7 +5,12 @@
 // list. Each kind of mark is described once, in KINDS.
 import { h } from "../dom.js";
 import { isRangeId } from "../core/dashboard.js";
-import { MUSCLE_GROUPS, muscleGroup } from "../core/muscle-groups.js";
+import {
+  MUSCLE_GROUPS,
+  REGIONS,
+  muscleGroup,
+  region,
+} from "../core/muscle-groups.js";
 import {
   countOf,
   listDate,
@@ -28,6 +33,9 @@ import { pastWorkoutView } from "./past-workout.js";
  */
 const hardSets = (n) => `${setCount(n)} ${n === 1 ? "hard set" : "hard sets"}`;
 
+// A date in a route: YYYY-MM-DD.
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * How one kind of mark is written in a route, named, and introduced.
  * @template {Mark} M
@@ -41,7 +49,7 @@ const hardSets = (n) => `${setCount(n)} ${n === 1 ? "hard set" : "hard sets"}`;
  *   a row's number
  */
 
-/** @type {{ "hard-sets": Kind<Extract<Mark, { kind: "hard-sets" }>>, day: Kind<Extract<Mark, { kind: "day" }>>, tonnage: Kind<Extract<Mark, { kind: "tonnage" }>> }} */
+/** @type {{ "hard-sets": Kind<Extract<Mark, { kind: "hard-sets" }>>, day: Kind<Extract<Mark, { kind: "day" }>>, tonnage: Kind<Extract<Mark, { kind: "tonnage" }>>, region: Kind<Extract<Mark, { kind: "region" }>> }} */
 const KINDS = {
   "hard-sets": {
     id: (mark) => `${mark.muscleGroup}:${mark.range}`,
@@ -67,9 +75,7 @@ const KINDS = {
   day: {
     id: (mark) => mark.date,
     parse: ([date]) =>
-      /^\d{4}-\d{2}-\d{2}$/.test(date ?? "")
-        ? { kind: "day", date }
-        : undefined,
+      DATE.test(date ?? "") ? { kind: "day", date } : undefined,
     name: (mark) => monthDay(mark.date),
     intro: (behind, _name, rows) => [
       "Workouts that day",
@@ -79,12 +85,28 @@ const KINDS = {
     ],
     share: (value) => hardSets(value),
   },
+  region: {
+    id: (mark) => `${mark.region}:${mark.week}`,
+    parse: ([region, week]) => {
+      const known = REGIONS.find((r) => r.id === region);
+      return known && DATE.test(week ?? "")
+        ? { kind: "region", region: known.id, week }
+        : undefined;
+    },
+    name: (mark) =>
+      `${region(mark.region).label} · week of ${monthDay(mark.week)}`,
+    intro: (behind, _name, rows) => [
+      "Hard sets",
+      rows
+        ? `${countOf(rows, "workout")}, ${hardSets(behind.total)}.`
+        : "No hard sets there that week.",
+    ],
+    share: (value) => hardSets(value),
+  },
   tonnage: {
     id: (mark) => mark.week,
     parse: ([week]) =>
-      /^\d{4}-\d{2}-\d{2}$/.test(week ?? "")
-        ? { kind: "tonnage", week }
-        : undefined,
+      DATE.test(week ?? "") ? { kind: "tonnage", week } : undefined,
     name: (mark) => `Week of ${monthDay(mark.week)}`,
     intro: (behind, _name, rows) => [
       "Tonnage",

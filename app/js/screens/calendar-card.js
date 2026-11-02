@@ -100,7 +100,7 @@ export function calendarCardView({ workouts, trainingDays, days }, weeks) {
   const ring = svg("rect", {
     width: size + 2,
     height: size + 2,
-    class: "calendar-ring",
+    class: "chart-ring",
     visibility: "hidden",
   });
   chart.append(ring);
