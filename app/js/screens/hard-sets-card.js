@@ -46,7 +46,7 @@ export function hardSetsCardView({ trainingWeeks, muscleGroups }, range) {
     heading,
     h(
       "p",
-      { class: "label hard-sets-note" },
+      { class: "label card-note" },
       `Average of ${trainingWeeks} training week${trainingWeeks === 1 ? "" : "s"}`,
     ),
     // The whole card in a sentence, for a screen reader (story 55).

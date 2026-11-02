@@ -3,7 +3,15 @@
 // new colour. A week's reading names each workout's tonnage, and its bar
 // opens them.
 import { h } from "../dom.js";
-import { chartRoot, exploreAlong, grid, linear, svg } from "./chart.js";
+import {
+  chartRoot,
+  exploreAlong,
+  grid,
+  linear,
+  niceRange,
+  svg,
+} from "./chart.js";
+import { openMark } from "./mark.js";
 import { countOf, monthDay, tonnageText } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
@@ -20,24 +28,6 @@ const FRAME = {
 };
 
 /**
- * The top tick: a round number a little above the highest week.
- * @param {number} most
- */
-function topTick(most) {
-  const step = 10 ** Math.floor(Math.log10(most)) / 2;
-  return Math.ceil((most * 1.05) / step) * step;
-}
-
-/**
- * Where a week's bar opens: its one workout, or the list of them (#84).
- * @param {Week} week
- */
-const weekHref = (week) =>
-  week.workouts.length === 1
-    ? `#/stats/point/${encodeURIComponent(week.workouts[0].workoutId)}`
-    : `#/stats/tonnage:${week.start}`;
-
-/**
  * @param {Tonnage} tonnage
  * @param {string} rangeWords e.g. "12 weeks"
  * @returns {Node[]}
@@ -50,13 +40,25 @@ export function tonnageCardView({ unit, weeks }, rangeWords) {
     h("span", {}, unit),
   );
   const most = Math.max(...weeks.map((w) => w.tonnage));
+  // Workouts of only cardio, timed holds or unweighed assisted sets have
+  // no tonnage, which isn't the same as none at all (story 10).
   if (most === 0)
     return [
       heading,
-      h("p", { class: "lede" }, `No workouts in the last ${rangeWords}.`),
+      h(
+        "p",
+        { class: "lede" },
+        weeks.some((w) => w.workouts.length)
+          ? `No sets with a load in the last ${rangeWords}.`
+          : `No workouts in the last ${rangeWords}.`,
+      ),
     ];
   const { width, height, pad } = FRAME;
-  const top = topTick(most);
+  // A round top tick a little above the highest week.
+  const { high: top } = niceRange(
+    [0, most],
+    10 ** Math.floor(Math.log10(most)) / 2,
+  );
   const y = linear([0, top], [height - pad.bottom, pad.top]);
   const slot = (width - pad.left - pad.right) / weeks.length;
   const barWidth = Math.max(2, slot * 0.7);
@@ -68,10 +70,9 @@ export function tonnageCardView({ unit, weeks }, rangeWords) {
     FRAME,
     `Tonnage by week over ${rangeWords}, in ${unit}: this week ${tonnageText(latest, unit)}, highest ${tonnageText(most, unit)}.`,
   );
-  chart.append(...grid(FRAME, [0, top], y));
-  // The grid's labels, thousands marked.
-  for (const label of chart.querySelectorAll(".chart-axis"))
-    label.textContent = Number(label.textContent).toLocaleString("en-US");
+  chart.append(
+    ...grid(FRAME, [0, top], y, (tick) => tick.toLocaleString("en-US")),
+  );
   weeks.forEach((week, i) => {
     if (week.tonnage > 0)
       chart.append(
@@ -115,11 +116,10 @@ export function tonnageCardView({ unit, weeks }, rangeWords) {
         value: tonnageText(week.tonnage, unit),
         label: ` · week of ${monthDay(week.start)} · ${each || "no workouts"}`,
         ...(week.workouts.length > 0 && {
-          open: {
-            href: weekHref(week),
-            words:
-              week.workouts.length === 1 ? "Open workout" : "Open workouts",
-          },
+          open: openMark(
+            week.workouts.map((w) => w.workoutId),
+            { kind: "tonnage", week: week.start },
+          ),
         }),
       };
     },
@@ -129,7 +129,7 @@ export function tonnageCardView({ unit, weeks }, rangeWords) {
     heading,
     h(
       "p",
-      { class: "label hard-sets-note" },
+      { class: "label card-note" },
       `${countOf(weeks.filter((w) => w.tonnage > 0).length, "week")} with workouts`,
     ),
     chart,

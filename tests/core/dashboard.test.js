@@ -643,8 +643,9 @@ describe("dashboard tonnage (spec #80; #87)", () => {
         },
         { exerciseId: "pull-up", sets: [set(20, 5)] }, // (180 + 20) × 5 = 1000
         { exerciseId: "assisted-dip", sets: [set(40, 10)] }, // (180 − 40) × 10 = 1400
-        { exerciseId: "plank", sets: [{ ...set(0, 0), seconds: 60 }] }, // none
-        { exerciseId: "treadmill", sets: [{ ...set(0, 0), seconds: 600 }] }, // none
+        // A timed hold with a load, and cardio, have none.
+        { exerciseId: "plank", sets: [{ ...set(25, 10), seconds: 60 }] },
+        { exerciseId: "treadmill", sets: [{ ...set(5, 10), seconds: 600 }] },
       ],
     });
     await f.addBodyWeight({ date: "2026-10-01", load: 180, unit: "lb" });
@@ -714,5 +715,26 @@ describe("dashboard tonnage (spec #80; #87)", () => {
       ["a", 1000],
     ]);
     expect(behind.total).toBe(3000);
+  });
+
+  it("counts the body weight on the day: the latest entry on or before it, in any unit", async () => {
+    const { f } = await withWorkouts(
+      past("oct-13", "2026-10-13", "pull-up", [set(0, 10)]),
+      past("oct-20", "2026-10-20", "pull-up", [set(0, 10)]),
+    );
+    await f.addBodyWeight({ date: "2026-10-01", load: 170, unit: "lb" });
+    await f.addBodyWeight({ date: "2026-10-15", load: 80, unit: "kg" }); // ≈ 176.4 lb
+    await f.addBodyWeight({ date: "2026-10-25", load: 200, unit: "lb" }); // after both
+    const board = await f.dashboard();
+    expect(week(board, "2026-10-12")?.tonnage).toBe(1700); // 170 × 10
+    expect(week(board, "2026-10-19")?.tonnage).toBe(1764); // 80 kg ≈ 176.37 lb × 10
+  });
+
+  it("never counts an assisted set below 0", async () => {
+    const { f } = await withWorkouts(
+      past("heavy assist", "2026-10-20", "assisted-dip", [set(200, 10)]),
+    );
+    await f.addBodyWeight({ date: "2026-10-01", load: 180, unit: "lb" });
+    expect(week(await f.dashboard(), "2026-10-19")?.tonnage).toBe(0);
   });
 });

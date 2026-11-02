@@ -4,7 +4,7 @@
 
 import { TYPE_RULES } from "./exercise-types.js";
 import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
-import { fromKg, inKg } from "./units.js";
+import { fromKg, inKg, plusBody } from "./units.js";
 
 /** @import { Exercise, Load, MuscleGroup, Workout, WorkoutSet } from "./types.js" */
 
@@ -302,8 +302,7 @@ const perWeekOf = (total, trainingWeeks) =>
  * @param {string} date YYYY-MM-DD
  * @param {string} monday YYYY-MM-DD
  */
-export const inWeek = (date, monday) =>
-  date >= monday && date <= dateOf(dayNumber(monday) + 6);
+export const inWeek = (date, monday) => mondayOf(date) === monday;
 
 /**
  * The unit tonnage is given in (spec #80, Rules: Tonnage): that of the most
@@ -336,15 +335,15 @@ function tonnageKg(workout, exerciseOf, bodyWeightOn) {
   let kg = 0;
   for (const { exerciseId, sets } of workout.entries) {
     const type = exerciseOf(exerciseId)?.type;
-    if (!type || TYPE_RULES[type].measure !== "reps") continue;
+    const rules = type && TYPE_RULES[type];
+    if (!rules || rules.measure !== "reps") continue;
     for (const set of sets) {
       if (set.warmUp) continue;
-      const load =
-        type === "bodyweight-reps"
-          ? (body ? inKg(body) : 0) + inKg(set)
-          : type === "assisted"
-            ? body && Math.max(0, inKg(body) - inKg(set))
-            : inKg(set);
+      const load = rules.withBody
+        ? inKg(body ? plusBody(set, body) : set)
+        : rules.harder === "lighter"
+          ? body && Math.max(0, inKg(body) - inKg(set))
+          : inKg(set);
       if (load !== undefined) kg += load * (set.reps ?? 0);
     }
   }

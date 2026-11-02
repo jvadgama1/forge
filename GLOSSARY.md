@@ -107,6 +107,10 @@ The rule behind suggested weights: hold the load until every working set reaches
 **Increment**:
 The load step for an exercise's progression. By default it follows the exercise's body half: +5 lb upper body, +10 lb lower body (2.5 kg and 5 kg for an exercise in kg).
 
+**Tonnage**:
+Load × reps over a workout's sets that aren't warm-ups: a bodyweight set counts the body weight on the day plus the added load, an assisted set the body weight less the assist. Timed holds and cardio have none. Shown in one unit, that of the most recently logged set with a load.
+_Avoid_: Volume (hard sets are the volume a muscle group gets)
+
 **Comeback**:
 The first workout with an exercise after 14 or more days without it; its suggested weight is about 90% of the last working weight.
 _Avoid_: Deload (a deload is planned; a comeback follows a break)
