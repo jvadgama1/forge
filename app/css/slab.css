@@ -920,21 +920,25 @@ a {
 }
 
 /* The body heat map (#85): each muscle group on the ramp, a ground edge
-   between shapes; the chosen one outlined on both figures. */
-.body-part {
+   between shapes; the chosen one outlined on both figures. The shapes that
+   aren't muscle groups are hollow, so an untrained muscle group (level 0,
+   filled) still reads as one. */
+.muscle-shape {
   fill: var(--heat);
   stroke: var(--ground);
   stroke-width: 1.5;
   stroke-linejoin: round;
 }
 
-.body-part-chosen {
+.muscle-shape-chosen {
   stroke: var(--text);
   stroke-width: 2;
 }
 
 .body-neutral {
-  fill: var(--rule-strong);
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
 }
 
 /* Tonnage bars (#87): one series, in the accent. */

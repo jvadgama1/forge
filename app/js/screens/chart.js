@@ -104,6 +104,28 @@ export function grid({ width, pad }, ticks, y, label = String) {
 }
 
 /**
+ * A heat-map legend (#85, #86): its title, then each shade's swatch with
+ * its numbers, level 0 first.
+ * @param {string} title
+ * @param {string[]} labels
+ */
+export function heatLegend(title, labels) {
+  return h(
+    "p",
+    { class: "heat-legend label" },
+    h("span", {}, title),
+    ...labels.map((text, level) =>
+      h(
+        "span",
+        { class: "heat-key" },
+        h("span", { class: "heat-swatch", "data-level": String(level) }),
+        text,
+      ),
+    ),
+  );
+}
+
+/**
  * Makes a chart's marks explorable: the mark nearest a tap or the pointer
  * is chosen and read out below, arrow keys step through them, and focus
  * starts on `start`. A mouse hovers to read, so its click opens the mark

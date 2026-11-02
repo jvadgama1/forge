@@ -112,16 +112,14 @@ export const BODY_MAP_EDGES = { low: 5, ...TARGET };
  * volume is always brighter.
  * @param {number} perWeek
  */
-const bodyLevelOf = (perWeek) =>
-  perWeek === 0
-    ? 0
-    : perWeek < BODY_MAP_EDGES.low
-      ? 1
-      : perWeek < BODY_MAP_EDGES.min
-        ? 2
-        : perWeek <= BODY_MAP_EDGES.max
-          ? 3
-          : 4;
+function bodyLevelOf(perWeek) {
+  if (perWeek === 0) return 0;
+  if (perWeek < BODY_MAP_EDGES.low) return 1;
+  if (perWeek < BODY_MAP_EDGES.min) return 2;
+  // The band includes its top: 20 is in it.
+  if (perWeek <= BODY_MAP_EDGES.max) return 3;
+  return 4;
+}
 
 /**
  * Where a week's hard sets sit against the target band.

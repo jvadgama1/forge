@@ -32,6 +32,10 @@ export function statsView({ forge }) {
 
   async function show() {
     const dashboard = await forge.dashboard();
+    const range = {
+      id: dashboard.range.id,
+      words: rangeWords(dashboard.range.weeks),
+    };
     board.replaceChildren(
       rangeChips(dashboard.range.id, async (range) => {
         await forge.chooseDashboard({ range });
@@ -43,15 +47,9 @@ export function statsView({ forge }) {
         show();
       }),
       h("hr", { class: "rule" }),
-      ...hardSetsCardView(dashboard.hardSets, {
-        id: dashboard.range.id,
-        words: rangeWords(dashboard.range.weeks),
-      }),
+      ...hardSetsCardView(dashboard.hardSets, range),
       h("hr", { class: "rule" }),
-      ...bodyMapCardView(dashboard.hardSets, {
-        id: dashboard.range.id,
-        words: rangeWords(dashboard.range.weeks),
-      }),
+      ...bodyMapCardView(dashboard.hardSets, range),
       h("hr", { class: "rule" }),
       ...calendarCardView(dashboard.calendar, dashboard.range.weeks),
       h("hr", { class: "rule" }),

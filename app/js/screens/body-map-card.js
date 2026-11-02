@@ -5,8 +5,8 @@
 // with its own, so the shade is never the only signal.
 import { h } from "../dom.js";
 import { BODY_MAP_EDGES } from "../core/dashboard.js";
-import { FIGURES, placed } from "./body-figures.js";
-import { chartRoot, explore, svg } from "./chart.js";
+import { BOX, FIGURES, HEAD, NECK, placed } from "./body-figures.js";
+import { chartRoot, explore, heatLegend, svg } from "./chart.js";
 import { markId } from "./mark.js";
 import { setCount } from "./screen.js";
 
@@ -15,18 +15,20 @@ import { setCount } from "./screen.js";
 /** @import { Points } from "./body-figures.js" */
 /** @typedef {Awaited<ReturnType<Forge["dashboard"]>>["hardSets"]} HardSets */
 
+// Two figures side by side, their names beneath.
 const FRAME = {
   width: 358,
-  height: 324,
+  height: BOX.height + 14,
   pad: { top: 0, right: 0, bottom: 0, left: 0 },
 };
 
-// Each shade's hard sets a week, from the core's edges.
+// Each shade's hard sets a week, from the core's edges; a number like 9.5
+// sits in one shade only.
 const { low, min, max } = BODY_MAP_EDGES;
 const LEGEND = [
   "None",
   `Under ${low}`,
-  `${low}–${min}`,
+  `${low} to under ${min}`,
   `${min}–${max}`,
   `Over ${max}`,
 ];
@@ -91,19 +93,20 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
   /** Each drawn shape with the muscle group it stands for. @type {{ i: number, points: Points, el: SVGElement }[]} */
   const shapes = [];
   for (const figure of FIGURES) {
-    // The head and neck, then the parts that aren't muscle groups.
+    const centre = figure.offset + BOX.centre;
+    // The head and neck, then the other shapes that aren't muscle groups.
     chart.append(
       svg("circle", {
-        cx: figure.offset + 80,
-        cy: 20,
-        r: 15,
+        cx: centre,
+        cy: HEAD.cy,
+        r: HEAD.r,
         class: "body-neutral",
       }),
       svg("rect", {
-        x: figure.offset + 74,
-        y: 34,
-        width: 12,
-        height: 8,
+        x: centre - NECK.width / 2,
+        y: NECK.top,
+        width: NECK.width,
+        height: NECK.height,
         class: "body-neutral",
       }),
     );
@@ -115,14 +118,14 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
             class: "body-neutral",
           }),
         );
-    for (const part of figure.parts) {
-      const i = index.get(part.muscleGroup);
+    for (const shape of figure.shapes) {
+      const i = index.get(shape.muscleGroup);
       if (i === undefined) continue;
-      for (const mirrored of part.pair ? [false, true] : [false]) {
-        const points = placed(part.points, figure.offset, mirrored);
+      for (const mirrored of shape.pair ? [false, true] : [false]) {
+        const points = placed(shape.points, figure.offset, mirrored);
         const el = svg("polygon", {
           points: pointsAttr(points),
-          class: "body-part",
+          class: "muscle-shape",
           "data-level": muscleGroups[i].level,
         });
         chart.append(el);
@@ -133,7 +136,7 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
       svg(
         "text",
         {
-          x: figure.offset + 80,
+          x: centre,
           y: FRAME.height - 4,
           "text-anchor": "middle",
           class: "chart-axis",
@@ -162,7 +165,7 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
     // A muscle group's shapes on both figures are outlined together.
     choose: (i) => {
       for (const s of shapes)
-        s.el.classList.toggle("body-part-chosen", s.i === i);
+        s.el.classList.toggle("muscle-shape-chosen", s.i === i);
     },
     read: (i) => {
       const m = muscleGroups[i];
@@ -180,22 +183,5 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
     start: 0,
   });
 
-  return [
-    heading,
-    chart,
-    tip,
-    h(
-      "p",
-      { class: "heat-legend label" },
-      h("span", {}, "Hard sets a week"),
-      ...LEGEND.map((text, level) =>
-        h(
-          "span",
-          { class: "heat-key" },
-          h("span", { class: "heat-swatch", "data-level": String(level) }),
-          text,
-        ),
-      ),
-    ),
-  ];
+  return [heading, chart, tip, heatLegend("Hard sets a week", LEGEND)];
 }

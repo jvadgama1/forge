@@ -5,7 +5,7 @@
 // never the only signal. A break is plain empty weeks.
 import { h } from "../dom.js";
 import { CALENDAR_LEVELS } from "../core/dashboard.js";
-import { chartRoot, explore, svg } from "./chart.js";
+import { chartRoot, explore, heatLegend, svg } from "./chart.js";
 import { openMark } from "./mark.js";
 import { countOf, monthDay } from "./screen.js";
 
@@ -124,22 +124,5 @@ export function calendarCardView({ workouts, trainingDays, days }, weeks) {
     start: Math.max(0, days.filter((d) => !d.future).length - 1),
   });
 
-  return [
-    heading,
-    chart,
-    tip,
-    h(
-      "p",
-      { class: "heat-legend label" },
-      h("span", {}, "Hard sets a day"),
-      ...LEGEND.map((text, level) =>
-        h(
-          "span",
-          { class: "heat-key" },
-          h("span", { class: "heat-swatch", "data-level": String(level) }),
-          text,
-        ),
-      ),
-    ),
-  ];
+  return [heading, chart, tip, heatLegend("Hard sets a day", LEGEND)];
 }

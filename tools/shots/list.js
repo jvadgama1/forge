@@ -1357,5 +1357,12 @@ export const SHOTS = [
       await page.getByText("hard sets a week · Chest").waitFor();
     },
   },
+  {
+    ...desktop("desktop-stats-body-map", "/stats", STATS),
+    steps: async (page) => {
+      const map = page.getByRole("img", { name: /^Body heat map/ });
+      await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    },
+  },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

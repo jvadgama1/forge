@@ -1,33 +1,42 @@
 // The body heat map's figures (#85; spec #80, Look): simple front and back
 // outlines drawn for Forge, blocky in the Slab manner, one shape per muscle
-// group per view (both sides of a paired one), with neutral parts (head,
-// hands, pelvis, knees, feet) so the shapes read as a body. Kept apart from
-// the card so the drawing can be reviewed and redrawn on its own.
+// group per view (both sides of a paired one), with outlined neutral shapes
+// (head, neck, hands, pelvis, knees, feet) so they read as a body. The
+// whole drawing lives here, apart from the card, so it can be reviewed and
+// redrawn on its own.
 //
-// Each figure is drawn in its own 160 × 310 box, centre line x = 80, from
-// its left half: a part marked `pair` is mirrored onto the right half.
+// Each figure is drawn in its own BOX, from its left half: a shape marked
+// `pair` is mirrored across the centre line onto the right half.
 
 /** @import { MuscleGroup } from "../core/types.js" */
 
 /** @typedef {[number, number][]} Points */
 
 /**
- * @typedef {object} Part
+ * One muscle group's shape on a figure.
+ * @typedef {object} MuscleShape
  * @property {MuscleGroup} muscleGroup
- * @property {Points} points the left half's, or the whole of a centre part
+ * @property {Points} points the left half's, or the whole of a centre one
  * @property {boolean} pair whether it's mirrored onto the right
  */
 
 /**
  * @typedef {object} Figure
  * @property {string} name
- * @property {number} offset where its box starts across the card's 358
- * @property {Part[]} parts drawn in order; later ones sit on top
- * @property {Points[]} neutral the left halves of parts that aren't muscle
+ * @property {number} offset where its box starts across the card
+ * @property {MuscleShape[]} shapes drawn in order; later ones sit on top
+ * @property {Points[]} neutral the left halves of shapes that aren't muscle
  *   groups, mirrored too
  */
 
-// Shared by both views: head and neck are drawn as a circle and a block.
+// A figure's box: its width, height and centre line.
+export const BOX = { width: 160, height: 310, centre: 80 };
+
+// The head and neck, on the centre line.
+export const HEAD = { cy: 20, r: 15 };
+export const NECK = { width: 12, top: 34, height: 8 };
+
+// Shared by both views.
 const HANDS = /** @type {Points} */ ([
   [34, 156],
   [46, 156],
@@ -81,7 +90,7 @@ export const FIGURES = [
         [56, 236],
       ],
     ],
-    parts: [
+    shapes: [
       {
         muscleGroup: "traps",
         pair: true,
@@ -184,7 +193,7 @@ export const FIGURES = [
         [56, 236],
       ],
     ],
-    parts: [
+    shapes: [
       {
         muscleGroup: "lats-upper-back",
         pair: true,
@@ -272,11 +281,11 @@ export const FIGURES = [
 
 /**
  * A shape's points on the card: moved to its figure's box, and mirrored
- * across the centre line for a part's right half.
+ * across the centre line for a pair's right half.
  * @param {Points} points
  * @param {number} offset
  * @param {boolean} [mirrored]
  * @returns {Points}
  */
 export const placed = (points, offset, mirrored = false) =>
-  points.map(([x, y]) => [offset + (mirrored ? 160 - x : x), y]);
+  points.map(([x, y]) => [offset + (mirrored ? 2 * BOX.centre - x : x), y]);
