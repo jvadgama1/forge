@@ -1,24 +1,34 @@
 // The workouts behind a mark on the Stats board (#84; spec #80, stories
-// 51–54): a muscle group's hard-sets bar opens the workouts that gave it,
-// each with its share, and each opens the workout. The route names the
-// mark and its range, so a reload shows the same list.
+// 51–54): a muscle group's hard-sets bar or a calendar day (#86) opens the
+// workouts behind it, each with its share, and each opens the workout. The
+// route names the mark (and a bar's range), so a reload shows the same
+// list.
 import { h } from "../dom.js";
 import { isRangeId } from "../core/dashboard.js";
 import { MUSCLE_GROUPS, muscleGroup } from "../core/muscle-groups.js";
-import { countOf, listDate, rangeWords, screen, setCount } from "./screen.js";
+import {
+  countOf,
+  listDate,
+  monthDay,
+  rangeWords,
+  screen,
+  setCount,
+} from "./screen.js";
 import { pastWorkoutView } from "./past-workout.js";
 
 /** @import { ScreenContext } from "./screen.js" */
 /** @import { Mark } from "../core/dashboard.js" */
 
 /**
- * A mark as a route segment: "hard-sets:chest:12w". Its parts are slugs,
- * and ":" and "~" are safe in a hash, so links match the routes as typed
- * and the open one is marked beside the list.
+ * A mark as a route segment: "hard-sets:chest:12w", "day:2026-10-20". Its
+ * parts are slugs, and ":" and "~" are safe in a hash, so links match the
+ * routes as typed and the open one is marked beside the list.
  * @param {Mark} mark
  */
-export const markId = ({ kind, muscleGroup, range }) =>
-  `${kind}:${muscleGroup}:${range}`;
+export const markId = (mark) =>
+  mark.kind === "day"
+    ? `day:${mark.date}`
+    : `hard-sets:${mark.muscleGroup}:${mark.range}`;
 
 /**
  * The mark a route segment names, if it names one.
@@ -26,11 +36,23 @@ export const markId = ({ kind, muscleGroup, range }) =>
  * @returns {Mark | undefined}
  */
 export function parseMark(id) {
-  const [kind, group, range] = (id ?? "").split(":");
-  const known = MUSCLE_GROUPS.find((m) => m.id === group);
-  if (kind !== "hard-sets" || !known || !isRangeId(range)) return undefined;
-  return { kind, muscleGroup: known.id, range };
+  const [kind, a, b] = (id ?? "").split(":");
+  if (kind === "day" && /^\d{4}-\d{2}-\d{2}$/.test(a ?? ""))
+    return { kind, date: a };
+  const known = MUSCLE_GROUPS.find((m) => m.id === a);
+  if (kind === "hard-sets" && known && isRangeId(b))
+    return { kind, muscleGroup: known.id, range: b };
+  return undefined;
 }
+
+/**
+ * What a mark is called: its muscle group, or its day ("Oct 20").
+ * @param {Mark} mark
+ */
+const markName = (mark) =>
+  mark.kind === "day"
+    ? monthDay(mark.date)
+    : muscleGroup(mark.muscleGroup).label;
 
 // A workout opened from the list keeps the mark in its route, so on a wide
 // screen the list stays beside it: "/stats/workout/<mark>~<workout id>".
@@ -65,10 +87,7 @@ export function markWorkoutView(context) {
   return pastWorkoutView(
     { ...context, id: workoutId },
     parsed
-      ? {
-          href: `#/stats/${markId(parsed)}`,
-          label: muscleGroup(parsed.muscleGroup).label,
-        }
+      ? { href: `#/stats/${markId(parsed)}`, label: markName(parsed) }
       : { href: "#/stats", label: "Stats" },
   );
 }
@@ -81,8 +100,8 @@ export const markBesideView = (context) =>
   markView({ ...context, id: splitMarkWorkout(context.id).mark });
 
 /**
- * A workout opened from an e1RM point (#84; stories 51, 60): back to the
- * board.
+ * A workout opened from a mark that is one workout (#84; stories 51, 60):
+ * an e1RM point or a day with one workout. Back to the board.
  * @param {Pick<ScreenContext, "forge" | "id">} context
  */
 export const pointWorkoutView = (context) =>
@@ -111,7 +130,7 @@ export function markView({ forge, id }) {
         "This link doesn't match anything on the Stats board.",
       ),
     );
-  const name = muscleGroup(mark.muscleGroup).label;
+  const name = markName(mark);
   show(mark);
   return screen(name, back, root);
 
@@ -123,7 +142,6 @@ export function markView({ forge, id }) {
     ]);
     const today = forge.today();
     const gymNames = new Map(gyms.map((g) => [g.id, g.name]));
-    const weeks = rangeWords(behind.range.weeks);
     const rows = behind.workouts.map((w) =>
       h(
         "a",
@@ -139,7 +157,12 @@ export function markView({ forge, id }) {
           h(
             "span",
             { class: "label" },
-            [gymNames.get(w.gymId), `${name} · ${hardSets(w.value)}`]
+            [
+              gymNames.get(w.gymId),
+              behind.kind === "day"
+                ? hardSets(w.value)
+                : `${name} · ${hardSets(w.value)}`,
+            ]
               .filter(Boolean)
               .join(" · "),
           ),
@@ -148,19 +171,34 @@ export function markView({ forge, id }) {
       ),
     );
     root.replaceChildren(
-      h("p", { class: "label" }, `Hard sets · last ${weeks}`),
-      rows.length
-        ? h(
-            "p",
-            { class: "lede" },
-            `${hardSets(behind.total)} over ${countOf(behind.trainingWeeks, "training week")}: ${setCount(behind.perWeek)} a week.`,
-          )
-        : h(
-            "p",
-            { class: "lede" },
-            `No ${name} hard sets in the last ${weeks}.`,
-          ),
+      ...intro(),
       h("nav", { class: "menu", "aria-label": `${name} workouts` }, ...rows),
     );
+
+    /** The label and summary above the rows. */
+    function intro() {
+      if (behind.kind === "day")
+        return [
+          h("p", { class: "label" }, "Workouts that day"),
+          h(
+            "p",
+            { class: "lede" },
+            rows.length
+              ? `${countOf(rows.length, "workout")}, ${hardSets(behind.total)}.`
+              : "No finished workouts that day.",
+          ),
+        ];
+      const weeks = rangeWords(behind.range.weeks);
+      return [
+        h("p", { class: "label" }, `Hard sets · last ${weeks}`),
+        h(
+          "p",
+          { class: "lede" },
+          rows.length
+            ? `${hardSets(behind.total)} over ${countOf(behind.trainingWeeks, "training week")}: ${setCount(behind.perWeek)} a week.`
+            : `No ${name} hard sets in the last ${weeks}.`,
+        ),
+      ];
+    }
   }
 }

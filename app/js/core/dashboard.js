@@ -10,9 +10,11 @@ import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
 /** @typedef {"4w" | "12w" | "1y"} RangeId */
 
 /**
- * A mark on the board that stands for several workouts (#84): for now, a
- * muscle group's hard-sets bar, in the range it was drawn for.
- * @typedef {{ kind: "hard-sets", muscleGroup: MuscleGroup, range: RangeId }} Mark
+ * A mark on the board that stands for several workouts (#84): a muscle
+ * group's hard-sets bar, in the range it was drawn for, or a calendar day
+ * (#86).
+ * @typedef {{ kind: "hard-sets", muscleGroup: MuscleGroup, range: RangeId }
+ *   | { kind: "day", date: string }} Mark
  */
 
 /**
@@ -168,6 +170,75 @@ export function hardSetsBehind(workouts, exerciseOf, muscleGroup) {
     trainingWeeks,
     perWeek: perWeekOf(total, trainingWeeks),
   };
+}
+
+/**
+ * The calendar card (#86; spec #80, Rules: Calendar levels): every day of
+ * the range, Monday first, shaded by its hard sets across its workouts. A
+ * day with a workout is level 1 at least, so a cardio-only day still shows
+ * as trained; days after today are still to come.
+ * @param {Workout[]} workouts the counted ones, newest first
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @param {Range} range
+ * @param {string} today YYYY-MM-DD
+ */
+export function calendarCard(workouts, exerciseOf, range, today) {
+  /** @type {Map<string, Workout[]>} */
+  const byDate = new Map();
+  for (const w of workouts)
+    byDate.set(w.date, [...(byDate.get(w.date) ?? []), w]);
+  const days = [];
+  for (let day = dayNumber(range.from); day <= dayNumber(range.to); day++) {
+    const date = dateOf(day);
+    const on = byDate.get(date) ?? [];
+    const hardSets = on.reduce((n, w) => n + hardSetCount(w, exerciseOf), 0);
+    days.push({
+      date,
+      level: on.length === 0 ? 0 : levelOf(hardSets),
+      hardSets,
+      workoutIds: on.map((w) => w.id),
+      future: date > today,
+    });
+  }
+  return { workouts: workouts.length, days };
+}
+
+/**
+ * The workouts behind a calendar day (#86), newest first, each with its
+ * hard sets.
+ * @param {Workout[]} workouts the day's finished ones, newest first
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ */
+export function dayBehind(workouts, exerciseOf) {
+  const each = workouts.map((w) => ({
+    workoutId: w.id,
+    date: w.date,
+    gymId: w.gymId,
+    value: hardSetCount(w, exerciseOf),
+  }));
+  return { workouts: each, total: each.reduce((n, w) => n + w.value, 0) };
+}
+
+/**
+ * A training day's level on the heat-map ramp, 1 to 4.
+ * @param {number} hardSets
+ */
+const levelOf = (hardSets) =>
+  hardSets < 10 ? 1 : hardSets < 20 ? 2 : hardSets < 30 ? 3 : 4;
+
+/**
+ * How many hard sets a workout has: each counts once, whatever muscle
+ * groups it works.
+ * @param {Workout} workout
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ */
+function hardSetCount(workout, exerciseOf) {
+  let n = 0;
+  for (const { exerciseId, sets } of workout.entries) {
+    const exercise = exerciseOf(exerciseId);
+    if (exercise) n += sets.filter((set) => isHardSet(set, exercise)).length;
+  }
+  return n;
 }
 
 /**

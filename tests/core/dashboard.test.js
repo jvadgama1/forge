@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 import { createForge } from "../../app/js/core/forge.js";
 import { createMemoryStore } from "../../app/js/store/memory-store.js";
 import { library as strength } from "./library-fixture.js";
@@ -480,6 +480,7 @@ describe("workouts behind a mark (spec #80; #84)", () => {
       muscleGroup: "chest",
       range: "12w",
     });
+    assert(behind.kind === "hard-sets");
     expect(behind.workouts).toEqual([
       {
         workoutId: "oct-22",
@@ -512,7 +513,106 @@ describe("workouts behind a mark (spec #80; #84)", () => {
       muscleGroup: "chest",
       range: "4w",
     });
+    assert(behind.kind === "hard-sets");
     expect(behind.range.id).toBe("4w");
     expect(behind.workouts.map((w) => w.workoutId)).toEqual(["oct"]);
+  });
+});
+
+describe("dashboard calendar (spec #80; #86)", () => {
+  /**
+   * A day on the calendar card.
+   * @param {Awaited<ReturnType<ReturnType<typeof createForge>["dashboard"]>>} board
+   * @param {string} date
+   */
+  const day = (board, date) => board.calendar.days.find((d) => d.date === date);
+
+  it("shades each day by its hard sets, a cardio-only day as trained", async () => {
+    const { f } = await withWorkouts(
+      past("9", "2026-10-01", "bench-press", sets(9)),
+      past("10", "2026-10-02", "bench-press", sets(10)),
+      past("19", "2026-10-05", "bench-press", sets(19)),
+      past("20", "2026-10-06", "bench-press", sets(20)),
+      past("29", "2026-10-07", "bench-press", sets(29)),
+      past("30", "2026-10-08", "bench-press", sets(30)),
+      past("cardio", "2026-10-09", "treadmill", [
+        { ...set(0, 0), seconds: 1200 },
+      ]),
+    );
+    const board = await f.dashboard();
+    expect(day(board, "2026-10-03")?.level).toBe(0); // no workout
+    expect(day(board, "2026-10-01")?.level).toBe(1);
+    expect(day(board, "2026-10-02")?.level).toBe(2);
+    expect(day(board, "2026-10-05")?.level).toBe(2);
+    expect(day(board, "2026-10-06")?.level).toBe(3);
+    expect(day(board, "2026-10-07")?.level).toBe(3);
+    expect(day(board, "2026-10-08")?.level).toBe(4);
+    expect(day(board, "2026-10-09")).toMatchObject({ level: 1, hardSets: 0 });
+  });
+
+  it("counts a set once, whatever muscle groups it works", async () => {
+    // Bench Press: chest primary, two secondaries; still 4 hard sets.
+    const { f } = await withWorkouts(
+      past("bench", "2026-10-20", "bench-press", sets(4)),
+    );
+    expect(day(await f.dashboard(), "2026-10-20")?.hardSets).toBe(4);
+  });
+
+  it("adds up a day's two workouts", async () => {
+    const { f } = await withWorkouts(
+      past(
+        "am",
+        "2026-10-20",
+        "bench-press",
+        sets(6),
+        "2026-10-20T07:00:00.000Z",
+      ),
+      past("pm", "2026-10-20", "leg-press", sets(5)),
+    );
+    expect(day(await f.dashboard(), "2026-10-20")).toMatchObject({
+      level: 2,
+      hardSets: 11,
+      workoutIds: ["pm", "am"],
+    });
+  });
+
+  it("has every day of the range, Monday first, the rest of this week to come", async () => {
+    const { f } = await withWorkouts();
+    const { days } = (await f.dashboard()).calendar;
+    expect(days).toHaveLength(84); // 12 weeks
+    expect(days[0].date).toBe("2026-08-10"); // a Monday
+    expect(days.at(-1)?.date).toBe("2026-11-01");
+    expect(days.find((d) => d.date === "2026-10-28")?.future).toBe(false);
+    expect(days.find((d) => d.date === "2026-10-29")?.future).toBe(true);
+  });
+
+  it("counts the finished workouts in the range", async () => {
+    const { f } = await withWorkouts(
+      past("before", "2026-08-09", "bench-press", sets(3)),
+      past("a", "2026-09-01", "bench-press", sets(3)),
+      past("b", "2026-10-20", "bench-press", sets(3)),
+      inProgress(past("today", "2026-10-28", "bench-press", sets(3))),
+    );
+    expect((await f.dashboard()).calendar.workouts).toBe(2);
+  });
+
+  it("lists a day's workouts behind its square, each with its hard sets", async () => {
+    const { f } = await withWorkouts(
+      past(
+        "am",
+        "2026-10-20",
+        "bench-press",
+        sets(6),
+        "2026-10-20T07:00:00.000Z",
+      ),
+      past("pm", "2026-10-20", "leg-press", sets(5)),
+      past("other day", "2026-10-21", "leg-press", sets(5)),
+    );
+    const behind = await f.workoutsBehind({ kind: "day", date: "2026-10-20" });
+    expect(behind.workouts.map((w) => [w.workoutId, w.value])).toEqual([
+      ["pm", 5],
+      ["am", 6],
+    ]);
+    expect(behind.total).toBe(11);
   });
 });
