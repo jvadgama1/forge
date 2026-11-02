@@ -4,16 +4,16 @@
 // agree. Each row opens its workout. A list rather than a chart, so every
 // record reads in full.
 import { h } from "../dom.js";
-import { setText } from "./measure.js";
-import { countOf, listDate, whole } from "./screen.js";
-import { recordName } from "./workout.js";
+import { pointHref } from "./mark.js";
+import { recordName, setText } from "./measure.js";
+import { countOf, listDate } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
 /** @typedef {Awaited<ReturnType<Forge["dashboard"]>>["records"]} Records */
 
 // Rows shown before "Show all", so a year of records doesn't bury the
 // cards below.
-const FIRST = 8;
+const SHOWN_FIRST = 8;
 
 /**
  * @param {Records} records
@@ -33,7 +33,7 @@ export function recordTimelineCardView(records, rangeWords, today) {
       "a",
       {
         class: "workout-link",
-        href: `#/stats/point/${encodeURIComponent(r.workoutId)}`,
+        href: pointHref(r.workoutId),
       },
       h(
         "span",
@@ -44,11 +44,7 @@ export function recordTimelineCardView(records, rangeWords, today) {
           { class: "label" },
           [
             setText(r.set, r.type),
-            ...r.kinds.map((kind) =>
-              kind === "e1rm" && r.e1rm !== undefined
-                ? `best e1RM ${whole(r.e1rm)} ${r.set.unit}`
-                : recordName(kind, r.set, r.type),
-            ),
+            ...r.kinds.map((kind) => recordName(kind, r.set, r.type, r.e1rm)),
           ].join(" · "),
         ),
       ),
@@ -58,17 +54,20 @@ export function recordTimelineCardView(records, rangeWords, today) {
   const list = h(
     "nav",
     { class: "menu", "aria-label": "Records" },
-    ...rows.slice(0, FIRST),
+    ...rows.slice(0, SHOWN_FIRST),
   );
   const more = h(
     "button",
-    { class: "chip", type: "button" },
+    {
+      class: "chip",
+      type: "button",
+      onclick: () => {
+        list.replaceChildren(...rows);
+        more.remove();
+      },
+    },
     `Show all ${rows.length}`,
   );
-  more.addEventListener("click", () => {
-    list.replaceChildren(...rows);
-    more.remove();
-  });
   return [
     heading,
     h(
@@ -77,6 +76,6 @@ export function recordTimelineCardView(records, rangeWords, today) {
       `${countOf(records.length, "set")} beat a record in the last ${rangeWords}`,
     ),
     list,
-    ...(rows.length > FIRST ? [more] : []),
+    ...(rows.length > SHOWN_FIRST ? [more] : []),
   ];
 }

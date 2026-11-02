@@ -10,6 +10,7 @@ import {
   fieldsFor,
   loadText,
   readFields,
+  recordName,
   setText,
   shortText,
 } from "./measure.js";
@@ -254,21 +255,6 @@ function suggestionLine(suggestion, type) {
     `Suggested ${loadText(suggestion, type)} · ${why}`,
   );
 }
-
-/**
- * What the celebration calls a record the set beat; the Stats board's
- * record timeline says the same (#89).
- * @param {RecordKind} record
- * @param {Pick<WorkoutSet, "load" | "unit">} set the set that beat it
- * @param {ExerciseType} type
- */
-export const recordName = (record, set, type) =>
-  ({
-    heaviest: "heaviest load",
-    "least-assist": "least assist",
-    e1rm: "best e1RM",
-    reps: `most reps at ${loadText(set, type)}`,
-  })[record];
 
 /**
  * Looks up exercises' names, falling back to the id of one since deleted.

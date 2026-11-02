@@ -4,7 +4,7 @@
 import { TYPE_RULES, distanceUnit } from "../core/exercise-types.js";
 import { pad2 } from "./screen.js";
 
-/** @import { ExerciseType, Load, Measure, SetInput } from "../core/types.js" */
+/** @import { ExerciseType, Load, Measure, RecordKind, SetInput, WorkoutSet } from "../core/types.js" */
 
 /**
  * Seconds as a clock: 45 → "0:45", 1200 → "20:00".
@@ -195,3 +195,23 @@ export function readFields(fields, values) {
     ),
   );
 }
+
+/**
+ * What a record a set beat is called, by the celebration (spec #3, story
+ * 40) and the Stats board's record timeline (#89), which also gives the
+ * new best e1RM's value.
+ * @param {RecordKind} record
+ * @param {Pick<WorkoutSet, "load" | "unit">} set the set that beat it
+ * @param {ExerciseType} type
+ * @param {number} [e1rm] the new best e1RM, in the set's unit
+ */
+export const recordName = (record, set, type, e1rm) =>
+  ({
+    heaviest: "heaviest load",
+    "least-assist": "least assist",
+    e1rm:
+      e1rm === undefined
+        ? "best e1RM"
+        : `best e1RM ${Math.round(e1rm)} ${set.unit}`,
+    reps: `most reps at ${loadText(set, type)}`,
+  })[record];

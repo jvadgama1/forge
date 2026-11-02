@@ -1164,10 +1164,9 @@ export function createForge({ store, library, now = () => new Date() }) {
 
     /**
      * The records the exercise's latest set in `workout` beats (spec #3,
-     * story 40), for the celebration: none for a warm-up or drop set, and
-     * none in the first workout with the exercise, where every better set
-     * would otherwise count. After that, the workout's earlier sets count
-     * too. Matching a record isn't beating it.
+     * story 40), for the celebration, against finished workouts dated
+     * before it and the workout's earlier sets (recordsBeaten has the
+     * rule).
      * @param {Workout} workout
      * @param {string} exerciseId
      * @returns {Promise<RecordKind[]>}
@@ -1177,8 +1176,14 @@ export function createForge({ store, library, now = () => new Date() }) {
         (e) => e.exerciseId === exerciseId,
       )?.sets;
       if (!sets?.length) return [];
+      // What was held before it: finished workouts dated earlier, so a set
+      // logged into a back-dated workout is judged as the board judges it
+      // (#89; spec #80, story 47).
       const others = (await history(exerciseId)).filter(
-        (h) => h.workout.id !== workout.id,
+        (h) =>
+          h.workout.id !== workout.id &&
+          Boolean(h.workout.finishedAt) &&
+          byWorkoutDate(h.workout, workout) > 0,
       );
       const type = await typeOf(exerciseId);
       return (
@@ -1456,7 +1461,7 @@ export function createForge({ store, library, now = () => new Date() }) {
           displayUnit(finishedOf(workouts)),
         ),
         regionSplit: regionSplitCard(counted, exerciseOf, range),
-        records: await recordTimeline(finishedOf(workouts), range),
+        records: await recordTimeline(finishedOf(workouts), range, exerciseOf),
       };
     },
 
@@ -2423,26 +2428,29 @@ export function createForge({ store, library, now = () => new Date() }) {
    * The records set in the range (#89; spec #80, Rules: Record timeline):
    * every working set that beat a record held before it, recomputed from
    * history so edits and back-dating count. Newest workout first, then in
-   * the order the exercises and sets were done. One row per set, with every
+   * the order its exercises and sets were done. One row per set, with every
    * kind it beat.
    * @param {Workout[]} finished every finished workout, newest first
    * @param {Range} range
+   * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
    */
-  async function recordTimeline(finished, range) {
-    const counts = countsIn(range);
-    const ids = new Set(
-      finished
-        .filter(counts)
-        .flatMap((w) => w.entries.map((e) => e.exerciseId)),
-    );
+  async function recordTimeline(finished, range, exerciseOf) {
+    /** @type {Map<string, ExerciseInWorkout[]>} each exercise's, oldest first */
+    const histories = new Map();
     const rows = [];
-    for (const exerciseId of ids) {
-      const exercise = await findExercise(exerciseId);
-      if (!exercise || !TYPE_RULES[exercise.type].records) continue;
-      // Oldest first, so each workout's prior ones are those before it.
-      const oldestFirst = (await history(exerciseId, finished)).reverse();
-      for (const [i, mine] of oldestFirst.entries()) {
-        if (!counts(mine.workout)) continue;
+    for (const workout of finished.filter(countsIn(range)))
+      for (const { exerciseId } of workout.entries) {
+        const exercise = exerciseOf(exerciseId);
+        if (!exercise || !TYPE_RULES[exercise.type].records) continue;
+        let oldestFirst = histories.get(exerciseId);
+        if (!oldestFirst) {
+          oldestFirst = (await history(exerciseId, finished)).reverse();
+          histories.set(exerciseId, oldestFirst);
+        }
+        const i = oldestFirst.findIndex((h) => h.workout.id === workout.id);
+        const mine = oldestFirst[i];
+        if (!mine) continue;
+        // What was held before it: the workouts older than this one.
         const prior = oldestFirst.slice(0, i);
         for (const [index, set] of mine.sets.entries()) {
           const { kinds, e1rm } = await recordsBeaten(
@@ -2451,37 +2459,20 @@ export function createForge({ store, library, now = () => new Date() }) {
             index,
             exercise.type,
           );
-          if (kinds.length === 0) continue;
-          rows.push({
-            workoutId: mine.workout.id,
-            date: mine.workout.date,
-            exerciseId,
-            name: exercise.name,
-            type: exercise.type,
-            set: measureOf(set),
-            kinds,
-            ...(e1rm !== undefined && { e1rm }),
-            // For the order only.
-            workout: mine.workout,
-            entry: mine.workout.entries.findIndex(
-              (e) => e.exerciseId === exerciseId,
-            ),
-            index,
-          });
+          if (kinds.length)
+            rows.push({
+              workoutId: workout.id,
+              date: workout.date,
+              exerciseId,
+              name: exercise.name,
+              type: exercise.type,
+              set: measureOf(set),
+              kinds,
+              ...(e1rm !== undefined && { e1rm }),
+            });
         }
       }
-    }
-    return (
-      rows
-        .sort(
-          (a, b) =>
-            byWorkoutDate(a.workout, b.workout) ||
-            a.entry - b.entry ||
-            a.index - b.index,
-        )
-        // eslint-disable-next-line no-unused-vars -- ordering only
-        .map(({ workout, entry, index, ...row }) => row)
-    );
+    return rows;
   }
 
   /**

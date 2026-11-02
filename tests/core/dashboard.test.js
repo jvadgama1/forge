@@ -852,6 +852,15 @@ describe("dashboard record timeline (spec #80; #89)", () => {
       ["2026-09-15", "bench-press", "140x9", ["e1rm", "reps"]],
       ["2026-09-08", "bench-press", "140x8", ["heaviest"]],
     ]);
+    // The celebration says the same of each workout's last set.
+    const said = async (/** @type {string} */ id) => {
+      const w = await f.getWorkout(id);
+      if (!w) throw new Error(id);
+      return f.recordsSetBy(w, "bench-press");
+    };
+    expect(await said("sep-1")).toEqual([]);
+    expect(await said("sep-8")).toEqual(["heaviest"]);
+    expect(await said("sep-15")).toEqual(["e1rm", "reps"]);
   });
 
   it("agrees with the celebration for the same sets", async () => {
@@ -891,6 +900,26 @@ describe("dashboard record timeline (spec #80; #89)", () => {
     expect(rows(await f.dashboard())).toEqual([
       ["2026-09-15", "bench-press", "140x8", ["heaviest"]],
       ["2026-09-15", "bench-press", "140x9", ["e1rm", "reps"]],
+    ]);
+    const sep8 = await f.getWorkout("sep-8");
+    if (!sep8) throw new Error("no sep-8");
+    expect(await f.recordsSetBy(sep8, "bench-press")).toEqual([]);
+  });
+
+  it("judges a set in a back-dated workout against the workouts before it, as the board does", async () => {
+    const { f } = await withWorkouts(
+      past("oct-1", "2026-10-01", "bench-press", [set(140, 8)]), // e1RM 177.3
+    );
+    const work = await f.createGym("Work");
+    // Logged today for Sep 1, before any bench workout: its first, so none.
+    const back = await f.startWorkout(work.id, { date: "2026-09-01" });
+    await f.addExercise(back.id, "bench-press");
+    const w = await f.logSet(back.id, "bench-press", { load: 135, reps: 10 }); // e1RM 180
+    expect(await f.recordsSetBy(w, "bench-press")).toEqual([]);
+    await f.finishWorkout(back.id);
+    // Oct 1 now follows it: heavier (140 > 135), but no better e1RM (177 < 180).
+    expect(rows(await f.dashboard())).toEqual([
+      ["2026-10-01", "bench-press", "140x8", ["heaviest"]],
     ]);
   });
 
