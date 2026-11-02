@@ -1286,6 +1286,15 @@ export const SHOTS = [
       await page.getByText("52 weeks").waitFor();
       const calendar = page.locator(".calendar");
       await calendar.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      // A tap near Friday Oct 16: the second-last column, the fifth row.
+      const box = await calendar.boundingBox();
+      if (!box) throw new Error("No calendar");
+      await calendar.dispatchEvent("pointerdown", {
+        pointerType: "touch",
+        clientX: box.x + (box.width * 50.5) / 52,
+        clientY: box.y + (box.height * 4.5) / 7,
+      });
+      await page.getByText("Oct 16", { exact: false }).first().waitFor();
     },
   },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },

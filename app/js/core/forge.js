@@ -1492,12 +1492,12 @@ export function createForge({ store, library, now = () => new Date() }) {
     async workoutsBehind(mark) {
       const finished = (await listWorkouts()).filter((w) => w.finishedAt);
       if (mark.kind === "day") {
-        const on = finished.filter((w) => w.date === mark.date);
-        const behind = dayBehind(on, await exercisesIn(on));
+        const dayWorkouts = finished.filter((w) => w.date === mark.date);
+        const behind = dayBehind(dayWorkouts, await exercisesIn(dayWorkouts));
         return {
           kind: mark.kind,
           ...behind,
-          workouts: await titled(on, behind.workouts),
+          workouts: await titled(dayWorkouts, behind.workouts),
         };
       }
       const range = rangeFor(mark.range, localDate(now()));

@@ -586,14 +586,17 @@ describe("dashboard calendar (spec #80; #86)", () => {
     expect(days.find((d) => d.date === "2026-10-29")?.future).toBe(true);
   });
 
-  it("counts the finished workouts in the range", async () => {
+  it("counts the finished workouts in the range, and the days they're on", async () => {
     const { f } = await withWorkouts(
       past("before", "2026-08-09", "bench-press", sets(3)),
       past("a", "2026-09-01", "bench-press", sets(3)),
       past("b", "2026-10-20", "bench-press", sets(3)),
+      past("c", "2026-10-20", "leg-press", sets(3), "2026-10-20T07:00:00.000Z"),
       inProgress(past("today", "2026-10-28", "bench-press", sets(3))),
     );
-    expect((await f.dashboard()).calendar.workouts).toBe(2);
+    const { calendar } = await f.dashboard();
+    expect(calendar.workouts).toBe(3);
+    expect(calendar.trainingDays).toBe(2);
   });
 
   it("lists a day's workouts behind its square, each with its hard sets", async () => {

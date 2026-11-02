@@ -866,6 +866,12 @@ a {
   --heat: var(--heat-4);
 }
 
+/* Drawn at its own size (its width attribute), not stretched to the card. */
+.calendar {
+  width: auto;
+  max-width: 100%;
+}
+
 .calendar-day {
   fill: var(--heat);
 }

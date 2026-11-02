@@ -190,17 +190,20 @@ export function calendarCard(workouts, exerciseOf, range, today) {
   const days = [];
   for (let day = dayNumber(range.from); day <= dayNumber(range.to); day++) {
     const date = dateOf(day);
-    const on = byDate.get(date) ?? [];
-    const hardSets = on.reduce((n, w) => n + hardSetCount(w, exerciseOf), 0);
+    const dayWorkouts = byDate.get(date) ?? [];
+    const hardSets = dayWorkouts.reduce(
+      (n, w) => n + hardSetCount(w, exerciseOf),
+      0,
+    );
     days.push({
       date,
-      level: on.length === 0 ? 0 : levelOf(hardSets),
+      level: dayWorkouts.length === 0 ? 0 : levelOf(hardSets),
       hardSets,
-      workoutIds: on.map((w) => w.id),
+      workoutIds: dayWorkouts.map((w) => w.id),
       future: date > today,
     });
   }
-  return { workouts: workouts.length, days };
+  return { workouts: workouts.length, trainingDays: byDate.size, days };
 }
 
 /**
@@ -219,27 +222,44 @@ export function dayBehind(workouts, exerciseOf) {
   return { workouts: each, total: each.reduce((n, w) => n + w.value, 0) };
 }
 
+// The hard sets a day needs for each level above 1 on the calendar (spec
+// #80, Rules: Calendar levels): 10 for 2, 20 for 3, 30 for 4.
+export const CALENDAR_LEVELS = [10, 20, 30];
+
 /**
- * A training day's level on the heat-map ramp, 1 to 4.
+ * A day with a workout's level on the heat-map ramp, 1 to 4.
  * @param {number} hardSets
  */
 const levelOf = (hardSets) =>
-  hardSets < 10 ? 1 : hardSets < 20 ? 2 : hardSets < 30 ? 3 : 4;
+  1 + CALENDAR_LEVELS.filter((least) => hardSets >= least).length;
 
 /**
- * How many hard sets a workout has: each counts once, whatever muscle
- * groups it works.
+ * Each of a workout's exercises with its hard sets; exercises no longer in
+ * the library are left out.
+ * @param {Workout} workout
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @returns {[Exercise, number][]}
+ */
+function hardEntries(workout, exerciseOf) {
+  /** @type {[Exercise, number][]} */
+  const each = [];
+  for (const { exerciseId, sets } of workout.entries) {
+    const exercise = exerciseOf(exerciseId);
+    if (exercise)
+      each.push([exercise, sets.filter((s) => isHardSet(s, exercise)).length]);
+  }
+  return each;
+}
+
+/**
+ * How many hard sets a workout has, each counted once whatever muscle
+ * groups it works: the calendar's measure of a day (#86), where the
+ * muscle-group weights would double-count a set.
  * @param {Workout} workout
  * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
  */
-function hardSetCount(workout, exerciseOf) {
-  let n = 0;
-  for (const { exerciseId, sets } of workout.entries) {
-    const exercise = exerciseOf(exerciseId);
-    if (exercise) n += sets.filter((set) => isHardSet(set, exercise)).length;
-  }
-  return n;
-}
+const hardSetCount = (workout, exerciseOf) =>
+  hardEntries(workout, exerciseOf).reduce((n, [, hard]) => n + hard, 0);
 
 /**
  * One workout's hard sets by muscle group: 1 a set for each primary, 0.5
@@ -252,10 +272,7 @@ function hardSetsIn(workout, exerciseOf) {
   const counts = new Map();
   /** @param {MuscleGroup} id @param {number} n */
   const add = (id, n) => counts.set(id, (counts.get(id) ?? 0) + n);
-  for (const { exerciseId, sets } of workout.entries) {
-    const exercise = exerciseOf(exerciseId);
-    if (!exercise) continue;
-    const hard = sets.filter((set) => isHardSet(set, exercise)).length;
+  for (const [exercise, hard] of hardEntries(workout, exerciseOf)) {
     for (const id of exercise.primary) add(id, hard);
     for (const id of exercise.secondary) add(id, hard * 0.5);
   }

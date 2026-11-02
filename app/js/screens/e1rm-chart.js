@@ -3,7 +3,14 @@
 // prototype's progress board. A single series in the accent, so no legend
 // and no new palette. Drawn with the shared chart pieces (#81).
 import { h } from "../dom.js";
-import { chartRoot, explore, grid, linear, niceRange, svg } from "./chart.js";
+import {
+  chartRoot,
+  exploreAlong,
+  grid,
+  linear,
+  niceRange,
+  svg,
+} from "./chart.js";
 import { monthDay, whole } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
@@ -105,7 +112,7 @@ export function e1rmChartBody({ unit, points }, hrefOf) {
       ),
     );
 
-  const tip = explore(chart, FRAME, xs, (i) => ({
+  const tip = exploreAlong(chart, FRAME, xs, (i) => ({
     value: `${whole(values[i])} ${unit}`,
     label: ` e1RM · ${monthDay(points[i].date)}`,
     ...(hrefOf && { open: { href: hrefOf(points[i]), words: "Open workout" } }),
