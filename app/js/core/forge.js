@@ -2,10 +2,15 @@
 /** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
+import { fromKg, inKg, plusBody } from "./units.js";
 import {
   DEFAULT_RANGE,
   calendarCard,
   dayBehind,
+  displayUnit,
+  inWeek,
+  tonnageBehind,
+  tonnageCard,
   countsIn,
   e1rmHeadline,
   hardSetsBehind,
@@ -45,18 +50,6 @@ const REST_MAX = 15 * 60;
  */
 const defaultIncrement = (body, unit) =>
   (body === "lower" ? 10 : 5) / (unit === "kg" ? 2 : 1);
-
-// Records compare loads in kg, so a unit change doesn't fake one (spec #3).
-const KG_PER_LB = 0.45359237;
-
-/** @param {Load} load */
-const inKg = ({ load, unit }) => (unit === "kg" ? load : load * KG_PER_LB);
-
-/**
- * @param {number} kg
- * @param {Load["unit"]} unit
- */
-const fromKg = (kg, unit) => (unit === "kg" ? kg : kg / KG_PER_LB);
 
 /**
  * The same load in either unit, to 100 g, the key for reps at a load: 60 kg
@@ -545,7 +538,7 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @returns {Promise<BodyWeightEntry | undefined>}
      */
     async bodyWeightOn(date) {
-      return (await listBodyWeights()).find((e) => e.date <= date);
+      return (await bodyWeightLookup())(date);
     },
 
     /**
@@ -1480,6 +1473,13 @@ export function createForge({ store, library, now = () => new Date() }) {
             : await e1rmCard(exerciseId, countsIn(range), choices, workouts),
         hardSets: hardSetsCard(counted, exerciseOf),
         calendar: calendarCard(counted, exerciseOf, range, localDate(now())),
+        tonnage: tonnageCard(
+          counted,
+          exerciseOf,
+          await bodyWeightLookup(),
+          range,
+          displayUnit(finishedOf(workouts)),
+        ),
       };
     },
 
@@ -1490,7 +1490,21 @@ export function createForge({ store, library, now = () => new Date() }) {
      * @param {Mark} mark
      */
     async workoutsBehind(mark) {
-      const finished = (await listWorkouts()).filter((w) => w.finishedAt);
+      const finished = finishedOf(await listWorkouts());
+      if (mark.kind === "tonnage") {
+        const weekWorkouts = finished.filter((w) => inWeek(w.date, mark.week));
+        const behind = tonnageBehind(
+          weekWorkouts,
+          await exercisesIn(weekWorkouts),
+          await bodyWeightLookup(),
+          displayUnit(finished),
+        );
+        return {
+          kind: mark.kind,
+          ...behind,
+          workouts: await titled(weekWorkouts, behind.workouts),
+        };
+      }
       if (mark.kind === "day") {
         const dayWorkouts = finished.filter((w) => w.date === mark.date);
         const behind = dayBehind(dayWorkouts, await exercisesIn(dayWorkouts));
@@ -1814,9 +1828,9 @@ export function createForge({ store, library, now = () => new Date() }) {
    */
   async function counted(entries, type) {
     const { withBody } = TYPE_RULES[type];
-    const weights = withBody ? await listBodyWeights() : [];
+    const bodyOn = withBody ? await bodyWeightLookup() : () => undefined;
     return entries.map(({ workout, sets }) => {
-      const body = weights.find((e) => e.date <= workout.date);
+      const body = bodyOn(workout.date);
       return sets.filter(working).map((set) => ({
         set,
         recordLoad: !withBody
@@ -2088,20 +2102,6 @@ export function createForge({ store, library, now = () => new Date() }) {
       ...(drop ? { drop: true } : {}),
       loggedAt,
     };
-  }
-
-  /**
-   * A bodyweight set's record load (#19): the body weight plus the added
-   * load, in the set's unit, to 0.1 across units.
-   * @param {WorkoutSet} set
-   * @param {Load} body
-   * @returns {Load}
-   */
-  function plusBody(set, body) {
-    if (body.unit === set.unit)
-      return { load: body.load + set.load, unit: set.unit };
-    const total = fromKg(inKg(body) + inKg(set), set.unit);
-    return { load: Math.round(total * 10) / 10, unit: set.unit };
   }
 
   /**
@@ -2377,6 +2377,24 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
+   * The finished workouts among them, in the same order.
+   * @param {Workout[]} workouts
+   */
+  function finishedOf(workouts) {
+    return workouts.filter((w) => Boolean(w.finishedAt));
+  }
+
+  /**
+   * The body weight on a date (spec #3, story 57), from one read of the
+   * entries, for counting many sets at once (#87).
+   * @returns {Promise<(date: string) => BodyWeightEntry | undefined>}
+   */
+  async function bodyWeightLookup() {
+    const entries = await listBodyWeights();
+    return (date) => entries.find((e) => e.date <= date);
+  }
+
+  /**
    * Rows behind a mark with each one's workout title, so the list needn't
    * read its workouts again (#84).
    * @template {{ workoutId: string }} W
@@ -2463,9 +2481,7 @@ export function createForge({ store, library, now = () => new Date() }) {
     /** @param {Workout} w */
     const finished = (w) => Boolean(w.finishedAt);
     const done = new Set(
-      workouts
-        .filter(finished)
-        .flatMap((w) => w.entries.map((e) => e.exerciseId)),
+      finishedOf(workouts).flatMap((w) => w.entries.map((e) => e.exerciseId)),
     );
     /** @type {{ id: string, order: number, loggedAt: string }[]} */
     const offered = [];

@@ -1297,5 +1297,17 @@ export const SHOTS = [
       await page.getByText("Oct 16", { exact: false }).first().waitFor();
     },
   },
+  {
+    name: "stats-tonnage",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      const chart = page.getByRole("img", { name: /^Tonnage by week/ });
+      await chart.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await chart.focus();
+      await page.getByText("week of Oct 19").waitFor();
+    },
+  },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

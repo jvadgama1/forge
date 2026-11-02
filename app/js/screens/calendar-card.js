@@ -6,6 +6,7 @@
 import { h } from "../dom.js";
 import { CALENDAR_LEVELS } from "../core/dashboard.js";
 import { chartRoot, explore, svg } from "./chart.js";
+import { openMark } from "./mark.js";
 import { countOf, monthDay } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
@@ -26,15 +27,6 @@ const LEGEND = [
 ];
 
 /**
- * Where a day opens: its workout, or the list of its workouts (#84).
- * @param {Day} day
- */
-const dayHref = (day) =>
-  day.workoutIds.length === 1
-    ? `#/stats/point/${encodeURIComponent(day.workoutIds[0])}`
-    : `#/stats/day:${day.date}`;
-
-/**
  * A day's reading, value first, with its workouts to open.
  * @param {Day} day
  * @returns {import("./chart.js").Reading}
@@ -46,10 +38,7 @@ function reading(day) {
   return {
     value: countOf(day.hardSets, "hard set"),
     label: ` · ${monthDay(day.date)} · ${countOf(day.workoutIds.length, "workout")}`,
-    open: {
-      href: dayHref(day),
-      words: day.workoutIds.length === 1 ? "Open workout" : "Open workouts",
-    },
+    open: openMark(day.workoutIds, { kind: "day", date: day.date }),
   };
 }
 

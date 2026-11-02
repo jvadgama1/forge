@@ -79,8 +79,9 @@ export function chartRoot(frame, label) {
  * @param {Frame} frame
  * @param {number[]} ticks
  * @param {(value: number) => number} y
+ * @param {(tick: number) => string} [label] how a tick reads
  */
-export function grid({ width, pad }, ticks, y) {
+export function grid({ width, pad }, ticks, y, label = String) {
   return ticks.flatMap((tick) => [
     svg("line", {
       x1: pad.left,
@@ -97,7 +98,7 @@ export function grid({ width, pad }, ticks, y) {
         "text-anchor": "end",
         class: "chart-axis",
       },
-      String(tick),
+      label(tick),
     ),
   ]);
 }

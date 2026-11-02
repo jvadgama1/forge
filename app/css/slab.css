@@ -902,6 +902,11 @@ a {
   background: var(--heat);
 }
 
+/* Tonnage bars (#87): one series, in the accent. */
+.chart-bar {
+  fill: var(--accent);
+}
+
 /* A reading's workout, at the tip's end (#84). */
 .chart-open {
   margin-left: 10px;
@@ -971,7 +976,8 @@ a {
 
 /* Hard sets per week (#83): a row per muscle group, its bar in the
    region's colour over the 10–20 band, then its number and its state. */
-.hard-sets-note {
+/* A line under a card's heading: what its numbers cover. */
+.card-note {
   margin: -4px 0 0;
 }
 
