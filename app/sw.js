@@ -31,6 +31,7 @@ const SHELL = [
   "js/screens/calendar-card.js",
   "js/screens/tonnage-card.js",
   "js/screens/region-split-card.js",
+  "js/screens/record-timeline-card.js",
   "js/screens/workout-list.js",
   "js/screens/workout-done.js",
   "js/screens/add-exercise.js",

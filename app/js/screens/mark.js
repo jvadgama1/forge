@@ -127,6 +127,13 @@ const KINDS = {
 const kindOf = (mark) => /** @type {Kind<Mark>} */ (KINDS[mark.kind]);
 
 /**
+ * A workout opened from the board, within Stats (#84).
+ * @param {string} workoutId
+ */
+export const pointHref = (workoutId) =>
+  `#/stats/point/${encodeURIComponent(workoutId)}`;
+
+/**
  * Where a mark on the board opens (#84): straight to its workout when it
  * stands for one, else the list behind it.
  * @param {string[]} workoutIds
@@ -135,10 +142,7 @@ const kindOf = (mark) => /** @type {Kind<Mark>} */ (KINDS[mark.kind]);
  */
 export const openMark = (workoutIds, mark) =>
   workoutIds.length === 1
-    ? {
-        href: `#/stats/point/${encodeURIComponent(workoutIds[0])}`,
-        words: "Open workout",
-      }
+    ? { href: pointHref(workoutIds[0]), words: "Open workout" }
     : { href: `#/stats/${markId(mark)}`, words: "Open workouts" };
 
 /**

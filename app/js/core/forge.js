@@ -1,4 +1,4 @@
-/** @import { Mark, RangeId } from "./dashboard.js" */
+/** @import { Mark, Range, RangeId } from "./dashboard.js" */
 /** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
@@ -150,8 +150,14 @@ function recordsOf(counted, type) {
   return {
     ...(heaviest && { heaviest }),
     ...(leastAssist && { leastAssist }),
+    // Its kg too, so comparing with it needs no round trip through lb,
+    // which would make a tie look a hair better (#89).
     ...(best && {
-      bestE1rm: { set: best.set, value: fromKg(best.kg, best.set.unit) },
+      bestE1rm: {
+        set: best.set,
+        value: fromKg(best.kg, best.set.unit),
+        kg: best.kg,
+      },
     }),
     repsAtLoad,
   };
@@ -1158,10 +1164,9 @@ export function createForge({ store, library, now = () => new Date() }) {
 
     /**
      * The records the exercise's latest set in `workout` beats (spec #3,
-     * story 40), for the celebration: none for a warm-up or drop set, and
-     * none in the first workout with the exercise, where every better set
-     * would otherwise count. After that, the workout's earlier sets count
-     * too. Matching a record isn't beating it.
+     * story 40), for the celebration, against finished workouts dated
+     * before it and the workout's earlier sets (recordsBeaten has the
+     * rule).
      * @param {Workout} workout
      * @param {string} exerciseId
      * @returns {Promise<RecordKind[]>}
@@ -1170,47 +1175,20 @@ export function createForge({ store, library, now = () => new Date() }) {
       const sets = workout.entries.find(
         (e) => e.exerciseId === exerciseId,
       )?.sets;
-      const latest = sets?.at(-1);
-      if (!sets || !latest || !working(latest)) return [];
+      if (!sets?.length) return [];
+      // What was held before it: finished workouts dated earlier, so a set
+      // logged into a back-dated workout is judged as the board judges it
+      // (#89; spec #80, story 47).
       const others = (await history(exerciseId)).filter(
-        (h) => h.workout.id !== workout.id,
+        (h) =>
+          h.workout.id !== workout.id &&
+          Boolean(h.workout.finishedAt) &&
+          byWorkoutDate(h.workout, workout) > 0,
       );
-      if (!others.some((h) => h.sets.some(working))) return [];
       const type = await typeOf(exerciseId);
-      const [mine, ...earlier] = await counted(
-        [{ workout, sets }, ...others],
-        type,
-      );
-      const latestCounted = /** @type {Counted} */ (mine.at(-1));
-      const before = recordsOf([...earlier.flat(), ...mine.slice(0, -1)], type);
-      /** @type {RecordKind[]} */
-      const beaten = [];
-      const { recordLoad } = latestCounted;
-      if (
-        recordLoad &&
-        before.heaviest &&
-        inKg(recordLoad) > inKg(before.heaviest)
-      )
-        beaten.push("heaviest");
-      if (before.leastAssist && inKg(latest) < inKg(before.leastAssist))
-        beaten.push("least-assist");
-      const estimate = TYPE_RULES[type].e1rm
-        ? e1rmKg(latestCounted)
-        : undefined;
-      const bestBefore =
-        before.bestE1rm &&
-        inKg({ load: before.bestE1rm.value, unit: before.bestE1rm.set.unit });
-      if (
-        estimate !== undefined &&
-        bestBefore !== undefined &&
-        estimate > bestBefore
-      )
-        beaten.push("e1rm");
-      const atLoad = before.repsAtLoad.find(
-        (r) => loadKey(r) === loadKey(latest),
-      );
-      if (atLoad && (latest.reps ?? 0) > atLoad.reps) beaten.push("reps");
-      return beaten;
+      return (
+        await recordsBeaten(others, { workout, sets }, sets.length - 1, type)
+      ).kinds;
     },
 
     /**
@@ -1483,6 +1461,7 @@ export function createForge({ store, library, now = () => new Date() }) {
           displayUnit(finishedOf(workouts)),
         ),
         regionSplit: regionSplitCard(counted, exerciseOf, range),
+        records: await recordTimeline(finishedOf(workouts), range, exerciseOf),
       };
     },
 
@@ -2390,6 +2369,110 @@ export function createForge({ store, library, now = () => new Date() }) {
         value: fromKg(b.kg, unit),
       })),
     };
+  }
+
+  /**
+   * The records a set beat (spec #3, story 40), against what was held
+   * before it: the `prior` workouts' sets and its own workout's earlier
+   * ones. None for a warm-up or drop set, and none when no prior workout
+   * has a working set of the exercise (its first workout), where every
+   * better set would otherwise count. Matching a record isn't beating it.
+   * The celebration and the Stats board's record timeline (#89) both ask
+   * this, so they agree.
+   * @param {ExerciseInWorkout[]} prior
+   * @param {ExerciseInWorkout} mine the set's workout and its sets
+   * @param {number} index the set's place in `mine.sets`
+   * @param {ExerciseType} type
+   * @returns {Promise<{ kinds: RecordKind[], e1rm?: number }>} the e1RM in
+   *   the set's unit, when it beat the best
+   */
+  async function recordsBeaten(prior, mine, index, type) {
+    const sets = mine.sets.slice(0, index + 1);
+    const latest = sets[index];
+    if (!latest || !working(latest)) return { kinds: [] };
+    if (!prior.some((h) => h.sets.some(working))) return { kinds: [] };
+    const [own, ...earlier] = await counted(
+      [{ workout: mine.workout, sets }, ...prior],
+      type,
+    );
+    const latestCounted = /** @type {Counted} */ (own.at(-1));
+    const before = recordsOf([...earlier.flat(), ...own.slice(0, -1)], type);
+    /** @type {RecordKind[]} */
+    const kinds = [];
+    const { recordLoad } = latestCounted;
+    if (
+      recordLoad &&
+      before.heaviest &&
+      inKg(recordLoad) > inKg(before.heaviest)
+    )
+      kinds.push("heaviest");
+    if (before.leastAssist && inKg(latest) < inKg(before.leastAssist))
+      kinds.push("least-assist");
+    const estimate = TYPE_RULES[type].e1rm ? e1rmKg(latestCounted) : undefined;
+    const bestBefore = before.bestE1rm?.kg;
+    const e1rm =
+      estimate !== undefined &&
+      bestBefore !== undefined &&
+      estimate > bestBefore
+        ? fromKg(estimate, latest.unit)
+        : undefined;
+    if (e1rm !== undefined) kinds.push("e1rm");
+    const atLoad = before.repsAtLoad.find(
+      (r) => loadKey(r) === loadKey(latest),
+    );
+    if (atLoad && (latest.reps ?? 0) > atLoad.reps) kinds.push("reps");
+    return { kinds, ...(e1rm !== undefined && { e1rm }) };
+  }
+
+  /**
+   * The records set in the range (#89; spec #80, Rules: Record timeline):
+   * every working set that beat a record held before it, recomputed from
+   * history so edits and back-dating count. Newest workout first, then in
+   * the order its exercises and sets were done. One row per set, with every
+   * kind it beat.
+   * @param {Workout[]} finished every finished workout, newest first
+   * @param {Range} range
+   * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+   */
+  async function recordTimeline(finished, range, exerciseOf) {
+    /** @type {Map<string, ExerciseInWorkout[]>} each exercise's, oldest first */
+    const histories = new Map();
+    const rows = [];
+    for (const workout of finished.filter(countsIn(range)))
+      for (const { exerciseId } of workout.entries) {
+        const exercise = exerciseOf(exerciseId);
+        if (!exercise || !TYPE_RULES[exercise.type].records) continue;
+        let oldestFirst = histories.get(exerciseId);
+        if (!oldestFirst) {
+          oldestFirst = (await history(exerciseId, finished)).reverse();
+          histories.set(exerciseId, oldestFirst);
+        }
+        const i = oldestFirst.findIndex((h) => h.workout.id === workout.id);
+        const mine = oldestFirst[i];
+        if (!mine) continue;
+        // What was held before it: the workouts older than this one.
+        const prior = oldestFirst.slice(0, i);
+        for (const [index, set] of mine.sets.entries()) {
+          const { kinds, e1rm } = await recordsBeaten(
+            prior,
+            mine,
+            index,
+            exercise.type,
+          );
+          if (kinds.length)
+            rows.push({
+              workoutId: workout.id,
+              date: workout.date,
+              exerciseId,
+              name: exercise.name,
+              type: exercise.type,
+              set: measureOf(set),
+              kinds,
+              ...(e1rm !== undefined && { e1rm }),
+            });
+        }
+      }
+    return rows;
   }
 
   /**
