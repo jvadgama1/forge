@@ -130,13 +130,13 @@ export function calendarCardView({ workouts, trainingDays, days }, weeks) {
     tip,
     h(
       "p",
-      { class: "calendar-legend label" },
+      { class: "heat-legend label" },
       h("span", {}, "Hard sets a day"),
       ...LEGEND.map((text, level) =>
         h(
           "span",
-          { class: "calendar-key" },
-          h("span", { class: "calendar-swatch", "data-level": String(level) }),
+          { class: "heat-key" },
+          h("span", { class: "heat-swatch", "data-level": String(level) }),
           text,
         ),
       ),

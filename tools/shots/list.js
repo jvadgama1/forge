@@ -1345,5 +1345,17 @@ export const SHOTS = [
       await heading.evaluate((el) => el.scrollIntoView());
     },
   },
+  {
+    name: "stats-body-map",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      const map = page.getByRole("img", { name: /^Body heat map/ });
+      await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await map.focus(); // starts on Chest
+      await page.getByText("hard sets a week · Chest").waitFor();
+    },
+  },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

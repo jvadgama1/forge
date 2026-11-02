@@ -102,6 +102,27 @@ const BY_REGION = REGIONS.flatMap((region) =>
   MUSCLE_GROUPS.filter((m) => m.region === region.id),
 );
 
+// The body heat map's level edges (spec #80, Rules: Body heat map levels):
+// above 0 and under 5 is 1, from 5 is 2, from 10 to 20 (the band) is 3,
+// over 20 is 4; none is 0.
+export const BODY_MAP_EDGES = { low: 5, ...TARGET };
+
+/**
+ * A muscle group's shade on the body heat map, 0 to 4, ordinal so more
+ * volume is always brighter.
+ * @param {number} perWeek
+ */
+const bodyLevelOf = (perWeek) =>
+  perWeek === 0
+    ? 0
+    : perWeek < BODY_MAP_EDGES.low
+      ? 1
+      : perWeek < BODY_MAP_EDGES.min
+        ? 2
+        : perWeek <= BODY_MAP_EDGES.max
+          ? 3
+          : 4;
+
 /**
  * Where a week's hard sets sit against the target band.
  * @param {number} perWeek
@@ -142,7 +163,14 @@ export function hardSetsCard(workouts, exerciseOf) {
     trainingWeeks,
     muscleGroups: BY_REGION.map(({ id, label, region }) => {
       const perWeek = perWeekOf(total.get(id) ?? 0, trainingWeeks);
-      return { id, label, region, perWeek, band: bandOf(perWeek) };
+      return {
+        id,
+        label,
+        region,
+        perWeek,
+        band: bandOf(perWeek),
+        level: bodyLevelOf(perWeek),
+      };
     }),
   };
 }

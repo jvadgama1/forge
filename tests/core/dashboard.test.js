@@ -948,3 +948,28 @@ describe("dashboard record timeline (spec #80; #89)", () => {
     expect(await f.recordsSetBy(w3, "incline-db-press")).toEqual([]);
   });
 });
+
+describe("dashboard body heat map (spec #80; #85)", () => {
+  it("shades each muscle group by its hard sets per week, at fixed levels", async () => {
+    /** @param {number} total triceps sets over two training weeks */
+    const level = async (total) => {
+      const first = Math.ceil(total / 2);
+      const workouts = [
+        past("w1", "2026-10-20", "triceps-pushdown", sets(first)),
+        past("w2", "2026-10-27", "triceps-pushdown", sets(total - first)),
+        // Keeps two training weeks when the triceps have none.
+        past("legs", "2026-10-21", "leg-press", sets(1)),
+        past("legs2", "2026-10-28", "leg-press", sets(1)),
+      ].filter((w) => w.entries[0].sets.length > 0);
+      const board = await (await withWorkouts(...workouts)).f.dashboard();
+      return muscleGroup(board, "triceps")?.level;
+    };
+    expect(await level(0)).toBe(0); // 0
+    expect(await level(9)).toBe(1); // 4.5
+    expect(await level(10)).toBe(2); // 5
+    expect(await level(19)).toBe(2); // 9.5
+    expect(await level(20)).toBe(3); // 10
+    expect(await level(40)).toBe(3); // 20
+    expect(await level(41)).toBe(4); // 20.5
+  });
+});

@@ -883,7 +883,8 @@ a {
   stroke-width: 1.5;
 }
 
-.calendar-legend {
+/* A heat-map legend (#85, #86): each shade with its numbers. */
+.heat-legend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -891,13 +892,13 @@ a {
   margin: 8px 0 0;
 }
 
-.calendar-key {
+.heat-key {
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
 
-.calendar-swatch {
+.heat-swatch {
   width: 12px;
   height: 12px;
   background: var(--heat);
@@ -916,6 +917,24 @@ a {
   flex-wrap: wrap;
   gap: 6px 14px;
   margin: 8px 0 0;
+}
+
+/* The body heat map (#85): each muscle group on the ramp, a ground edge
+   between shapes; the chosen one outlined on both figures. */
+.body-part {
+  fill: var(--heat);
+  stroke: var(--ground);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.body-part-chosen {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.body-neutral {
+  fill: var(--rule-strong);
 }
 
 /* Tonnage bars (#87): one series, in the accent. */
