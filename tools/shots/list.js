@@ -1079,7 +1079,7 @@ export const SHOTS = [
     route: "/log/history/barbell-bench-press",
     seed: WORKOUT,
     steps: async (page) => {
-      await page.locator(".chart").focus();
+      await page.getByRole("img", { name: /^e1RM by workout/ }).focus();
       await page.keyboard.press("ArrowLeft");
       await page.locator(".chart-tip", { hasText: "Oct 14" }).waitFor();
     },
@@ -1231,7 +1231,7 @@ export const SHOTS = [
     route: "/stats",
     seed: STATS,
     steps: async (page) => {
-      await page.locator(".chart").focus();
+      await page.getByRole("img", { name: /^e1RM by workout/ }).focus();
       await page.keyboard.press("ArrowLeft");
       await page.getByRole("link", { name: /Open workout/ }).waitFor();
     },
@@ -1261,5 +1261,41 @@ export const SHOTS = [
     seed: STATS,
   },
   desktop("desktop-stats-point", "/stats/point/w-2026-10-21", STATS),
+  {
+    name: "stats-calendar",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      const calendar = page.locator(".calendar");
+      await calendar.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      // From today, Sunday Oct 25, back a week and up to Friday Oct 16.
+      await calendar.focus();
+      for (const key of ["ArrowLeft", "ArrowUp", "ArrowUp"])
+        await page.keyboard.press(key);
+      await page.getByText("Oct 16", { exact: false }).first().waitFor();
+    },
+  },
+  {
+    name: "stats-calendar-1y",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "1Y" }).click();
+      await page.getByText("52 weeks").waitFor();
+      const calendar = page.locator(".calendar");
+      await calendar.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      // A tap near Friday Oct 16: the second-last column, the fifth row.
+      const box = await calendar.boundingBox();
+      if (!box) throw new Error("No calendar");
+      await calendar.dispatchEvent("pointerdown", {
+        pointerType: "touch",
+        clientX: box.x + (box.width * 50.5) / 52,
+        clientY: box.y + (box.height * 4.5) / 7,
+      });
+      await page.getByText("Oct 16", { exact: false }).first().waitFor();
+    },
+  },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

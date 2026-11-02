@@ -4,6 +4,8 @@
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 import {
   DEFAULT_RANGE,
+  calendarCard,
+  dayBehind,
   countsIn,
   e1rmHeadline,
   hardSetsBehind,
@@ -1477,37 +1479,39 @@ export function createForge({ store, library, now = () => new Date() }) {
             ? undefined
             : await e1rmCard(exerciseId, countsIn(range), choices, workouts),
         hardSets: hardSetsCard(counted, exerciseOf),
+        calendar: calendarCard(counted, exerciseOf, range, localDate(now())),
       };
     },
 
     /**
      * The workouts behind a mark on the Stats board (#84; spec #80,
-     * stories 51–52), over the range the mark was made in, so a reloaded
-     * list stays the same. For now, a muscle group's hard-sets bar.
+     * stories 51–52): a muscle group's bar over the range it was drawn in,
+     * so a reloaded list stays the same, or a calendar day (#86).
      * @param {Mark} mark
      */
-    async workoutsBehind({ muscleGroup, range: rangeId }) {
-      const range = rangeFor(rangeId, localDate(now()));
-      const counted = (await listWorkouts()).filter(countsIn(range));
+    async workoutsBehind(mark) {
+      const finished = (await listWorkouts()).filter((w) => w.finishedAt);
+      if (mark.kind === "day") {
+        const dayWorkouts = finished.filter((w) => w.date === mark.date);
+        const behind = dayBehind(dayWorkouts, await exercisesIn(dayWorkouts));
+        return {
+          kind: mark.kind,
+          ...behind,
+          workouts: await titled(dayWorkouts, behind.workouts),
+        };
+      }
+      const range = rangeFor(mark.range, localDate(now()));
+      const counted = finished.filter(countsIn(range));
       const behind = hardSetsBehind(
         counted,
         await exercisesIn(counted),
-        muscleGroup,
+        mark.muscleGroup,
       );
-      // Each row's title too, so the list needn't read its workouts again.
-      const byId = new Map(counted.map((w) => [w.id, w]));
       return {
+        kind: mark.kind,
         range,
         ...behind,
-        workouts: await Promise.all(
-          behind.workouts.map(async (w) => {
-            const workout = byId.get(w.workoutId);
-            return {
-              ...w,
-              title: workout ? await workoutTitle(workout) : "",
-            };
-          }),
-        ),
+        workouts: await titled(counted, behind.workouts),
       };
     },
   };
@@ -2370,6 +2374,24 @@ export function createForge({ store, library, now = () => new Date() }) {
         value: fromKg(b.kg, unit),
       })),
     };
+  }
+
+  /**
+   * Rows behind a mark with each one's workout title, so the list needn't
+   * read its workouts again (#84).
+   * @template {{ workoutId: string }} W
+   * @param {Workout[]} workouts the ones the rows came from
+   * @param {W[]} rows
+   * @returns {Promise<(W & { title: string })[]>}
+   */
+  async function titled(workouts, rows) {
+    const byId = new Map(workouts.map((w) => [w.id, w]));
+    return Promise.all(
+      rows.map(async (row) => {
+        const workout = byId.get(row.workoutId);
+        return { ...row, title: workout ? await workoutTitle(workout) : "" };
+      }),
+    );
   }
 
   /**

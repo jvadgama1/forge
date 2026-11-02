@@ -14,6 +14,12 @@
   --pull: #3d8bff;
   --legs: #f04d42;
   --core: #12a383;
+  /* Heat-map ramp: ordinal, validated; empty, then four levels. */
+  --heat-0: #242424;
+  --heat-1: #5b6a0b;
+  --heat-2: #8aa114;
+  --heat-3: #bcd923;
+  --heat-4: #e6ff3a;
   --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
@@ -841,6 +847,59 @@ a {
 
 .chart-tip strong {
   font: 800 18px var(--font-display);
+}
+
+/* The calendar (#86): a square per day on the heat-map ramp. */
+[data-level="0"] {
+  --heat: var(--heat-0);
+}
+[data-level="1"] {
+  --heat: var(--heat-1);
+}
+[data-level="2"] {
+  --heat: var(--heat-2);
+}
+[data-level="3"] {
+  --heat: var(--heat-3);
+}
+[data-level="4"] {
+  --heat: var(--heat-4);
+}
+
+/* Drawn at its own size (its width attribute), not stretched to the card. */
+.calendar {
+  width: auto;
+  max-width: 100%;
+}
+
+.calendar-day {
+  fill: var(--heat);
+}
+
+.calendar-ring {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 8px 0 0;
+}
+
+.calendar-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.calendar-swatch {
+  width: 12px;
+  height: 12px;
+  background: var(--heat);
 }
 
 /* A reading's workout, at the tip's end (#84). */

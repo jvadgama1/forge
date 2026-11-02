@@ -103,24 +103,36 @@ export function grid({ width, pad }, ticks, y) {
 }
 
 /**
- * Makes a chart's marks explorable: a crosshair over the mark nearest a tap
- * or the pointer, arrow keys to step, and focus starting on the last mark.
- * Call it after drawing the marks, so the crosshair sits on top.
+ * Makes a chart's marks explorable: the mark nearest a tap or the pointer
+ * is chosen and read out below, arrow keys step through them, and focus
+ * starts on `start`. A mouse hovers to read, so its click opens the mark
+ * (story 51), as Enter does; a tap only reads, and the tip's link opens it
+ * (story 49).
  * @param {SVGElement} chart
- * @param {Frame} frame
- * @param {number[]} xs each mark's x, in order
- * @param {(i: number) => Reading} read
+ * @param {object} marks
+ * @param {Frame} marks.frame
+ * @param {number} marks.count
+ * @param {(x: number, y: number) => number} marks.nearest the mark nearest a
+ *   point, in the frame's coordinates
+ * @param {(i: number) => void} marks.choose shows a mark as chosen
+ * @param {(i: number) => Reading} marks.read
+ * @param {Record<string, number>} [marks.steps] how far each arrow key
+ *   moves; left and right one mark unless given
+ * @param {number} [marks.start] the last mark unless given
  * @returns {HTMLElement} the tip line, to place below the chart
  */
-export function explore(chart, { height, pad, width }, xs, read) {
-  const end = xs.length - 1;
-  const crosshair = svg("line", {
-    y1: pad.top - 8,
-    y2: height - pad.bottom,
-    class: "chart-crosshair",
-    visibility: "hidden",
-  });
-  chart.append(crosshair);
+export function explore(
+  chart,
+  {
+    frame,
+    count,
+    nearest,
+    choose,
+    read,
+    steps = { ArrowLeft: -1, ArrowRight: 1 },
+    start = count - 1,
+  },
+) {
   const value = h("strong", {});
   const label = h("span", { class: "label" });
   const open = h("a", { class: "chart-open" });
@@ -137,10 +149,8 @@ export function explore(chart, { height, pad, width }, xs, read) {
   let href;
   /** @param {number} i */
   const show = (i) => {
-    shown = Math.max(0, Math.min(end, i));
-    crosshair.setAttribute("x1", String(xs[shown]));
-    crosshair.setAttribute("x2", String(xs[shown]));
-    crosshair.setAttribute("visibility", "visible");
+    shown = Math.max(0, Math.min(count - 1, i));
+    choose(shown);
     const reading = read(shown);
     value.textContent = reading.value;
     label.textContent = reading.label;
@@ -152,29 +162,60 @@ export function explore(chart, { height, pad, width }, xs, read) {
     }
   };
   /** @param {Event} e */
-  const nearest = (e) => {
-    const { clientX } = /** @type {PointerEvent} */ (e);
+  const pick = (e) => {
+    const { clientX, clientY } = /** @type {PointerEvent} */ (e);
     const box = chart.getBoundingClientRect();
-    const at = ((clientX - box.left) / box.width) * width;
-    let best = 0;
-    for (let i = 1; i <= end; i++)
-      if (Math.abs(xs[i] - at) < Math.abs(xs[best] - at)) best = i;
-    show(best);
+    const scale = frame.width / box.width;
+    show(nearest((clientX - box.left) * scale, (clientY - box.top) * scale));
   };
-  chart.addEventListener("pointermove", nearest);
-  chart.addEventListener("pointerdown", nearest);
-  chart.addEventListener("focus", () => show(shown < 0 ? end : shown));
+  chart.addEventListener("pointermove", pick);
+  chart.addEventListener("pointerdown", pick);
+  chart.addEventListener("focus", () => show(shown < 0 ? start : shown));
   chart.addEventListener("keydown", (e) => {
-    const key = /** @type {KeyboardEvent} */ (e).key;
-    if (key === "ArrowLeft") show(shown - 1);
-    else if (key === "ArrowRight") show(shown + 1);
-    else if (key === "Enter" && href) location.hash = href;
+    const { key } = /** @type {KeyboardEvent} */ (e);
+    if (key in steps) {
+      e.preventDefault();
+      show(shown + steps[key]);
+    } else if (key === "Enter" && href) location.hash = href;
   });
-  // A mouse hovers to read, so its click opens the mark (story 51); a tap
-  // only reads, and the tip's link opens it (story 49).
   chart.addEventListener("click", (e) => {
     if (/** @type {PointerEvent} */ (e).pointerType === "mouse" && href)
       location.hash = href;
   });
   return tip;
+}
+
+/**
+ * Explores marks along x, as a line chart's: a crosshair over the chosen
+ * one. Call it after drawing the marks, so the crosshair sits on top.
+ * @param {SVGElement} chart
+ * @param {Frame} frame
+ * @param {number[]} xs each mark's x, in order
+ * @param {(i: number) => Reading} read
+ */
+export function exploreAlong(chart, frame, xs, read) {
+  const { height, pad } = frame;
+  const crosshair = svg("line", {
+    y1: pad.top - 8,
+    y2: height - pad.bottom,
+    class: "chart-crosshair",
+    visibility: "hidden",
+  });
+  chart.append(crosshair);
+  return explore(chart, {
+    frame,
+    count: xs.length,
+    nearest: (at) => {
+      let best = 0;
+      for (let i = 1; i < xs.length; i++)
+        if (Math.abs(xs[i] - at) < Math.abs(xs[best] - at)) best = i;
+      return best;
+    },
+    choose: (i) => {
+      crosshair.setAttribute("x1", String(xs[i]));
+      crosshair.setAttribute("x2", String(xs[i]));
+      crosshair.setAttribute("visibility", "visible");
+    },
+    read,
+  });
 }

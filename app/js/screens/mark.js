@@ -1,24 +1,98 @@
 // The workouts behind a mark on the Stats board (#84; spec #80, stories
-// 51–54): a muscle group's hard-sets bar opens the workouts that gave it,
-// each with its share, and each opens the workout. The route names the
-// mark and its range, so a reload shows the same list.
+// 51–54): a muscle group's hard-sets bar or a calendar day (#86) opens the
+// workouts behind it, each with its share, and each opens the workout. The
+// route names the mark (and a bar's range), so a reload shows the same
+// list. Each kind of mark is described once, in KINDS.
 import { h } from "../dom.js";
 import { isRangeId } from "../core/dashboard.js";
 import { MUSCLE_GROUPS, muscleGroup } from "../core/muscle-groups.js";
-import { countOf, listDate, rangeWords, screen, setCount } from "./screen.js";
+import {
+  countOf,
+  listDate,
+  monthDay,
+  rangeWords,
+  screen,
+  setCount,
+} from "./screen.js";
 import { pastWorkoutView } from "./past-workout.js";
 
 /** @import { ScreenContext } from "./screen.js" */
+/** @import { Forge } from "../core/forge.js" */
 /** @import { Mark } from "../core/dashboard.js" */
+/** @typedef {Awaited<ReturnType<Forge["workoutsBehind"]>>} Behind */
 
 /**
- * A mark as a route segment: "hard-sets:chest:12w". Its parts are slugs,
- * and ":" and "~" are safe in a hash, so links match the routes as typed
- * and the open one is marked beside the list.
+ * Hard sets with their noun: "1 hard set", "4.5 hard sets".
+ * @param {number} n
+ */
+const hardSets = (n) => `${setCount(n)} ${n === 1 ? "hard set" : "hard sets"}`;
+
+/**
+ * How one kind of mark is written in a route, named, and introduced.
+ * @template {Mark} M
+ * @typedef {object} Kind
+ * @property {(mark: M) => string} id the route segment after "kind:"
+ * @property {(parts: string[]) => M | undefined} parse
+ * @property {(mark: M) => string} name the list's title
+ * @property {(behind: Behind, name: string, rows: number) => [string, string]} intro
+ *   the label and summary above the rows
+ * @property {(value: number, name: string) => string} share a row's number
+ */
+
+/** @type {{ "hard-sets": Kind<Extract<Mark, { kind: "hard-sets" }>>, day: Kind<Extract<Mark, { kind: "day" }>> }} */
+const KINDS = {
+  "hard-sets": {
+    id: (mark) => `${mark.muscleGroup}:${mark.range}`,
+    parse: ([group, range]) => {
+      const known = MUSCLE_GROUPS.find((m) => m.id === group);
+      return known && isRangeId(range)
+        ? { kind: "hard-sets", muscleGroup: known.id, range }
+        : undefined;
+    },
+    name: (mark) => muscleGroup(mark.muscleGroup).label,
+    intro: (behind, name, rows) => {
+      if (behind.kind !== "hard-sets") return ["", ""];
+      const weeks = rangeWords(behind.range.weeks);
+      return [
+        `Hard sets · last ${weeks}`,
+        rows
+          ? `${hardSets(behind.total)} over ${countOf(behind.trainingWeeks, "training week")}: ${setCount(behind.perWeek)} a week.`
+          : `No ${name} hard sets in the last ${weeks}.`,
+      ];
+    },
+    share: (value, name) => `${name} · ${hardSets(value)}`,
+  },
+  day: {
+    id: (mark) => mark.date,
+    parse: ([date]) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(date ?? "")
+        ? { kind: "day", date }
+        : undefined,
+    name: (mark) => monthDay(mark.date),
+    intro: (behind, _name, rows) => [
+      "Workouts that day",
+      rows
+        ? `${countOf(rows, "workout")}, ${hardSets(behind.total)}.`
+        : "No finished workouts that day.",
+    ],
+    share: (value) => hardSets(value),
+  },
+};
+
+/**
+ * The description of a mark's kind.
+ * @param {Mark} mark
+ * @returns {Kind<Mark>}
+ */
+const kindOf = (mark) => /** @type {Kind<Mark>} */ (KINDS[mark.kind]);
+
+/**
+ * A mark as a route segment: "hard-sets:chest:12w", "day:2026-10-20". ":"
+ * and "~" are safe in a hash, so links match the routes as typed and the
+ * open one is marked beside the list.
  * @param {Mark} mark
  */
-export const markId = ({ kind, muscleGroup, range }) =>
-  `${kind}:${muscleGroup}:${range}`;
+export const markId = (mark) => `${mark.kind}:${kindOf(mark).id(mark)}`;
 
 /**
  * The mark a route segment names, if it names one.
@@ -26,10 +100,10 @@ export const markId = ({ kind, muscleGroup, range }) =>
  * @returns {Mark | undefined}
  */
 export function parseMark(id) {
-  const [kind, group, range] = (id ?? "").split(":");
-  const known = MUSCLE_GROUPS.find((m) => m.id === group);
-  if (kind !== "hard-sets" || !known || !isRangeId(range)) return undefined;
-  return { kind, muscleGroup: known.id, range };
+  const [kind, ...parts] = (id ?? "").split(":");
+  return Object.hasOwn(KINDS, kind)
+    ? KINDS[/** @type {keyof typeof KINDS} */ (kind)].parse(parts)
+    : undefined;
 }
 
 // A workout opened from the list keeps the mark in its route, so on a wide
@@ -67,7 +141,7 @@ export function markWorkoutView(context) {
     parsed
       ? {
           href: `#/stats/${markId(parsed)}`,
-          label: muscleGroup(parsed.muscleGroup).label,
+          label: kindOf(parsed).name(parsed),
         }
       : { href: "#/stats", label: "Stats" },
   );
@@ -81,18 +155,12 @@ export const markBesideView = (context) =>
   markView({ ...context, id: splitMarkWorkout(context.id).mark });
 
 /**
- * A workout opened from an e1RM point (#84; stories 51, 60): back to the
- * board.
+ * A workout opened from a mark that is one workout (#84; stories 51, 60):
+ * an e1RM point or a day with one workout. Back to the board.
  * @param {Pick<ScreenContext, "forge" | "id">} context
  */
 export const pointWorkoutView = (context) =>
   pastWorkoutView(context, { href: "#/stats", label: "Stats" });
-
-/**
- * Hard sets with their noun: "1 hard set", "4.5 hard sets".
- * @param {number} n
- */
-const hardSets = (n) => `${setCount(n)} ${n === 1 ? "hard set" : "hard sets"}`;
 
 /**
  * @param {Pick<ScreenContext, "forge" | "id">} context
@@ -111,7 +179,8 @@ export function markView({ forge, id }) {
         "This link doesn't match anything on the Stats board.",
       ),
     );
-  const name = muscleGroup(mark.muscleGroup).label;
+  const kind = kindOf(mark);
+  const name = kind.name(mark);
   show(mark);
   return screen(name, back, root);
 
@@ -123,7 +192,6 @@ export function markView({ forge, id }) {
     ]);
     const today = forge.today();
     const gymNames = new Map(gyms.map((g) => [g.id, g.name]));
-    const weeks = rangeWords(behind.range.weeks);
     const rows = behind.workouts.map((w) =>
       h(
         "a",
@@ -139,7 +207,7 @@ export function markView({ forge, id }) {
           h(
             "span",
             { class: "label" },
-            [gymNames.get(w.gymId), `${name} · ${hardSets(w.value)}`]
+            [gymNames.get(w.gymId), kind.share(w.value, name)]
               .filter(Boolean)
               .join(" · "),
           ),
@@ -147,19 +215,10 @@ export function markView({ forge, id }) {
         h("span", { "aria-hidden": "true" }, "→"),
       ),
     );
+    const [label, summary] = kind.intro(behind, name, rows.length);
     root.replaceChildren(
-      h("p", { class: "label" }, `Hard sets · last ${weeks}`),
-      rows.length
-        ? h(
-            "p",
-            { class: "lede" },
-            `${hardSets(behind.total)} over ${countOf(behind.trainingWeeks, "training week")}: ${setCount(behind.perWeek)} a week.`,
-          )
-        : h(
-            "p",
-            { class: "lede" },
-            `No ${name} hard sets in the last ${weeks}.`,
-          ),
+      h("p", { class: "label" }, label),
+      h("p", { class: "lede" }, summary),
       h("nav", { class: "menu", "aria-label": `${name} workouts` }, ...rows),
     );
   }
