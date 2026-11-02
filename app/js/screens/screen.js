@@ -44,6 +44,14 @@ export const pad2 = (n) => String(n).padStart(2, "0");
 export const whole = (value) => String(Math.round(value));
 
 /**
+ * A tonnage with its unit, thousands marked: "8,450 lb" (#87).
+ * @param {number} n
+ * @param {string} unit
+ */
+export const tonnageText = (n, unit) =>
+  `${Math.round(n).toLocaleString("en-US")} ${unit}`;
+
+/**
  * A range in words, as the Stats board writes it: "12 weeks", or "year".
  * @param {number} weeks
  */

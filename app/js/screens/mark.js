@@ -13,6 +13,7 @@ import {
   rangeWords,
   screen,
   setCount,
+  tonnageText,
 } from "./screen.js";
 import { pastWorkoutView } from "./past-workout.js";
 
@@ -36,10 +37,11 @@ const hardSets = (n) => `${setCount(n)} ${n === 1 ? "hard set" : "hard sets"}`;
  * @property {(mark: M) => string} name the list's title
  * @property {(behind: Behind, name: string, rows: number) => [string, string]} intro
  *   the label and summary above the rows
- * @property {(value: number, name: string) => string} share a row's number
+ * @property {(value: number, name: string, behind: Behind) => string} share
+ *   a row's number
  */
 
-/** @type {{ "hard-sets": Kind<Extract<Mark, { kind: "hard-sets" }>>, day: Kind<Extract<Mark, { kind: "day" }>> }} */
+/** @type {{ "hard-sets": Kind<Extract<Mark, { kind: "hard-sets" }>>, day: Kind<Extract<Mark, { kind: "day" }>>, tonnage: Kind<Extract<Mark, { kind: "tonnage" }>> }} */
 const KINDS = {
   "hard-sets": {
     id: (mark) => `${mark.muscleGroup}:${mark.range}`,
@@ -76,6 +78,22 @@ const KINDS = {
         : "No finished workouts that day.",
     ],
     share: (value) => hardSets(value),
+  },
+  tonnage: {
+    id: (mark) => mark.week,
+    parse: ([week]) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(week ?? "")
+        ? { kind: "tonnage", week }
+        : undefined,
+    name: (mark) => `Week of ${monthDay(mark.week)}`,
+    intro: (behind, _name, rows) => [
+      "Tonnage",
+      behind.kind === "tonnage" && rows
+        ? `${countOf(rows, "workout")}, ${tonnageText(behind.total, behind.unit)}.`
+        : "No finished workouts that week.",
+    ],
+    share: (value, _name, behind) =>
+      behind.kind === "tonnage" ? tonnageText(value, behind.unit) : "",
   },
 };
 
@@ -207,7 +225,7 @@ export function markView({ forge, id }) {
           h(
             "span",
             { class: "label" },
-            [gymNames.get(w.gymId), kind.share(w.value, name)]
+            [gymNames.get(w.gymId), kind.share(w.value, name, behind)]
               .filter(Boolean)
               .join(" · "),
           ),

@@ -619,3 +619,100 @@ describe("dashboard calendar (spec #80; #86)", () => {
     expect(behind.total).toBe(11);
   });
 });
+
+describe("dashboard tonnage (spec #80; #87)", () => {
+  /**
+   * The tonnage card's week starting on `monday`.
+   * @param {Awaited<ReturnType<ReturnType<typeof createForge>["dashboard"]>>} board
+   * @param {string} monday
+   */
+  const week = (board, monday) =>
+    board.tonnage.weeks.find((w) => w.start === monday);
+
+  it("counts load × reps for each exercise type, as its load is", async () => {
+    const { f } = await withWorkouts({
+      ...past("mixed", "2026-10-20", "bench-press", []),
+      entries: [
+        {
+          exerciseId: "bench-press",
+          sets: [
+            set(50, 10, { warmUp: true }), // out
+            set(100, 10), // 1000
+            set(80, 8, { drop: true }), // 640: a drop set is work
+          ],
+        },
+        { exerciseId: "pull-up", sets: [set(20, 5)] }, // (180 + 20) × 5 = 1000
+        { exerciseId: "assisted-dip", sets: [set(40, 10)] }, // (180 − 40) × 10 = 1400
+        { exerciseId: "plank", sets: [{ ...set(0, 0), seconds: 60 }] }, // none
+        { exerciseId: "treadmill", sets: [{ ...set(0, 0), seconds: 600 }] }, // none
+      ],
+    });
+    await f.addBodyWeight({ date: "2026-10-01", load: 180, unit: "lb" });
+    const board = await f.dashboard();
+    expect(board.tonnage.unit).toBe("lb");
+    expect(week(board, "2026-10-19")).toEqual({
+      start: "2026-10-19",
+      tonnage: 4040,
+      workouts: [{ workoutId: "mixed", date: "2026-10-20", tonnage: 4040 }],
+    });
+  });
+
+  it("counts only the added load of a bodyweight set, and no assisted set, without a body weight", async () => {
+    const { f } = await withWorkouts({
+      ...past("no body weight", "2026-10-20", "pull-up", []),
+      entries: [
+        { exerciseId: "pull-up", sets: [set(20, 5)] }, // 100
+        { exerciseId: "assisted-dip", sets: [set(40, 10)] }, // left out
+      ],
+    });
+    expect(week(await f.dashboard(), "2026-10-19")?.tonnage).toBe(100);
+  });
+
+  it("gives every week in one unit: the one most recently logged", async () => {
+    const { f } = await withWorkouts(
+      past("lb", "2026-10-13", "bench-press", [set(100, 10)]), // 1000 lb
+      past("kg", "2026-10-20", "bench-press", [
+        set(50, 10, { unit: "kg", loggedAt: "2026-10-20T18:30:00.000Z" }),
+      ]), // 500 kg
+    );
+    const board = await f.dashboard();
+    expect(board.tonnage.unit).toBe("kg");
+    expect(week(board, "2026-10-12")?.tonnage).toBe(454); // 1000 lb ≈ 453.6 kg
+    expect(week(board, "2026-10-19")?.tonnage).toBe(500);
+  });
+
+  it("has every week of the range, its workouts adding up to its bar", async () => {
+    const { f } = await withWorkouts(
+      past("a", "2026-10-20", "bench-press", [set(100, 10), set(100, 9)]), // 1900
+      past("b", "2026-10-22", "leg-press", [set(200, 10)]), // 2000
+    );
+    const { weeks } = (await f.dashboard()).tonnage;
+    expect(weeks).toHaveLength(12);
+    expect(weeks[0]).toEqual({ start: "2026-08-10", tonnage: 0, workouts: [] });
+    const busy = weeks.find((w) => w.start === "2026-10-19");
+    expect(busy?.workouts.map((w) => [w.workoutId, w.tonnage])).toEqual([
+      ["b", 2000],
+      ["a", 1900],
+    ]);
+    expect(busy?.tonnage).toBe(3900);
+  });
+
+  it("lists a week's workouts behind its bar, each with its tonnage", async () => {
+    const { f } = await withWorkouts(
+      past("a", "2026-10-20", "bench-press", [set(100, 10)]),
+      past("b", "2026-10-22", "leg-press", [set(200, 10)]),
+      past("next week", "2026-10-27", "leg-press", [set(200, 10)]),
+    );
+    const behind = await f.workoutsBehind({
+      kind: "tonnage",
+      week: "2026-10-19",
+    });
+    assert(behind.kind === "tonnage");
+    expect(behind.unit).toBe("lb");
+    expect(behind.workouts.map((w) => [w.workoutId, w.value])).toEqual([
+      ["b", 2000],
+      ["a", 1000],
+    ]);
+    expect(behind.total).toBe(3000);
+  });
+});

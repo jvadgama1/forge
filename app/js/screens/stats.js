@@ -5,6 +5,7 @@ import { h } from "../dom.js";
 import { e1rmChartBody } from "./e1rm-chart.js";
 import { hardSetsCardView } from "./hard-sets-card.js";
 import { calendarCardView } from "./calendar-card.js";
+import { tonnageCardView } from "./tonnage-card.js";
 import { rangeWords, screen, whole } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
@@ -44,6 +45,8 @@ export function statsView({ forge }) {
       }),
       h("hr", { class: "rule" }),
       ...calendarCardView(dashboard.calendar, dashboard.range.weeks),
+      h("hr", { class: "rule" }),
+      ...tonnageCardView(dashboard.tonnage, rangeWords(dashboard.range.weeks)),
     );
   }
 }

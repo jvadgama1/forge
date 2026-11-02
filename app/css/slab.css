@@ -902,6 +902,11 @@ a {
   background: var(--heat);
 }
 
+/* Tonnage bars (#87): one series, in the accent. */
+.chart-bar {
+  fill: var(--accent);
+}
+
 /* A reading's workout, at the tip's end (#84). */
 .chart-open {
   margin-left: 10px;

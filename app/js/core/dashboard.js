@@ -4,8 +4,9 @@
 
 import { TYPE_RULES } from "./exercise-types.js";
 import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
+import { fromKg, inKg } from "./units.js";
 
-/** @import { Exercise, MuscleGroup, Workout, WorkoutSet } from "./types.js" */
+/** @import { Exercise, Load, MuscleGroup, Workout, WorkoutSet } from "./types.js" */
 
 /** @typedef {"4w" | "12w" | "1y"} RangeId */
 
@@ -14,7 +15,8 @@ import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
  * group's hard-sets bar, in the range it was drawn for, or a calendar day
  * (#86).
  * @typedef {{ kind: "hard-sets", muscleGroup: MuscleGroup, range: RangeId }
- *   | { kind: "day", date: string }} Mark
+ *   | { kind: "day", date: string }
+ *   | { kind: "tonnage", week: string }} Mark
  */
 
 /**
@@ -294,6 +296,118 @@ const trainingWeeksOf = (workouts) =>
  */
 const perWeekOf = (total, trainingWeeks) =>
   trainingWeeks ? Math.round((total / trainingWeeks) * 10) / 10 : 0;
+
+/**
+ * Whether a date falls in the week starting on `monday`.
+ * @param {string} date YYYY-MM-DD
+ * @param {string} monday YYYY-MM-DD
+ */
+export const inWeek = (date, monday) =>
+  date >= monday && date <= dateOf(dayNumber(monday) + 6);
+
+/**
+ * The unit tonnage is given in (spec #80, Rules: Tonnage): that of the most
+ * recently logged set with a load, or lb with none.
+ * @param {Workout[]} workouts
+ * @returns {Load["unit"]}
+ */
+export function displayUnit(workouts) {
+  let latest = { loggedAt: "", unit: /** @type {Load["unit"]} */ ("lb") };
+  for (const w of workouts)
+    for (const { sets } of w.entries)
+      for (const set of sets)
+        if (set.load > 0 && set.loggedAt > latest.loggedAt) latest = set;
+  return latest.unit;
+}
+
+/**
+ * A workout's tonnage in kg (spec #80, Rules: Tonnage): load × reps over
+ * its sets that aren't warm-ups, drop sets included. A bodyweight set's
+ * load is the body weight on the day plus the added load (just the added
+ * load without a body weight entry); an assisted set's is the body weight
+ * less the assist, never below 0, and it's left out without a body weight.
+ * Timed holds and cardio have none.
+ * @param {Workout} workout
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @param {(date: string) => Load | undefined} bodyWeightOn
+ */
+function tonnageKg(workout, exerciseOf, bodyWeightOn) {
+  const body = bodyWeightOn(workout.date);
+  let kg = 0;
+  for (const { exerciseId, sets } of workout.entries) {
+    const type = exerciseOf(exerciseId)?.type;
+    if (!type || TYPE_RULES[type].measure !== "reps") continue;
+    for (const set of sets) {
+      if (set.warmUp) continue;
+      const load =
+        type === "bodyweight-reps"
+          ? (body ? inKg(body) : 0) + inKg(set)
+          : type === "assisted"
+            ? body && Math.max(0, inKg(body) - inKg(set))
+            : inKg(set);
+      if (load !== undefined) kg += load * (set.reps ?? 0);
+    }
+  }
+  return kg;
+}
+
+/**
+ * Each workout's tonnage in `unit`, whole; a week's is the sum of its
+ * workouts', so the list behind its bar adds up to it.
+ * @param {Workout} workout
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @param {(date: string) => Load | undefined} bodyWeightOn
+ * @param {Load["unit"]} unit
+ */
+const tonnageOf = (workout, exerciseOf, bodyWeightOn, unit) =>
+  Math.round(fromKg(tonnageKg(workout, exerciseOf, bodyWeightOn), unit));
+
+/**
+ * The tonnage card (#87; spec #80, stories 36–41): every week of the
+ * range, Monday first, with each of its workouts' tonnage.
+ * @param {Workout[]} workouts the counted ones, newest first
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @param {(date: string) => Load | undefined} bodyWeightOn
+ * @param {Range} range
+ * @param {Load["unit"]} unit
+ */
+export function tonnageCard(workouts, exerciseOf, bodyWeightOn, range, unit) {
+  const weeks = [];
+  for (let day = dayNumber(range.from); day <= dayNumber(range.to); day += 7) {
+    const start = dateOf(day);
+    const each = workouts
+      .filter((w) => inWeek(w.date, start))
+      .map((w) => ({
+        workoutId: w.id,
+        date: w.date,
+        tonnage: tonnageOf(w, exerciseOf, bodyWeightOn, unit),
+      }));
+    weeks.push({
+      start,
+      tonnage: each.reduce((n, w) => n + w.tonnage, 0),
+      workouts: each,
+    });
+  }
+  return { unit, weeks };
+}
+
+/**
+ * The workouts behind a week's tonnage bar (#87), newest first, each with
+ * its tonnage.
+ * @param {Workout[]} workouts the week's finished ones, newest first
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @param {(date: string) => Load | undefined} bodyWeightOn
+ * @param {Load["unit"]} unit
+ */
+export function tonnageBehind(workouts, exerciseOf, bodyWeightOn, unit) {
+  const each = workouts.map((w) => ({
+    workoutId: w.id,
+    date: w.date,
+    gymId: w.gymId,
+    value: tonnageOf(w, exerciseOf, bodyWeightOn, unit),
+  }));
+  return { unit, workouts: each, total: each.reduce((n, w) => n + w.value, 0) };
+}
 
 /**
  * The range ending with the week that holds `today`.
