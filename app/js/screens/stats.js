@@ -7,6 +7,7 @@ import { hardSetsCardView } from "./hard-sets-card.js";
 import { calendarCardView } from "./calendar-card.js";
 import { tonnageCardView } from "./tonnage-card.js";
 import { regionSplitCardView } from "./region-split-card.js";
+import { recordTimelineCardView } from "./record-timeline-card.js";
 import { rangeWords, screen, whole } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
@@ -52,6 +53,12 @@ export function statsView({ forge }) {
       ...regionSplitCardView(
         dashboard.regionSplit,
         rangeWords(dashboard.range.weeks),
+      ),
+      h("hr", { class: "rule" }),
+      ...recordTimelineCardView(
+        dashboard.records,
+        rangeWords(dashboard.range.weeks),
+        forge.today(),
       ),
     );
   }

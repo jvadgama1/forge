@@ -1335,5 +1335,15 @@ export const SHOTS = [
       await page.getByText("Pull 56", { exact: false }).first().waitFor();
     },
   },
+  {
+    name: "stats-records",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      const heading = page.getByRole("heading", { name: "Records" });
+      await heading.evaluate((el) => el.scrollIntoView());
+    },
+  },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

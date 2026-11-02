@@ -256,12 +256,13 @@ function suggestionLine(suggestion, type) {
 }
 
 /**
- * What the celebration calls a record the set beat.
+ * What the celebration calls a record the set beat; the Stats board's
+ * record timeline says the same (#89).
  * @param {RecordKind} record
- * @param {WorkoutSet} set the set that beat it
+ * @param {Pick<WorkoutSet, "load" | "unit">} set the set that beat it
  * @param {ExerciseType} type
  */
-const recordName = (record, set, type) =>
+export const recordName = (record, set, type) =>
   ({
     heaviest: "heaviest load",
     "least-assist": "least assist",

@@ -824,3 +824,98 @@ describe("dashboard region split (spec #80; #88)", () => {
     expect(behind.total).toBe(11);
   });
 });
+
+describe("dashboard record timeline (spec #80; #89)", () => {
+  /**
+   * The timeline's rows, briefly: date, exercise, set, kinds beaten.
+   * @param {Awaited<ReturnType<ReturnType<typeof createForge>["dashboard"]>>} board
+   */
+  const rows = (board) =>
+    board.records.map((r) => [
+      r.date,
+      r.exerciseId,
+      `${r.set.load}x${r.set.reps}`,
+      r.kinds,
+    ]);
+
+  it("lists the records each set beat, newest workout first, none in an exercise's first workout", async () => {
+    const { f } = await withWorkouts(
+      // First workout with bench: every set would beat nothing, so none.
+      past("sep-1", "2026-09-01", "bench-press", [set(135, 10)]), // e1RM 180
+      past("sep-8", "2026-09-08", "bench-press", [set(140, 8)]), // heavier; e1RM 177.3
+      past("sep-15", "2026-09-15", "bench-press", [
+        set(140, 8), // matches both: not a record
+        set(140, 9), // e1RM 182 beats 180; 9 reps at 140 beats 8
+      ]),
+    );
+    expect(rows(await f.dashboard())).toEqual([
+      ["2026-09-15", "bench-press", "140x9", ["e1rm", "reps"]],
+      ["2026-09-08", "bench-press", "140x8", ["heaviest"]],
+    ]);
+  });
+
+  it("agrees with the celebration for the same sets", async () => {
+    const { f } = await withWorkouts(
+      past("sep-1", "2026-09-01", "bench-press", [set(135, 10)]),
+    );
+    const work = await f.createGym("Work");
+    const today = await f.startWorkout(work.id);
+    await f.addExercise(today.id, "bench-press");
+    const celebrated = [];
+    for (const s of [
+      { load: 140, reps: 8 },
+      { load: 140, reps: 9 },
+      { load: 100, reps: 10, warmUp: true },
+    ]) {
+      const w = await f.logSet(today.id, "bench-press", s);
+      celebrated.push(await f.recordsSetBy(w, "bench-press"));
+    }
+    expect(celebrated).toEqual([["heaviest"], ["e1rm", "reps"], []]);
+    await f.finishWorkout(today.id);
+    expect(rows(await f.dashboard())).toEqual([
+      ["2026-10-28", "bench-press", "140x8", ["heaviest"]],
+      ["2026-10-28", "bench-press", "140x9", ["e1rm", "reps"]],
+    ]);
+  });
+
+  it("follows a workout corrected after the fact", async () => {
+    const { f } = await withWorkouts(
+      past("sep-1", "2026-09-01", "bench-press", [set(135, 10)]),
+      past("sep-8", "2026-09-08", "bench-press", [set(140, 8)]),
+      past("sep-15", "2026-09-15", "bench-press", [set(140, 8), set(140, 9)]),
+    );
+    await f.editSet(
+      { workoutId: "sep-8", exerciseId: "bench-press", index: 0 },
+      { load: 130, reps: 8 },
+    );
+    expect(rows(await f.dashboard())).toEqual([
+      ["2026-09-15", "bench-press", "140x8", ["heaviest"]],
+      ["2026-09-15", "bench-press", "140x9", ["e1rm", "reps"]],
+    ]);
+  });
+
+  it("names the exercise, and leaves out records set before the range", async () => {
+    const { f } = await withWorkouts(
+      past("jun-1", "2026-06-01", "bench-press", [set(135, 10)]),
+      past("jun-8", "2026-06-08", "bench-press", [set(140, 10)]), // before Aug 10
+      past("oct-1", "2026-10-01", "bench-press", [set(145, 10)]),
+    );
+    const { records } = await f.dashboard();
+    expect(records.map((r) => [r.workoutId, r.name])).toEqual([
+      ["oct-1", "Bench Press"],
+    ]);
+  });
+
+  it("doesn't count matching the best e1RM in lb as beating it", async () => {
+    // 50 lb × 10 every week: e1RM 66.67 lb each time, compared through kg.
+    const { f } = await withWorkouts(
+      past("w1", "2026-10-06", "incline-db-press", [set(50, 10)]),
+      past("w2", "2026-10-13", "incline-db-press", [set(50, 10)]),
+      past("w3", "2026-10-20", "incline-db-press", [set(50, 10), set(50, 10)]),
+    );
+    expect((await f.dashboard()).records).toEqual([]);
+    const w3 = await f.getWorkout("w3");
+    if (!w3) throw new Error("no w3");
+    expect(await f.recordsSetBy(w3, "incline-db-press")).toEqual([]);
+  });
+});
