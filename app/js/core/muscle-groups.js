@@ -15,6 +15,16 @@ export const REGIONS = [
 ];
 
 /**
+ * @param {Region} id
+ * @returns {{ id: Region, label: string }}
+ */
+export function region(id) {
+  const info = REGIONS.find((r) => r.id === id);
+  if (!info) throw new Error(`Unknown region: ${id}`);
+  return info;
+}
+
+/**
  * The 17 muscle groups (GLOSSARY.md), in display order, each in one region.
  * @type {MuscleGroupInfo[]}
  */

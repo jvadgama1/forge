@@ -5,7 +5,12 @@
 // list. Each kind of mark is described once, in KINDS.
 import { h } from "../dom.js";
 import { isRangeId } from "../core/dashboard.js";
-import { MUSCLE_GROUPS, REGIONS, muscleGroup } from "../core/muscle-groups.js";
+import {
+  MUSCLE_GROUPS,
+  REGIONS,
+  muscleGroup,
+  region,
+} from "../core/muscle-groups.js";
 import {
   countOf,
   listDate,
@@ -89,7 +94,7 @@ const KINDS = {
         : undefined;
     },
     name: (mark) =>
-      `${REGIONS.find((r) => r.id === mark.region)?.label} · week of ${monthDay(mark.week)}`,
+      `${region(mark.region).label} · week of ${monthDay(mark.week)}`,
     intro: (behind, _name, rows) => [
       "Hard sets",
       rows

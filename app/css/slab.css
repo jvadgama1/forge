@@ -876,7 +876,8 @@ a {
   fill: var(--heat);
 }
 
-.calendar-ring {
+/* The chosen mark on a grid or a stack (#86, #88). */
+.chart-ring {
   fill: none;
   stroke: var(--text);
   stroke-width: 1.5;

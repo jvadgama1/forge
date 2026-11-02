@@ -1,7 +1,7 @@
 // The Stats board's region split card (#88; spec #80, stories 42–44): each
 // week's hard sets stacked by region, Push at the bottom, then Pull, Legs
-// and Core, in their validated colours and that fixed order, which the
-// palette was checked for side by side. The regions are named in a legend
+// and Core, in their validated colours and the order the palette was
+// validated in. The regions are named in a legend
 // and in every reading, so colour is never the only signal. Each region's
 // part of a week is a mark: it reads out and opens its workouts.
 import { h } from "../dom.js";
@@ -21,7 +21,15 @@ const FRAME = {
   pad: { top: 12, right: 8, bottom: 22, left: 30 },
 };
 
+// One mark per region per week: mark w × 4 + r is week w's region r.
 const PER_WEEK = REGIONS.length;
+
+/**
+ * A week's regions in words: "Push 28, Pull 50, Legs 8, Core 3".
+ * @param {RegionSplit["weeks"][number]} week
+ */
+const split = (week) =>
+  week.regions.map((r) => `${r.label} ${setCount(r.hardSets)}`).join(", ");
 
 /**
  * @param {RegionSplit} regionSplit
@@ -29,7 +37,11 @@ const PER_WEEK = REGIONS.length;
  * @returns {Node[]}
  */
 export function regionSplitCardView({ weeks }, rangeWords) {
-  const heading = h("h2", { class: "label section" }, "Hard sets by region");
+  const heading = h(
+    "h2",
+    { class: "label section" },
+    "Hard sets / week by region",
+  );
   const most = Math.max(...weeks.map((w) => w.total));
   if (most === 0)
     return [
@@ -56,7 +68,7 @@ export function regionSplitCardView({ weeks }, rangeWords) {
   const latest = weeks[weeks.length - 1];
   const chart = chartRoot(
     FRAME,
-    `Hard sets by region per week over ${rangeWords}. This week: ${latest.regions.map((r) => `${r.label} ${setCount(r.hardSets)}`).join(", ")}.`,
+    `Hard sets per week by region over ${rangeWords}. This week: ${split(latest)}.`,
   );
   chart.append(...grid(FRAME, [0, top], y));
   weeks.forEach((week, w) =>
@@ -92,7 +104,7 @@ export function regionSplitCardView({ weeks }, rangeWords) {
       monthDay(latest.start),
     ),
   );
-  const ring = svg("rect", { class: "calendar-ring", visibility: "hidden" });
+  const ring = svg("rect", { class: "chart-ring", visibility: "hidden" });
   chart.append(ring);
 
   const tip = explore(chart, {
@@ -129,7 +141,7 @@ export function regionSplitCardView({ weeks }, rangeWords) {
       const region = week.regions[mark % PER_WEEK];
       return {
         value: `${region.label} ${setCount(region.hardSets)}`,
-        label: ` · week of ${monthDay(week.start)} · ${week.regions.map((r) => `${r.label} ${setCount(r.hardSets)}`).join(", ")}`,
+        label: ` · week of ${monthDay(week.start)} · ${split(week)}`,
         ...(region.workoutIds.length > 0 && {
           open: openMark(region.workoutIds, {
             kind: "region",

@@ -771,6 +771,31 @@ describe("dashboard region split (spec #80; #88)", () => {
     expect(oct19?.total).toBe(19); // 8 + 6 + 3 + 2
   });
 
+  it("adds up to the week's hard sets by muscle group", async () => {
+    const board = await (await withWorkouts(week())).f.dashboard();
+    // One training week, so each muscle group's per-week number is its week.
+    const byMuscleGroup = board.hardSets.muscleGroups.reduce(
+      (n, m) => n + m.perWeek,
+      0,
+    );
+    expect(byMuscleGroup).toBe(19);
+    expect(
+      board.regionSplit.weeks.find((w) => w.start === "2026-10-19")?.total,
+    ).toBe(byMuscleGroup);
+  });
+
+  it("keeps each week's workouts in its own bar", async () => {
+    const { f } = await withWorkouts(
+      past("oct-20", "2026-10-20", "bench-press", sets(4)), // push 8
+      past("oct-27", "2026-10-27", "triceps-pushdown", sets(3)), // push 3
+    );
+    const { weeks } = (await f.dashboard()).regionSplit;
+    const push = (/** @type {string} */ monday) =>
+      weeks.find((w) => w.start === monday)?.regions[0].hardSets;
+    expect(push("2026-10-19")).toBe(8);
+    expect(push("2026-10-26")).toBe(3);
+  });
+
   it("has every week of the range, those with no workouts empty", async () => {
     const { f } = await withWorkouts(week());
     const { weeks } = (await f.dashboard()).regionSplit;

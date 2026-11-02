@@ -174,7 +174,8 @@ const WORKOUT = {
 /**
  * A finished made-up workout of several exercises at Work.
  * @param {string} date YYYY-MM-DD
- * @param {Array<[exerciseId: string, sets: Array<[load: number, reps: number]>]>} entries
+ * @param {Array<[exerciseId: string, sets: Array<[load: number, reps: number, seconds?: number]>]>} entries
+ *   a timed hold's sets give seconds instead of reps
  */
 const day = (date, entries) => ({
   id: `w-${date}`,
@@ -184,10 +185,10 @@ const day = (date, entries) => ({
   gymId: "gym-work",
   entries: entries.map(([exerciseId, sets]) => ({
     exerciseId,
-    sets: sets.map(([load, reps]) => ({
+    sets: sets.map(([load, reps, seconds]) => ({
       load,
       unit: "lb",
-      reps,
+      ...(seconds === undefined ? { reps } : { seconds }),
       loggedAt: `${date}T18:10:00.000Z`,
     })),
   })),
@@ -203,11 +204,13 @@ const day = (date, entries) => ({
 const times = (n, load, reps) => Array.from({ length: n }, () => [load, reps]);
 
 /**
- * Twelve weeks of made-up training for the Stats board (#82, #83): a push
- * workout each Wednesday with bench press getting heavier (135 × 8 on Aug 5
- * up to 160 × 8 on Oct 21), and a pull-and-legs workout each Friday. A week
- * comes to 12 hard sets of chest and 10 of triceps (in the band), 22 of
- * lats (over) and 4 of quads (under). The e1RM card was left on bench press.
+ * Twelve weeks of made-up training for the Stats board (#82, #83, #88): a
+ * push workout each Wednesday with bench press getting heavier (135 × 8 on
+ * Aug 5 up to 160 × 8 on Oct 21) and face pulls, and a pull-and-legs
+ * workout each Friday with planks; the week of Sep 7 off. A training week
+ * comes to 12 hard sets of chest and 10 of triceps (in the band), 23.5 of
+ * lats (over) and 4 of quads (under); by region, Push 28, Pull 56, Legs 8,
+ * Core 6. The e1RM card was left on bench press.
  */
 const STATS = {
   gyms: GYMS.gyms,
@@ -224,7 +227,6 @@ const STATS = {
     ["2026-08-19", "2026-08-21", 140],
     ["2026-08-26", "2026-08-28", 140],
     ["2026-09-02", "2026-09-04", 145],
-    ["2026-09-09", "2026-09-11", 145],
     ["2026-09-16", "2026-09-18", 145],
     ["2026-09-23", "2026-09-25", 150],
     ["2026-09-30", "2026-10-02", 150],
@@ -239,13 +241,21 @@ const STATS = {
       ],
       ["incline-db-press", times(6, 50, 10)],
       ["triceps-pushdown", times(4, 60, 12)],
+      ["face-pull", times(3, 40, 15)],
     ]),
     day(pull, [
       ["lat-pulldown", times(12, 120, 10)],
       ["seated-cable-row", times(10, 110, 10)],
       ["db-curl", times(4, 30, 12)],
       ["leg-press", times(4, 270, 10)],
-      ["plank", []],
+      [
+        "plank",
+        [
+          [0, 0, 60],
+          [0, 0, 60],
+          [0, 0, 60],
+        ],
+      ],
     ]),
   ]),
 };
@@ -1221,7 +1231,7 @@ export const SHOTS = [
     route: "/stats",
     seed: STATS,
     steps: async (page) => {
-      const heading = page.getByRole("heading", { name: /^Hard sets \/ week/ });
+      const heading = page.getByRole("heading", { name: /Target 10/ });
       await heading.evaluate((el) => el.scrollIntoView());
     },
   },
@@ -1315,12 +1325,14 @@ export const SHOTS = [
     route: "/stats",
     seed: STATS,
     steps: async (page) => {
-      const chart = page.getByRole("img", { name: /^Hard sets by region/ });
+      const chart = page.getByRole("img", {
+        name: /^Hard sets per week by region/,
+      });
       await chart.evaluate((el) => el.scrollIntoView({ block: "center" }));
       // The latest week's Pull, one up from Push.
       await chart.focus();
       await page.keyboard.press("ArrowUp");
-      await page.getByText("Pull 50", { exact: false }).first().waitFor();
+      await page.getByText("Pull 56", { exact: false }).first().waitFor();
     },
   },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },

@@ -3,7 +3,7 @@
 // them; no DOM or Firestore here.
 
 import { TYPE_RULES } from "./exercise-types.js";
-import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
+import { MUSCLE_GROUPS, REGIONS, muscleGroup } from "./muscle-groups.js";
 import { fromKg, inKg, plusBody } from "./units.js";
 
 /** @import { Exercise, Load, MuscleGroup, Region, Workout, WorkoutSet } from "./types.js" */
@@ -299,6 +299,17 @@ const perWeekOf = (total, trainingWeeks) =>
   trainingWeeks ? Math.round((total / trainingWeeks) * 10) / 10 : 0;
 
 /**
+ * The Mondays of the range's weeks, oldest first.
+ * @param {Range} range
+ */
+function mondaysOf(range) {
+  const mondays = [];
+  for (let day = dayNumber(range.from); day <= dayNumber(range.to); day += 7)
+    mondays.push(dateOf(day));
+  return mondays;
+}
+
+/**
  * Whether a date falls in the week starting on `monday`.
  * @param {string} date YYYY-MM-DD
  * @param {string} monday YYYY-MM-DD
@@ -373,8 +384,7 @@ const tonnageOf = (workout, exerciseOf, bodyWeightOn, unit) =>
  */
 export function tonnageCard(workouts, exerciseOf, bodyWeightOn, range, unit) {
   const weeks = [];
-  for (let day = dayNumber(range.from); day <= dayNumber(range.to); day += 7) {
-    const start = dateOf(day);
+  for (const start of mondaysOf(range)) {
     const each = workouts
       .filter((w) => inWeek(w.date, start))
       .map((w) => ({
@@ -419,13 +429,11 @@ function regionHardSets(workout, exerciseOf) {
   /** @type {Map<Region, number>} */
   const byRegion = new Map();
   for (const [id, n] of hardSetsIn(workout, exerciseOf)) {
-    const { region } = MUSCLE_GROUP_BY_ID.get(id) ?? {};
-    if (region) byRegion.set(region, (byRegion.get(region) ?? 0) + n);
+    const { region } = muscleGroup(id);
+    byRegion.set(region, (byRegion.get(region) ?? 0) + n);
   }
   return byRegion;
 }
-
-const MUSCLE_GROUP_BY_ID = new Map(MUSCLE_GROUPS.map((m) => [m.id, m]));
 
 /**
  * The region split card (#88; spec #80, stories 42–44): every week of the
@@ -437,8 +445,7 @@ const MUSCLE_GROUP_BY_ID = new Map(MUSCLE_GROUPS.map((m) => [m.id, m]));
  */
 export function regionSplitCard(workouts, exerciseOf, range) {
   const weeks = [];
-  for (let day = dayNumber(range.from); day <= dayNumber(range.to); day += 7) {
-    const start = dateOf(day);
+  for (const start of mondaysOf(range)) {
     const weekWorkouts = workouts.filter((w) => inWeek(w.date, start));
     const each = weekWorkouts.map((w) => ({
       id: w.id,
