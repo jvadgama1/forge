@@ -738,3 +738,64 @@ describe("dashboard tonnage (spec #80; #87)", () => {
     expect(week(await f.dashboard(), "2026-10-19")?.tonnage).toBe(0);
   });
 });
+
+describe("dashboard region split (spec #80; #88)", () => {
+  /** A week of all four regions' work, Oct 19. */
+  const week = () => ({
+    ...past("oct-20", "2026-10-20", "bench-press", []),
+    entries: [
+      { exerciseId: "bench-press", sets: sets(4) }, // push: chest 4, triceps 2, front delts 2
+      { exerciseId: "lat-pulldown", sets: sets(4) }, // pull: lats 4, biceps 2
+      { exerciseId: "leg-press", sets: sets(2) }, // legs: quads 2, glutes 1
+      {
+        exerciseId: "plank",
+        sets: [
+          { ...set(0, 0), seconds: 60 },
+          { ...set(0, 0), seconds: 60 },
+        ],
+      }, // core: abs 2
+    ],
+  });
+
+  it("stacks each week's hard sets by region, in the fixed order", async () => {
+    const { f } = await withWorkouts(week());
+    const oct19 = (await f.dashboard()).regionSplit.weeks.find(
+      (w) => w.start === "2026-10-19",
+    );
+    expect(oct19?.regions).toEqual([
+      { id: "push", label: "Push", hardSets: 8, workoutIds: ["oct-20"] },
+      { id: "pull", label: "Pull", hardSets: 6, workoutIds: ["oct-20"] },
+      { id: "legs", label: "Legs", hardSets: 3, workoutIds: ["oct-20"] },
+      { id: "core", label: "Core", hardSets: 2, workoutIds: ["oct-20"] },
+    ]);
+    expect(oct19?.total).toBe(19); // 8 + 6 + 3 + 2
+  });
+
+  it("has every week of the range, those with no workouts empty", async () => {
+    const { f } = await withWorkouts(week());
+    const { weeks } = (await f.dashboard()).regionSplit;
+    expect(weeks).toHaveLength(12);
+    expect(weeks[0].start).toBe("2026-08-10");
+    expect(weeks[0].total).toBe(0);
+    expect(weeks[0].regions.map((r) => r.hardSets)).toEqual([0, 0, 0, 0]);
+  });
+
+  it("lists the workouts behind a region's part of a week, each with its hard sets there", async () => {
+    const { f } = await withWorkouts(
+      week(),
+      past("oct-22", "2026-10-22", "triceps-pushdown", sets(3)), // push 3
+      past("oct-23", "2026-10-23", "leg-press", sets(3)), // no push
+      past("next week", "2026-10-27", "bench-press", sets(3)),
+    );
+    const behind = await f.workoutsBehind({
+      kind: "region",
+      region: "push",
+      week: "2026-10-19",
+    });
+    expect(behind.workouts.map((w) => [w.workoutId, w.value])).toEqual([
+      ["oct-22", 3],
+      ["oct-20", 8],
+    ]);
+    expect(behind.total).toBe(11);
+  });
+});

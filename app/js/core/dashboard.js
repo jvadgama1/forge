@@ -6,7 +6,7 @@ import { TYPE_RULES } from "./exercise-types.js";
 import { MUSCLE_GROUPS, REGIONS } from "./muscle-groups.js";
 import { fromKg, inKg, plusBody } from "./units.js";
 
-/** @import { Exercise, Load, MuscleGroup, Workout, WorkoutSet } from "./types.js" */
+/** @import { Exercise, Load, MuscleGroup, Region, Workout, WorkoutSet } from "./types.js" */
 
 /** @typedef {"4w" | "12w" | "1y"} RangeId */
 
@@ -16,7 +16,8 @@ import { fromKg, inKg, plusBody } from "./units.js";
  * (#86).
  * @typedef {{ kind: "hard-sets", muscleGroup: MuscleGroup, range: RangeId }
  *   | { kind: "day", date: string }
- *   | { kind: "tonnage", week: string }} Mark
+ *   | { kind: "tonnage", week: string }
+ *   | { kind: "region", region: Region, week: string }} Mark
  */
 
 /**
@@ -406,6 +407,80 @@ export function tonnageBehind(workouts, exerciseOf, bodyWeightOn, unit) {
     value: tonnageOf(w, exerciseOf, bodyWeightOn, unit),
   }));
   return { unit, workouts: each, total: each.reduce((n, w) => n + w.value, 0) };
+}
+
+/**
+ * One workout's hard sets by region: its muscle groups' hard sets, each
+ * counted toward the region it's in (spec #80, Rules: Region split).
+ * @param {Workout} workout
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ */
+function regionHardSets(workout, exerciseOf) {
+  /** @type {Map<Region, number>} */
+  const byRegion = new Map();
+  for (const [id, n] of hardSetsIn(workout, exerciseOf)) {
+    const { region } = MUSCLE_GROUP_BY_ID.get(id) ?? {};
+    if (region) byRegion.set(region, (byRegion.get(region) ?? 0) + n);
+  }
+  return byRegion;
+}
+
+const MUSCLE_GROUP_BY_ID = new Map(MUSCLE_GROUPS.map((m) => [m.id, m]));
+
+/**
+ * The region split card (#88; spec #80, stories 42–44): every week of the
+ * range, Monday first, with its hard sets by region in the fixed order
+ * Push, Pull, Legs, Core; a week with no workouts is present and empty.
+ * @param {Workout[]} workouts the counted ones, newest first
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @param {Range} range
+ */
+export function regionSplitCard(workouts, exerciseOf, range) {
+  const weeks = [];
+  for (let day = dayNumber(range.from); day <= dayNumber(range.to); day += 7) {
+    const start = dateOf(day);
+    const weekWorkouts = workouts.filter((w) => inWeek(w.date, start));
+    const each = weekWorkouts.map((w) => ({
+      id: w.id,
+      byRegion: regionHardSets(w, exerciseOf),
+    }));
+    // Each region's hard sets, and the workouts that gave them, so its part
+    // of the bar opens them (#84).
+    const regions = REGIONS.map(({ id, label }) => {
+      const giving = each.filter((w) => (w.byRegion.get(id) ?? 0) > 0);
+      return {
+        id,
+        label,
+        hardSets: giving.reduce((n, w) => n + (w.byRegion.get(id) ?? 0), 0),
+        workoutIds: giving.map((w) => w.id),
+      };
+    });
+    weeks.push({
+      start,
+      regions,
+      total: regions.reduce((n, r) => n + r.hardSets, 0),
+    });
+  }
+  return { weeks };
+}
+
+/**
+ * The workouts behind a region's part of a week (#88), newest first, each
+ * with its hard sets in that region; those with none are left out.
+ * @param {Workout[]} workouts the week's finished ones, newest first
+ * @param {(exerciseId: string) => Exercise | undefined} exerciseOf
+ * @param {Region} region
+ */
+export function regionBehind(workouts, exerciseOf, region) {
+  const each = workouts
+    .map((w) => ({
+      workoutId: w.id,
+      date: w.date,
+      gymId: w.gymId,
+      value: regionHardSets(w, exerciseOf).get(region) ?? 0,
+    }))
+    .filter((w) => w.value > 0);
+  return { workouts: each, total: each.reduce((n, w) => n + w.value, 0) };
 }
 
 /**

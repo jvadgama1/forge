@@ -1221,7 +1221,7 @@ export const SHOTS = [
     route: "/stats",
     seed: STATS,
     steps: async (page) => {
-      const heading = page.getByRole("heading", { name: /Hard sets/ });
+      const heading = page.getByRole("heading", { name: /^Hard sets \/ week/ });
       await heading.evaluate((el) => el.scrollIntoView());
     },
   },
@@ -1307,6 +1307,20 @@ export const SHOTS = [
       await chart.evaluate((el) => el.scrollIntoView({ block: "center" }));
       await chart.focus();
       await page.getByText("week of Oct 19").waitFor();
+    },
+  },
+  {
+    name: "stats-region-split",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      const chart = page.getByRole("img", { name: /^Hard sets by region/ });
+      await chart.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      // The latest week's Pull, one up from Push.
+      await chart.focus();
+      await page.keyboard.press("ArrowUp");
+      await page.getByText("Pull 50", { exact: false }).first().waitFor();
     },
   },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },

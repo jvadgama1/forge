@@ -902,6 +902,21 @@ a {
   background: var(--heat);
 }
 
+/* Region split (#88): each region's part in its colour, a ground-coloured
+   edge between parts so they read apart. */
+.chart-segment {
+  fill: var(--region);
+  stroke: var(--ground);
+  stroke-width: 1;
+}
+
+.region-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 8px 0 0;
+}
+
 /* Tonnage bars (#87): one series, in the accent. */
 .chart-bar {
   fill: var(--accent);
