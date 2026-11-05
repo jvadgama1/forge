@@ -1388,8 +1388,32 @@ a.pick {
     padding-right: 40px;
   }
 
-  .view.two-pane {
+  .view.two-pane,
+  .view.full-width {
     max-width: none;
+  }
+
+  /* The Stats board (#90): with the whole width (not beside a workout), its
+     cards flow into two columns, none split across them, under the range
+     chips; each card's own top rule replaces the rules between them. */
+  .full-width .board {
+    columns: 2;
+    column-gap: 48px;
+  }
+
+  .full-width .board > .range {
+    column-span: all;
+    margin-bottom: 14px;
+  }
+
+  .full-width .board > hr {
+    display: none;
+  }
+
+  .full-width .board-card {
+    break-inside: avoid;
+    border-top: 2px solid var(--rule);
+    padding-bottom: 28px;
   }
 
   .panes {

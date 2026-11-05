@@ -48,6 +48,8 @@ import {
  * @property {Beside} [beside]
  * @property {string} [empty] A list route's right pane on a wide screen,
  *   until an item is open (#23).
+ * @property {boolean} [fullWidth] Takes the whole width on a wide screen,
+ *   rather than a phone's (the Stats board's grid, #90).
  */
 
 // A route ending in /:id matches any last segment, passed to the screen as `id`.
@@ -66,7 +68,7 @@ const routes = {
   },
   "/exercises": { tab: "log", render: exercisesView },
   "/exercises/:id": { tab: "log", render: exerciseView },
-  "/stats": { tab: "stats", render: statsView },
+  "/stats": { tab: "stats", render: statsView, fullWidth: true },
   // The workouts behind a mark, and one of them beside the list (#84).
   "/stats/:id": {
     tab: "stats",
@@ -118,6 +120,10 @@ const routes = {
  * @param {string} path
  */
 function resolve(path) {
+  // With no route, a wide screen opens on the board and a phone on logging
+  // (DESIGN.md: one app, two layouts; #90).
+  if (path === "")
+    return { route: routes[wide.matches ? "/stats" : "/log"], id: undefined };
   if (routes[path]) return { route: routes[path], id: undefined };
   const cut = path.lastIndexOf("/");
   const route = routes[`${path.slice(0, cut)}/:id`];
@@ -183,6 +189,7 @@ function render() {
     view?.replaceChildren(h("div", { class: "panes" }, left, right));
   }
   view?.classList.toggle("two-pane", twoPane);
+  view?.classList.toggle("full-width", wide.matches && !!route.fullWidth);
   markOpen();
   for (const a of document.querySelectorAll(".tabs a")) {
     if (a.getAttribute("data-tab") === route.tab)

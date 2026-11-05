@@ -1387,5 +1387,17 @@ export const SHOTS = [
       await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
     },
   },
+  // The board on a wide screen (#90), and where Forge opens with no route.
+  desktop("desktop-stats", "/stats", STATS),
+  {
+    ...desktop("desktop-stats-960", "/stats", STATS),
+    viewport: { width: 960, height: 800 },
+  },
+  {
+    ...desktop("desktop-stats-1920", "/stats", STATS),
+    viewport: { width: 1920, height: 1080 },
+  },
+  desktop("desktop-home", "", STATS),
+  { name: "home", as: "owner", route: "", seed: STATS },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];
