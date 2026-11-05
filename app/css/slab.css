@@ -20,6 +20,16 @@
   --heat-2: #8aa114;
   --heat-3: #bcd923;
   --heat-4: #e6ff3a;
+  /* Body heat map: dim blue (fewer hard sets) to bright red (more), its
+     lightness climbing at every step (CIE L* 32, 53, 62, 79), so brighter
+     always means more (#85; validated on the ground: adjacent CVD ΔE ≥ 13.9,
+     normal vision ≥ 16.1). Level 0, none, is a grey that stands off the
+     body's silhouette. */
+  --body-0: #333333;
+  --body-1: #174a92;
+  --body-2: #3d7ede;
+  --body-3: #ee6e67;
+  --body-4: #f7b4ad;
   --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
@@ -883,7 +893,8 @@ a {
   stroke-width: 1.5;
 }
 
-.calendar-legend {
+/* A heat-map legend (#85, #86): each shade with its numbers. */
+.heat-legend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -891,13 +902,13 @@ a {
   margin: 8px 0 0;
 }
 
-.calendar-key {
+.heat-key {
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
 
-.calendar-swatch {
+.heat-swatch {
   width: 12px;
   height: 12px;
   background: var(--heat);
@@ -916,6 +927,37 @@ a {
   flex-wrap: wrap;
   gap: 6px 14px;
   margin: 8px 0 0;
+}
+
+/* The body heat map (#85): each muscle group in its body colour on a soft
+   silhouette, a ground edge between shapes; the chosen one outlined on both
+   figures. It swaps the heat ramp for the body colours, so the one level
+   table above serves both heat maps. */
+.body-map,
+.body-legend {
+  --heat-0: var(--body-0);
+  --heat-1: var(--body-1);
+  --heat-2: var(--body-2);
+  --heat-3: var(--body-3);
+  --heat-4: var(--body-4);
+}
+
+.muscle-shape {
+  fill: var(--heat);
+  stroke: var(--ground);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.muscle-shape-chosen {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.body-silhouette {
+  fill: var(--surface);
+  stroke: var(--rule);
+  stroke-width: 1;
 }
 
 /* Tonnage bars (#87): one series, in the accent. */

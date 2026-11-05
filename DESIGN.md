@@ -78,7 +78,8 @@ Bold editorial, from the style prototype (direction C): https://claude.ai/artifa
 - Type: Big Shoulders Display (headings, big numerals, uppercase) + JetBrains Mono (labels, tables, body).
 - Accent: acid lime `#e6ff3a` (primary action, hero numbers); secondary: coral `#ff7a6e`. Text `#f2f2f2`, muted `#9a9a9a` (6.7:1).
 - Chart series, validated for the dark surface (adjacent pairs, CVD and normal-vision floors): Push `#b88c00`, Pull `#3d8bff`, Legs `#f04d42`, Core `#12a383`, in that fixed order.
-- Heat-map ramp (ordinal, validated): empty `#242424`, then `#5b6a0b`, `#8aa114`, `#bcd923`, `#e6ff3a`.
+- Heat-map ramp (calendar) (ordinal, validated): empty `#242424`, then `#5b6a0b`, `#8aa114`, `#bcd923`, `#e6ff3a`.
+- Body heat map (chosen on PR #100, validated on `#121212`: adjacent CVD ΔE ≥ 13.9, normal vision ≥ 16.1): none `#333333`, then dim blue to bright red as hard sets per week climb: `#174a92` (under 5), `#3d7ede` (5 to under 10), `#ee6e67` (10–20), `#f7b4ad` (over 20). Lightness rises at every step (CIE L* 32, 53, 62, 79), so brighter always means more. Figures are curved shapes on a soft silhouette.
 
 ## Build order
 
