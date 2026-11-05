@@ -108,11 +108,12 @@ export function grid({ width, pad }, ticks, y, label = String) {
  * its numbers, level 0 first.
  * @param {string} title
  * @param {string[]} labels
+ * @param {string} [palette] a class that swaps the ramp, as the body map's
  */
-export function heatLegend(title, labels) {
+export function heatLegend(title, labels, palette) {
   return h(
     "p",
-    { class: "heat-legend label" },
+    { class: `heat-legend label${palette ? ` ${palette}` : ""}` },
     h("span", {}, title),
     ...labels.map((text, level) =>
       h(

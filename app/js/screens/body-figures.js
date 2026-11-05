@@ -30,8 +30,12 @@
 // A figure's box: its width, height and centre line.
 export const BOX = { width: 160, height: 310, centre: 80 };
 
-// What turns a pair's left half into its right.
+// What turns a pair's left half into its right, and a point on the right
+// back into the left half's drawing space.
 export const MIRROR = `translate(${2 * BOX.centre} 0) scale(-1 1)`;
+
+/** @param {number} x */
+export const unmirror = (x) => 2 * BOX.centre - x;
 
 /**
  * The body both figures share, under their muscle groups: head, neck,
@@ -58,7 +62,7 @@ export const SILHOUETTE = [
   },
 ];
 
-// Shared by both views: the outer shoulder, the upper arm (biceps in front,
+// Shared by both figures: the outer shoulder, the upper arm (biceps in front,
 // triceps behind, in one column with the forearm) and the forearm.
 const SIDE_DELTS =
   "M46 52 C38 52 32 58 32 68 C32 75 35 80 39 82 C40 72 42 62 46 52 Z";
@@ -142,6 +146,12 @@ export const FIGURES = [
       },
       { muscleGroup: "triceps", pair: true, d: UPPER_ARM },
       { muscleGroup: "forearms", pair: true, d: FOREARMS },
+      // The sides of the waist, as the front's obliques seen from behind.
+      {
+        muscleGroup: "obliques",
+        pair: true,
+        d: "M53 114 C57 119 61 124 66 128 L67 146 C61 146 56 140 54 131 C53 125 53 119 53 114 Z",
+      },
       {
         muscleGroup: "lower-back",
         pair: true,

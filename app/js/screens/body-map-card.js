@@ -1,13 +1,13 @@
 // The Stats board's body heat map (#85; spec #80, stories 26–30): front
 // and back figures, each muscle group shaded by its hard sets per week, the
-// same numbers as the hard-sets card. Its colours climb from dim blue (less)
-// to bright red (more), the scale the maintainer chose on PR #100, so
-// brighter always means more. A legend gives each shade's numbers and a
+// same numbers as the hard-sets card. Its colours climb from dim blue (fewer)
+// to bright red (more), the scale the maintainer chose on PR #100, their
+// lightness rising at every step, so brighter always means more. A legend gives each shade's numbers and a
 // muscle group's reading names it with its own, so the shade is never the
 // only signal.
 import { h } from "../dom.js";
 import { BODY_MAP_EDGES } from "../core/dashboard.js";
-import { BOX, FIGURES, MIRROR, SILHOUETTE } from "./body-figures.js";
+import { BOX, FIGURES, MIRROR, SILHOUETTE, unmirror } from "./body-figures.js";
 import { chartRoot, explore, heatLegend, svg } from "./chart.js";
 import { markId } from "./mark.js";
 import { setCount } from "./screen.js";
@@ -129,7 +129,7 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
    */
   const local = ({ offset, mirrored }, px, py) => {
     const x = px - offset;
-    return { x: mirrored ? 2 * BOX.centre - x : x, y: py };
+    return { x: mirrored ? unmirror(x) : x, y: py };
   };
 
   const tip = explore(chart, {
@@ -172,7 +172,10 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
     start: 0,
   });
 
-  const legend = heatLegend("Hard sets a week", LEGEND);
-  legend.classList.add("body-legend");
-  return [heading, chart, tip, legend];
+  return [
+    heading,
+    chart,
+    tip,
+    heatLegend("Hard sets a week", LEGEND, "body-legend"),
+  ];
 }

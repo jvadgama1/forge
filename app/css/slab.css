@@ -20,14 +20,16 @@
   --heat-2: #8aa114;
   --heat-3: #bcd923;
   --heat-4: #e6ff3a;
-  /* Body heat map: dim blue (less) to bright red (more), lightness climbing
-     with volume (#85; validated on the ground: adjacent CVD ΔE ≥ 17.6,
-     normal vision ≥ 18.3). Level 0, none, is a dark grey. */
-  --body-0: #2b2b2b;
-  --body-1: #21539c;
-  --body-2: #4688e8;
-  --body-3: #da534f;
-  --body-4: #f2a7a1;
+  /* Body heat map: dim blue (fewer hard sets) to bright red (more), its
+     lightness climbing at every step (CIE L* 32, 53, 62, 79), so brighter
+     always means more (#85; validated on the ground: adjacent CVD ΔE ≥ 13.9,
+     normal vision ≥ 16.1). Level 0, none, is a grey that stands off the
+     body's silhouette. */
+  --body-0: #333333;
+  --body-1: #174a92;
+  --body-2: #3d7ede;
+  --body-3: #ee6e67;
+  --body-4: #f7b4ad;
   --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
@@ -929,26 +931,15 @@ a {
 
 /* The body heat map (#85): each muscle group in its body colour on a soft
    silhouette, a ground edge between shapes; the chosen one outlined on both
-   figures. Its levels take the body colours, not the calendar's ramp. */
-.body-map [data-level="0"],
-.body-legend [data-level="0"] {
-  --heat: var(--body-0);
-}
-.body-map [data-level="1"],
-.body-legend [data-level="1"] {
-  --heat: var(--body-1);
-}
-.body-map [data-level="2"],
-.body-legend [data-level="2"] {
-  --heat: var(--body-2);
-}
-.body-map [data-level="3"],
-.body-legend [data-level="3"] {
-  --heat: var(--body-3);
-}
-.body-map [data-level="4"],
-.body-legend [data-level="4"] {
-  --heat: var(--body-4);
+   figures. It swaps the heat ramp for the body colours, so the one level
+   table above serves both heat maps. */
+.body-map,
+.body-legend {
+  --heat-0: var(--body-0);
+  --heat-1: var(--body-1);
+  --heat-2: var(--body-2);
+  --heat-3: var(--body-3);
+  --heat-4: var(--body-4);
 }
 
 .muscle-shape {

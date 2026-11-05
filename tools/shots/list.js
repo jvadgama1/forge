@@ -1365,14 +1365,17 @@ export const SHOTS = [
     steps: async (page) => {
       const map = page.getByRole("img", { name: /^Body heat map/ });
       await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
-      // A tap on the right-hand lat of the back figure, a mirrored shape:
-      // card point (283, 100) of 358 × 324.
+      // A tap on the right-hand lat of the back figure, a mirrored shape,
+      // near its top edge: card point (291, 72) of the card's 358 × 324
+      // frame. The rear delt's centre is nearer there than the lat's, so
+      // only a true in-shape hit reads the lats. Redrawing the figures or
+      // the frame means moving this point.
       const box = await map.boundingBox();
       if (!box) throw new Error("No body map");
       await map.dispatchEvent("pointerdown", {
         pointerType: "touch",
-        clientX: box.x + (box.width * 283) / 358,
-        clientY: box.y + (box.height * 100) / 324,
+        clientX: box.x + (box.width * 291) / 358,
+        clientY: box.y + (box.height * 72) / 324,
       });
       await page.getByText("hard sets a week · Lats / upper back").waitFor();
     },
