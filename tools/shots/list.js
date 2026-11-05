@@ -1358,6 +1358,26 @@ export const SHOTS = [
     },
   },
   {
+    name: "stats-body-map-tapped",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      const map = page.getByRole("img", { name: /^Body heat map/ });
+      await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      // A tap on the right-hand lat of the back figure, a mirrored shape:
+      // card point (283, 100) of 358 × 324.
+      const box = await map.boundingBox();
+      if (!box) throw new Error("No body map");
+      await map.dispatchEvent("pointerdown", {
+        pointerType: "touch",
+        clientX: box.x + (box.width * 283) / 358,
+        clientY: box.y + (box.height * 100) / 324,
+      });
+      await page.getByText("hard sets a week · Lats / upper back").waitFor();
+    },
+  },
+  {
     ...desktop("desktop-stats-body-map", "/stats", STATS),
     steps: async (page) => {
       const map = page.getByRole("img", { name: /^Body heat map/ });

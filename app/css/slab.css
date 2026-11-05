@@ -20,6 +20,14 @@
   --heat-2: #8aa114;
   --heat-3: #bcd923;
   --heat-4: #e6ff3a;
+  /* Body heat map: dim blue (less) to bright red (more), lightness climbing
+     with volume (#85; validated on the ground: adjacent CVD ΔE ≥ 17.6,
+     normal vision ≥ 18.3). Level 0, none, is a dark grey. */
+  --body-0: #2b2b2b;
+  --body-1: #21539c;
+  --body-2: #4688e8;
+  --body-3: #da534f;
+  --body-4: #f2a7a1;
   --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
@@ -919,10 +927,30 @@ a {
   margin: 8px 0 0;
 }
 
-/* The body heat map (#85): each muscle group on the ramp, a ground edge
-   between shapes; the chosen one outlined on both figures. The shapes that
-   aren't muscle groups are hollow, so an untrained muscle group (level 0,
-   filled) still reads as one. */
+/* The body heat map (#85): each muscle group in its body colour on a soft
+   silhouette, a ground edge between shapes; the chosen one outlined on both
+   figures. Its levels take the body colours, not the calendar's ramp. */
+.body-map [data-level="0"],
+.body-legend [data-level="0"] {
+  --heat: var(--body-0);
+}
+.body-map [data-level="1"],
+.body-legend [data-level="1"] {
+  --heat: var(--body-1);
+}
+.body-map [data-level="2"],
+.body-legend [data-level="2"] {
+  --heat: var(--body-2);
+}
+.body-map [data-level="3"],
+.body-legend [data-level="3"] {
+  --heat: var(--body-3);
+}
+.body-map [data-level="4"],
+.body-legend [data-level="4"] {
+  --heat: var(--body-4);
+}
+
 .muscle-shape {
   fill: var(--heat);
   stroke: var(--ground);
@@ -935,10 +963,10 @@ a {
   stroke-width: 2;
 }
 
-.body-neutral {
-  fill: none;
-  stroke: var(--rule-strong);
-  stroke-width: 1.5;
+.body-silhouette {
+  fill: var(--surface);
+  stroke: var(--rule);
+  stroke-width: 1;
 }
 
 /* Tonnage bars (#87): one series, in the accent. */

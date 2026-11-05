@@ -1,18 +1,20 @@
 // The Stats board's body heat map (#85; spec #80, stories 26–30): front
-// and back figures, each muscle group shaded on the validated heat-map ramp
-// by its hard sets per week, the same numbers as the hard-sets card. A
-// legend gives each shade's numbers and a muscle group's reading names it
-// with its own, so the shade is never the only signal.
+// and back figures, each muscle group shaded by its hard sets per week, the
+// same numbers as the hard-sets card. Its colours climb from dim blue (less)
+// to bright red (more), the scale the maintainer chose on PR #100, so
+// brighter always means more. A legend gives each shade's numbers and a
+// muscle group's reading names it with its own, so the shade is never the
+// only signal.
 import { h } from "../dom.js";
 import { BODY_MAP_EDGES } from "../core/dashboard.js";
-import { BOX, FIGURES, HEAD, NECK, placed } from "./body-figures.js";
+import { BOX, FIGURES, MIRROR, SILHOUETTE } from "./body-figures.js";
 import { chartRoot, explore, heatLegend, svg } from "./chart.js";
 import { markId } from "./mark.js";
 import { setCount } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
 /** @import { RangeId } from "../core/dashboard.js" */
-/** @import { Points } from "./body-figures.js" */
+/** @import { Shape } from "./body-figures.js" */
 /** @typedef {Awaited<ReturnType<Forge["dashboard"]>>["hardSets"]} HardSets */
 
 // Two figures side by side, their names beneath.
@@ -41,30 +43,22 @@ const BAND_WORDS = {
 };
 
 /**
- * Whether a point is inside a shape (ray casting).
- * @param {number} x
- * @param {number} y
- * @param {Points} points
+ * A shape's path, and its mirror for a pair.
+ * @param {Shape} shape
+ * @param {Record<string, string | number>} attrs
+ * @returns {{ el: SVGPathElement, mirrored: boolean }[]}
  */
-function inside(x, y, points) {
-  let hit = false;
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const [xi, yi] = points[i];
-    const [xj, yj] = points[j];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)
-      hit = !hit;
-  }
-  return hit;
-}
-
-/** @param {Points} points */
-const centre = (points) => [
-  points.reduce((n, [x]) => n + x, 0) / points.length,
-  points.reduce((n, [, y]) => n + y, 0) / points.length,
-];
-
-/** @param {Points} points */
-const pointsAttr = (points) => points.map(([x, y]) => `${x},${y}`).join(" ");
+const paths = (shape, attrs) =>
+  (shape.pair ? [false, true] : [false]).map((mirrored) => ({
+    el: /** @type {SVGPathElement} */ (
+      svg("path", {
+        d: shape.d,
+        ...attrs,
+        ...(mirrored && { transform: MIRROR }),
+      })
+    ),
+    mirrored,
+  }));
 
 /**
  * @param {HardSets} hardSets
@@ -90,53 +84,32 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
   );
   chart.classList.add("body-map");
 
-  /** Each drawn shape with the muscle group it stands for. @type {{ i: number, points: Points, el: SVGElement }[]} */
+  /**
+   * Each drawn muscle group shape, with what finding it under a point
+   * needs: its figure's offset and whether it's a mirrored half.
+   * @type {{ i: number, offset: number, mirrored: boolean, el: SVGPathElement }[]}
+   */
   const shapes = [];
   for (const figure of FIGURES) {
-    const centre = figure.offset + BOX.centre;
-    // The head and neck, then the other shapes that aren't muscle groups.
-    chart.append(
-      svg("circle", {
-        cx: centre,
-        cy: HEAD.cy,
-        r: HEAD.r,
-        class: "body-neutral",
-      }),
-      svg("rect", {
-        x: centre - NECK.width / 2,
-        y: NECK.top,
-        width: NECK.width,
-        height: NECK.height,
-        class: "body-neutral",
-      }),
-    );
-    for (const half of figure.neutral)
-      for (const mirrored of [false, true])
-        chart.append(
-          svg("polygon", {
-            points: pointsAttr(placed(half, figure.offset, mirrored)),
-            class: "body-neutral",
-          }),
-        );
+    const g = svg("g", { transform: `translate(${figure.offset} 0)` });
+    for (const shape of SILHOUETTE)
+      g.append(...paths(shape, { class: "body-silhouette" }).map((p) => p.el));
     for (const shape of figure.shapes) {
       const i = index.get(shape.muscleGroup);
       if (i === undefined) continue;
-      for (const mirrored of shape.pair ? [false, true] : [false]) {
-        const points = placed(shape.points, figure.offset, mirrored);
-        const el = svg("polygon", {
-          points: pointsAttr(points),
-          class: "muscle-shape",
-          "data-level": muscleGroups[i].level,
-        });
-        chart.append(el);
-        shapes.push({ i, points, el });
+      for (const { el, mirrored } of paths(shape, {
+        class: "muscle-shape",
+        "data-level": muscleGroups[i].level,
+      })) {
+        g.append(el);
+        shapes.push({ i, offset: figure.offset, mirrored, el });
       }
     }
-    chart.append(
+    g.append(
       svg(
         "text",
         {
-          x: centre,
+          x: BOX.centre,
           y: FRAME.height - 4,
           "text-anchor": "middle",
           class: "chart-axis",
@@ -144,7 +117,20 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
         figure.name.toUpperCase(),
       ),
     );
+    chart.append(g);
   }
+
+  /**
+   * A card point in a shape's own drawing space: into its figure's box, and
+   * mirrored back for a right half.
+   * @param {{ offset: number, mirrored: boolean }} shape
+   * @param {number} px
+   * @param {number} py
+   */
+  const local = ({ offset, mirrored }, px, py) => {
+    const x = px - offset;
+    return { x: mirrored ? 2 * BOX.centre - x : x, y: py };
+  };
 
   const tip = explore(chart, {
     frame: FRAME,
@@ -152,12 +138,15 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
     // The shape under the pointer, the top one first; else the nearest.
     nearest: (px, py) => {
       for (let k = shapes.length - 1; k >= 0; k--)
-        if (inside(px, py, shapes[k].points)) return shapes[k].i;
+        if (shapes[k].el.isPointInFill(local(shapes[k], px, py)))
+          return shapes[k].i;
       let best = shapes[0];
       let bestDistance = Infinity;
       for (const s of shapes) {
-        const [cx, cy] = centre(s.points);
-        const distance = (cx - px) ** 2 + (cy - py) ** 2;
+        const box = s.el.getBBox();
+        const { x, y } = local(s, px, py);
+        const distance =
+          (box.x + box.width / 2 - x) ** 2 + (box.y + box.height / 2 - y) ** 2;
         if (distance < bestDistance) [best, bestDistance] = [s, distance];
       }
       return best.i;
@@ -183,5 +172,7 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
     start: 0,
   });
 
-  return [heading, chart, tip, heatLegend("Hard sets a week", LEGEND)];
+  const legend = heatLegend("Hard sets a week", LEGEND);
+  legend.classList.add("body-legend");
+  return [heading, chart, tip, legend];
 }
