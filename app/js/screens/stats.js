@@ -36,35 +36,29 @@ export function statsView({ forge }) {
       id: dashboard.range.id,
       words: rangeWords(dashboard.range.weeks),
     };
+    // Each card in its own section, so a wide screen can flow them into
+    // columns without splitting one (#90); a phone reads them in this order.
+    const cards = [
+      e1rmCard(dashboard, async (exerciseId) => {
+        await forge.chooseDashboard({ exerciseId });
+        show();
+      }),
+      hardSetsCardView(dashboard.hardSets, range),
+      bodyMapCardView(dashboard.hardSets, range),
+      calendarCardView(dashboard.calendar, dashboard.range.weeks),
+      tonnageCardView(dashboard.tonnage, range.words),
+      regionSplitCardView(dashboard.regionSplit, range.words),
+      recordTimelineCardView(dashboard.records, range.words, forge.today()),
+    ];
     board.replaceChildren(
       rangeChips(dashboard.range.id, async (range) => {
         await forge.chooseDashboard({ range });
         show();
       }),
-      h("hr", { class: "rule" }),
-      ...e1rmCard(dashboard, async (exerciseId) => {
-        await forge.chooseDashboard({ exerciseId });
-        show();
-      }),
-      h("hr", { class: "rule" }),
-      ...hardSetsCardView(dashboard.hardSets, range),
-      h("hr", { class: "rule" }),
-      ...bodyMapCardView(dashboard.hardSets, range),
-      h("hr", { class: "rule" }),
-      ...calendarCardView(dashboard.calendar, dashboard.range.weeks),
-      h("hr", { class: "rule" }),
-      ...tonnageCardView(dashboard.tonnage, rangeWords(dashboard.range.weeks)),
-      h("hr", { class: "rule" }),
-      ...regionSplitCardView(
-        dashboard.regionSplit,
-        rangeWords(dashboard.range.weeks),
-      ),
-      h("hr", { class: "rule" }),
-      ...recordTimelineCardView(
-        dashboard.records,
-        rangeWords(dashboard.range.weeks),
-        forge.today(),
-      ),
+      ...cards.flatMap((card) => [
+        h("hr", { class: "rule" }),
+        h("section", { class: "board-card" }, ...card),
+      ]),
     );
   }
 }

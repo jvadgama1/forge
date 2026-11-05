@@ -19,6 +19,21 @@
  *   not a 390 × 844 phone (#23).
  */
 
+/**
+ * Fails the shot if any Stats card is split across the board's columns
+ * (#90): a split card has a box in each.
+ * @param {Page} page
+ */
+const noSplitCards = async (page) => {
+  await page.locator(".board-card").last().waitFor();
+  const split = await page.evaluate(() =>
+    [...globalThis.document.querySelectorAll(".board-card")]
+      .filter((card) => card.getClientRects().length > 1)
+      .map((card) => card.querySelector("h2")?.textContent),
+  );
+  if (split.length) throw new Error(`Cards split across columns: ${split}`);
+};
+
 /** Three made-up gyms, Work last used. */
 const GYMS = {
   gyms: [
@@ -1387,5 +1402,26 @@ export const SHOTS = [
       await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
     },
   },
+  // The board on a wide screen (#90), and where Forge opens with no route.
+  // Each wide shot also fails if a card is split across columns.
+  { ...desktop("desktop-stats", "/stats", STATS), steps: noSplitCards },
+  {
+    ...desktop("desktop-stats-960", "/stats", STATS),
+    viewport: { width: 960, height: 800 },
+  },
+  {
+    ...desktop("desktop-stats-1920", "/stats", STATS),
+    viewport: { width: 1920, height: 1080 },
+    steps: noSplitCards,
+  },
+  {
+    name: "stats-360",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    viewport: { width: 360, height: 800 },
+  },
+  desktop("desktop-home", "", STATS),
+  { name: "home", as: "owner", route: "", seed: STATS },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

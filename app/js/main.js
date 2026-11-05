@@ -48,6 +48,8 @@ import {
  * @property {Beside} [beside]
  * @property {string} [empty] A list route's right pane on a wide screen,
  *   until an item is open (#23).
+ * @property {boolean} [fullWidth] Takes the whole width on a wide screen,
+ *   rather than a phone's (the Stats board's columns, #90).
  */
 
 // A route ending in /:id matches any last segment, passed to the screen as `id`.
@@ -66,7 +68,7 @@ const routes = {
   },
   "/exercises": { tab: "log", render: exercisesView },
   "/exercises/:id": { tab: "log", render: exerciseView },
-  "/stats": { tab: "stats", render: statsView },
+  "/stats": { tab: "stats", render: statsView, fullWidth: true },
   // The workouts behind a mark, and one of them beside the list (#84).
   "/stats/:id": {
     tab: "stats",
@@ -113,22 +115,27 @@ const routes = {
   },
 };
 
+// The desktop layout (#23): a side rail, and two panes where a route has
+// them; and where Forge opens with no route (#90). Matches slab.css's
+// breakpoint. Crossing it takes effect on the next screen, so a resize
+// never throws away what's typed.
+const wide = matchMedia("(min-width: 960px)");
+
 /**
  * The route for a hash path, and its id for a /:id route.
  * @param {string} path
  */
 function resolve(path) {
+  // With no route, a wide screen opens on the board and a phone on logging
+  // (DESIGN.md: one app, two layouts; #90).
+  if (path === "" || path === "/")
+    return { route: routes[wide.matches ? "/stats" : "/log"], id: undefined };
   if (routes[path]) return { route: routes[path], id: undefined };
   const cut = path.lastIndexOf("/");
   const route = routes[`${path.slice(0, cut)}/:id`];
   if (route) return { route, id: decodeURIComponent(path.slice(cut + 1)) };
   return { route: routes["/log"], id: undefined };
 }
-
-// The desktop layout (#23): a side rail, and two panes where a route has
-// them. Matches slab.css's breakpoint. Crossing it takes effect on the next
-// screen, so a resize never throws away what's typed.
-const wide = matchMedia("(min-width: 960px)");
 
 /**
  * The screen last drawn on its own or on the left, so one with `keep` can
@@ -183,6 +190,7 @@ function render() {
     view?.replaceChildren(h("div", { class: "panes" }, left, right));
   }
   view?.classList.toggle("two-pane", twoPane);
+  view?.classList.toggle("full-width", wide.matches && !!route.fullWidth);
   markOpen();
   for (const a of document.querySelectorAll(".tabs a")) {
     if (a.getAttribute("data-tab") === route.tab)
