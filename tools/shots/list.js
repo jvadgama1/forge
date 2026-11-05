@@ -1364,5 +1364,73 @@ export const SHOTS = [
       await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
     },
   },
+  {
+    name: "prototype-body-map-a",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      await page.evaluate(() => {
+        const url = new URL(globalThis.location.href);
+        url.searchParams.set("variant", "A");
+        globalThis.history.replaceState(null, "", url);
+        globalThis.dispatchEvent(new globalThis.HashChangeEvent("hashchange"));
+      });
+      const map = page.getByRole("img", { name: "Body heat map, prototype A" });
+      await map.evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await page.evaluate(() => globalThis.scrollBy(0, -40));
+    },
+  },
+  {
+    name: "prototype-body-map-b",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      await page.evaluate(() => {
+        const url = new URL(globalThis.location.href);
+        url.searchParams.set("variant", "B");
+        globalThis.history.replaceState(null, "", url);
+        globalThis.dispatchEvent(new globalThis.HashChangeEvent("hashchange"));
+      });
+      const map = page.getByRole("img", { name: "Body heat map, prototype B" });
+      await map.evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await page.evaluate(() => globalThis.scrollBy(0, -40));
+    },
+  },
+  {
+    name: "prototype-body-map-c",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      await page.evaluate(() => {
+        const url = new URL(globalThis.location.href);
+        url.searchParams.set("variant", "C");
+        globalThis.history.replaceState(null, "", url);
+        globalThis.dispatchEvent(new globalThis.HashChangeEvent("hashchange"));
+      });
+      const map = page.getByRole("img", { name: "Body heat map, prototype C" });
+      await map.evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await page.evaluate(() => globalThis.scrollBy(0, -40));
+    },
+  },
+  {
+    name: "prototype-body-map-d",
+    as: "owner",
+    route: "/stats",
+    seed: STATS,
+    steps: async (page) => {
+      await page.evaluate(() => {
+        const url = new URL(globalThis.location.href);
+        url.searchParams.set("variant", "D");
+        globalThis.history.replaceState(null, "", url);
+        globalThis.dispatchEvent(new globalThis.HashChangeEvent("hashchange"));
+      });
+      const map = page.getByRole("img", { name: "Body heat map, prototype D" });
+      await map.evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await page.evaluate(() => globalThis.scrollBy(0, -40));
+    },
+  },
   { name: "stats-empty", as: "owner", route: "/stats", seed: GYMS },
 ];

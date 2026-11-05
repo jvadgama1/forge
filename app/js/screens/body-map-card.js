@@ -8,6 +8,7 @@ import { BODY_MAP_EDGES } from "../core/dashboard.js";
 import { BOX, FIGURES, HEAD, NECK, placed } from "./body-figures.js";
 import { chartRoot, explore, heatLegend, svg } from "./chart.js";
 import { markId } from "./mark.js";
+import { bodyMapPrototype } from "./body-map-prototype.js";
 import { setCount } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
@@ -83,6 +84,10 @@ export function bodyMapCardView({ trainingWeeks, muscleGroups }, range) {
       heading,
       h("p", { class: "lede" }, `No workouts in the last ${range.words}.`),
     ];
+  // PROTOTYPE (#85, throwaway branch only): ?variant=A|B|C.
+  const variant = new URLSearchParams(location.search).get("variant");
+  if (variant)
+    return bodyMapPrototype({ trainingWeeks, muscleGroups }, variant);
   const index = new Map(muscleGroups.map((m, i) => [m.id, i]));
   const chart = chartRoot(
     FRAME,

@@ -29,6 +29,7 @@ const SHELL = [
   "js/screens/hard-sets-card.js",
   "js/screens/body-figures.js",
   "js/screens/body-map-card.js",
+  "js/screens/body-map-prototype.js",
   "js/screens/mark.js",
   "js/screens/calendar-card.js",
   "js/screens/tonnage-card.js",

@@ -941,6 +941,31 @@ a {
   stroke-width: 1.5;
 }
 
+/* PROTOTYPE (#85, throwaway): the variant switcher. */
+.prototype-switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f2f2f2;
+  color: #121212;
+  font: 700 12px var(--font-mono);
+  box-shadow: 0 4px 16px #000a;
+}
+
+.prototype-switcher button {
+  border: 0;
+  background: none;
+  font: 800 16px var(--font-mono);
+  color: inherit;
+}
+
 /* Tonnage bars (#87): one series, in the accent. */
 .chart-bar {
   fill: var(--accent);
