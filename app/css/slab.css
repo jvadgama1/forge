@@ -1388,33 +1388,13 @@ a.pick {
     padding-right: 40px;
   }
 
-  .view.two-pane,
-  .view.full-width {
+  .view.two-pane {
     max-width: none;
   }
 
-  /* The Stats board (#90): with the whole width (not beside a workout), its
-     cards flow into two columns, none split across them, under the range
-     chips; each card's own top rule replaces the rules between them. */
-  .full-width .board {
-    columns: 2;
-    column-gap: 48px;
-  }
-
-  .full-width .board > .range {
-    column-span: all;
-    margin-bottom: 14px;
-  }
-
-  .full-width .board > hr {
-    display: none;
-  }
-
-  .full-width .board-card {
-    break-inside: avoid;
-    border-top: 2px solid var(--rule);
-    padding-bottom: 28px;
-  }
+  /* The Stats board (#90) keeps one column until there's room for two
+     (below, at 1200 px) or three (at 1600 px): narrower columns would shrink
+     the charts' text. */
 
   .panes {
     display: grid;
@@ -1447,6 +1427,47 @@ a.pick {
   .pane-list a[aria-current="page"] {
     box-shadow: inset 3px 0 0 var(--accent);
     padding-left: 12px;
+  }
+}
+
+/* The Stats board on a wide screen (#90): with the whole width (not beside
+   a workout), its cards flow down into columns, none split across them,
+   under the range chips; each card's own top rule replaces the rules
+   between them. Columns, not a grid: cards keep their own heights. */
+@media (min-width: 1200px) {
+  .view.full-width {
+    max-width: none;
+  }
+
+  .full-width .board {
+    columns: 2;
+    column-gap: 48px;
+  }
+
+  .full-width .board > .range {
+    column-span: all;
+    margin-bottom: 14px;
+  }
+
+  .full-width .board > hr {
+    display: none;
+  }
+
+  .full-width .board-card {
+    break-inside: avoid;
+    border-top: 2px solid var(--rule);
+    padding-bottom: 28px;
+  }
+}
+
+/* Room for a third column: the app widens for the board alone. */
+@media (min-width: 1600px) {
+  .app:has(.view.full-width) {
+    max-width: 1720px;
+  }
+
+  .full-width .board {
+    columns: 3;
   }
 }
 

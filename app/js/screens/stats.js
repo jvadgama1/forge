@@ -36,8 +36,8 @@ export function statsView({ forge }) {
       id: dashboard.range.id,
       words: rangeWords(dashboard.range.weeks),
     };
-    // Each card in its own section, so a wide screen can lay them out as a
-    // grid without splitting one (#90); a phone reads them in this order.
+    // Each card in its own section, so a wide screen can flow them into
+    // columns without splitting one (#90); a phone reads them in this order.
     const cards = [
       e1rmCard(dashboard, async (exerciseId) => {
         await forge.chooseDashboard({ exerciseId });
