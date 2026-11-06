@@ -33,10 +33,11 @@ try {
 }
 
 // Every shot must be there before anything touches git.
-const sources = plan.files.map(({ shot }) =>
-  join(runDir(label), `${shot}.png`),
-);
-for (const source of sources)
+const files = plan.files.map((file) => ({
+  ...file,
+  source: join(runDir(label), `${file.shot}.png`),
+}));
+for (const { source } of files)
   await access(source).catch(() => {
     console.error(`No shot at ${source}: run \`npm run shots -- ${label}\``);
     process.exit(1);
@@ -44,17 +45,22 @@ for (const source of sources)
 
 // Only the push publishes: if anything fails first, including a push
 // rejected because another landed meanwhile, the commit goes with the
-// worktree.
+// worktree. The commit runs no hook: husky's hooks path is relative, and
+// its hooks are generated, never on the branch. Lint and tests have no
+// place on a branch of images.
 const worktree = await mkdtemp(join(tmpdir(), "forge-shots-"));
+let added = false;
 try {
-  git(["fetch", "--quiet", "origin", BRANCH]);
-  git(["worktree", "add", "--quiet", "--detach", worktree, `origin/${BRANCH}`]);
-  for (const [i, { path }] of plan.files.entries()) {
+  const remote = `refs/remotes/origin/${BRANCH}`;
+  git(["fetch", "--quiet", "origin", `+refs/heads/${BRANCH}:${remote}`]);
+  git(["worktree", "add", "--quiet", "--detach", worktree, remote]);
+  added = true;
+  for (const { path, source } of files) {
     const target = join(worktree, path);
     await mkdir(dirname(target), { recursive: true });
-    await copyFile(sources[i], target);
+    await copyFile(source, target);
   }
-  git(["add", ...plan.files.map((f) => f.path)], worktree);
+  git(["add", ...files.map((f) => f.path)], worktree);
   if (git(["status", "--porcelain"], worktree)) {
     git(["commit", "--quiet", "-m", plan.message], worktree);
     git(["push", "--quiet", "origin", `HEAD:${BRANCH}`], worktree);
@@ -65,6 +71,34 @@ try {
   console.error("Nothing was published.");
   process.exitCode = 1;
 } finally {
-  await rm(worktree, { recursive: true, force: true });
-  git(["worktree", "prune"]);
+  await removeWorktree();
+}
+
+// A worktree left registered is what #109 set out to stop. If git can't
+// remove it (a file held open, say), the folder goes and prune drops the
+// registration; failing that, it says how to finish, without undoing a
+// publish that worked.
+async function removeWorktree() {
+  if (added)
+    try {
+      git(["worktree", "remove", "--force", worktree]);
+      return;
+    } catch {
+      // Removed below instead.
+    }
+  await rm(worktree, { recursive: true, force: true }).catch(() => {});
+  try {
+    git(["worktree", "prune"]);
+  } catch {
+    // Said below, if the folder is still there.
+  }
+  if (
+    await access(worktree).then(
+      () => true,
+      () => false,
+    )
+  )
+    console.error(
+      `Couldn't remove ${worktree}: delete it, then run \`git worktree prune\`.`,
+    );
 }

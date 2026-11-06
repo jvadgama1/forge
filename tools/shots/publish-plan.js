@@ -2,10 +2,13 @@
 // each shot goes on the `screenshots` branch and the image tags for the
 // body. A shot is named for its run, so a before and an after sit side by
 // side in one folder.
-import { LABEL } from "./run-dir.js";
+import { runDir } from "./run-dir.js";
 
 /** The branch the images live on, linked from pull request bodies. */
 export const BRANCH = "screenshots";
+
+// A shot's file name in a run, as list.js names it.
+const SHOT_NAME = /^[\w-]+$/;
 
 /**
  * @param {{ repo: string, pr: string, label: string, shots: string[] }} args
@@ -15,11 +18,11 @@ export const BRANCH = "screenshots";
 export function publishPlan({ repo, pr, label, shots }) {
   if (!/^[1-9]\d*$/.test(pr))
     throw new Error(`Not a pull request number: "${pr}"`);
-  if (!LABEL.test(label)) throw new Error(`Not a shots label: "${label}"`);
+  runDir(label); // refuses a label that isn't one
   if (!shots.length) throw new Error("Name at least one shot to publish");
   const names = shots.map((shot) => shot.replace(/\.png$/, ""));
   for (const name of names)
-    if (!LABEL.test(name)) throw new Error(`Not a shot name: "${name}"`);
+    if (!SHOT_NAME.test(name)) throw new Error(`Not a shot name: "${name}"`);
 
   const files = names.map((shot) => ({
     shot,
