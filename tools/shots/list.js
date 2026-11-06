@@ -17,6 +17,9 @@
  * @property {(page: Page) => Promise<void>} [steps] Interactions to run before the shot.
  * @property {{ width: number, height: number }} [viewport] The screen, if
  *   not a 390 × 844 phone (#23).
+ * @property {string} [scrollTo] A CSS selector for the one element to scroll
+ *   to the middle of the screen before the shot, for a part of a screen
+ *   below the fold (#110).
  */
 
 /**
@@ -890,6 +893,29 @@ export const SHOTS = [
       await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
       await page.getByRole("button", { name: "Undo last set" }).click();
     },
+  },
+  // The set-type row at 360 px, its longest (#110): Warm-up, Drop set and
+  // Add to superset… on one line, here and with Undo armed above it.
+  {
+    name: "superset-360",
+    as: "owner",
+    route: "/log/ex/barbell-bench-press",
+    seed: PAIRED,
+    viewport: { width: 360, height: 740 },
+    scrollTo: ".set-type-row",
+  },
+  {
+    name: "superset-undo-360",
+    as: "owner",
+    route: "/log/ex/barbell-bench-press",
+    seed: PAIRED,
+    viewport: { width: 360, height: 740 },
+    steps: async (page) => {
+      await page.getByRole("button", { name: /Log set 02/ }).click();
+      await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
+      await page.getByRole("button", { name: "Undo last set" }).click();
+    },
+    scrollTo: ".set-type-row",
   },
   {
     name: "superset-pick",
