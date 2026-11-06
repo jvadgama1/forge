@@ -3,7 +3,7 @@
 // from .shots/<label>/ to pr/<pr>/ on the `screenshots` branch, through a
 // worktree it removes afterwards, pushes, and prints the image tags.
 import { execFileSync } from "node:child_process";
-import { access, copyFile, mkdir, mkdtemp } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { BRANCH, publishPlan, repoOf } from "./publish-plan.js";
@@ -42,10 +42,13 @@ for (const source of sources)
     process.exit(1);
   });
 
+// Only the push publishes: if anything fails first, including a push
+// rejected because another landed meanwhile, the commit goes with the
+// worktree.
 const worktree = await mkdtemp(join(tmpdir(), "forge-shots-"));
-git(["fetch", "--quiet", "origin", BRANCH]);
-git(["worktree", "add", "--quiet", "--detach", worktree, `origin/${BRANCH}`]);
 try {
+  git(["fetch", "--quiet", "origin", BRANCH]);
+  git(["worktree", "add", "--quiet", "--detach", worktree, `origin/${BRANCH}`]);
   for (const [i, { path }] of plan.files.entries()) {
     const target = join(worktree, path);
     await mkdir(dirname(target), { recursive: true });
@@ -56,7 +59,12 @@ try {
     git(["commit", "--quiet", "-m", plan.message], worktree);
     git(["push", "--quiet", "origin", `HEAD:${BRANCH}`], worktree);
   } else console.error("Already published, unchanged.");
+  console.log(plan.tags.join("\n"));
+} catch (error) {
+  console.error(/** @type {Error} */ (error).message.split("\n")[0]);
+  console.error("Nothing was published.");
+  process.exitCode = 1;
 } finally {
-  git(["worktree", "remove", "--force", worktree]);
+  await rm(worktree, { recursive: true, force: true });
+  git(["worktree", "prune"]);
 }
-console.log(plan.tags.join("\n"));
