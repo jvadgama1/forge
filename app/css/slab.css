@@ -670,6 +670,30 @@ a {
   display: none;
 }
 
+/* On the Now row, where there's room (#104). A long "Tap again to undo"
+   wraps inside its column, leaving the set number and Now in line. */
+.set-now .undo {
+  grid-column: 3 / -1;
+  justify-self: end;
+  min-width: 0;
+  margin: 2px 0;
+  white-space: normal;
+}
+
+/* The set type, and the superset button at the end of its row (#104). */
+.set-type-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0 4px;
+}
+
+.set-type-row .chips {
+  min-width: 0;
+  padding: 0;
+}
+
 /* Rest timer (#12): a raised bar with a coral edge, like the prototype's
    last-workout line; the words say which state it's in, not the colour. */
 .rest {
@@ -1472,7 +1496,7 @@ a.pick {
 }
 
 /* The superset line on the logging screen (#17): who it's paired with and
-   Unpair, or the chips to pair with. */
+   Unpair. */
 .superset {
   display: flex;
   flex-wrap: wrap;
@@ -1485,13 +1509,13 @@ a.pick {
   color: var(--text);
 }
 
-.superset .chips {
-  flex-basis: 100%;
+/* The chips to pair with, opened from the set-type row (#104). */
+.superset-choices {
   flex-wrap: wrap;
   padding-top: 0;
 }
 
-.superset .chips[hidden] {
+.superset-choices[hidden] {
   display: none;
 }
 
