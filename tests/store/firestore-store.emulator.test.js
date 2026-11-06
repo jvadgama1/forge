@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { deleteApp } from "firebase/app";
 import * as sdk from "firebase/firestore";
 import { createFirestoreStore } from "../../app/js/store/firestore-store.js";
@@ -18,11 +18,27 @@ afterAll(async () => {
   await deleteApp(owner.app);
 });
 
-/** A fresh, empty Firestore store for each contract test. */
+/** @type {Awaited<ReturnType<typeof signedInFirestore>>[]} */
+const fresh = [];
+
+// Each test's writes reach the server before the next test clears it.
+afterEach(async () => {
+  for (const { app, db } of fresh.splice(0)) {
+    await sdk.waitForPendingWrites(db);
+    await deleteApp(app);
+  }
+});
+
+/**
+ * A fresh, empty Firestore store for each contract test: its own app
+ * instance, since the store answers reads from a copy that starts from the
+ * local cache (ADR-0007), and an earlier test's documents may be cached.
+ */
 async function freshStore() {
-  await sdk.waitForPendingWrites(owner.db);
   await clearFirestore();
-  return createFirestoreStore({ sdk, db: owner.db, uid: owner.uid });
+  const instance = await signedInFirestore(OWNER_UID);
+  fresh.push(instance);
+  return createFirestoreStore({ sdk, db: instance.db, uid: instance.uid });
 }
 
 describeStoreContract("Firestore", freshStore);
@@ -45,6 +61,36 @@ describe("Firestore store", () => {
       name: "Work",
     });
     await deleteApp(reader.app);
+  });
+
+  it("shows changes made on another device without starting again", async () => {
+    const store = await freshStore();
+    await store.put("gyms", { id: "work", name: "Work" });
+    expect(await store.list("gyms")).toHaveLength(1);
+
+    // The desktop, say: its own app instance and cache.
+    const other = await signedInFirestore(OWNER_UID);
+    const otherStore = createFirestoreStore({
+      sdk,
+      db: other.db,
+      uid: other.uid,
+    });
+    await otherStore.put("gyms", { id: "work", name: "Work (upstairs)" });
+    await otherStore.put("gyms", { id: "home", name: "Home" });
+    await otherStore.synced();
+    await expect
+      .poll(() => store.list("gyms"), { timeout: 10000 })
+      .toEqual([
+        { id: "home", name: "Home" },
+        { id: "work", name: "Work (upstairs)" },
+      ]);
+
+    await otherStore.remove("gyms", "home");
+    await otherStore.synced();
+    await expect
+      .poll(() => store.get("gyms", "home"), { timeout: 10000 })
+      .toBeUndefined();
+    await deleteApp(other.app);
   });
 
   it("reports a write the server rejects to onError instead of failing silently", async () => {
