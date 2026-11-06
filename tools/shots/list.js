@@ -630,6 +630,29 @@ const desktop = (name, route, seed) => ({
   viewport: { width: 1280, height: 800 },
 });
 
+/** A small phone, 360 px wide, for what must still fit on one. */
+const SMALL_PHONE = { width: 360, height: 740 };
+
+/**
+ * Logs bench press set 02 in the PAIRED superset, which moves to its
+ * partner, Lat Pulldown, with no rest (#17).
+ * @param {Page} page
+ */
+const logOnPartner = async (page) => {
+  await page.getByRole("button", { name: /Log set 02/ }).click();
+  await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
+};
+
+/**
+ * Then taps Undo once on the partner's screen, arming it to take back the
+ * set just logged (#17).
+ * @param {Page} page
+ */
+const undoArmedOnPartner = async (page) => {
+  await logOnPartner(page);
+  await page.getByRole("button", { name: "Undo last set" }).click();
+};
+
 /**
  * Push A in progress with bench press and lat pulldown paired, a round of
  * each logged (#17), after an Oct 20 workout that paired them too.
@@ -862,7 +885,7 @@ export const SHOTS = [
     as: "owner",
     route: "/log",
     seed: WORKOUT,
-    viewport: { width: 360, height: 740 },
+    viewport: SMALL_PHONE,
   },
   // Supersets (#17): paired, logging a set moves to the partner with no
   // rest, pairing in two taps, and the routine editor's planned pairs.
@@ -877,22 +900,16 @@ export const SHOTS = [
     as: "owner",
     route: "/log/ex/barbell-bench-press",
     seed: PAIRED,
-    steps: async (page) => {
-      await page.getByRole("button", { name: /Log set 02/ }).click();
-      await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
-    },
+    steps: logOnPartner,
   },
   {
-    // Undo on the partner's screen takes back the set just logged (#17).
+    // Undo, armed on the partner's screen, takes back the set just logged
+    // (#17).
     name: "superset-undo",
     as: "owner",
     route: "/log/ex/barbell-bench-press",
     seed: PAIRED,
-    steps: async (page) => {
-      await page.getByRole("button", { name: /Log set 02/ }).click();
-      await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
-      await page.getByRole("button", { name: "Undo last set" }).click();
-    },
+    steps: undoArmedOnPartner,
   },
   // The set-type row at 360 px, its longest (#110): Warm-up, Drop set and
   // Add to superset… on one line, here and with Undo armed above it.
@@ -901,7 +918,7 @@ export const SHOTS = [
     as: "owner",
     route: "/log/ex/barbell-bench-press",
     seed: PAIRED,
-    viewport: { width: 360, height: 740 },
+    viewport: SMALL_PHONE,
     scrollTo: ".set-type-row",
   },
   {
@@ -909,12 +926,8 @@ export const SHOTS = [
     as: "owner",
     route: "/log/ex/barbell-bench-press",
     seed: PAIRED,
-    viewport: { width: 360, height: 740 },
-    steps: async (page) => {
-      await page.getByRole("button", { name: /Log set 02/ }).click();
-      await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
-      await page.getByRole("button", { name: "Undo last set" }).click();
-    },
+    viewport: SMALL_PHONE,
+    steps: undoArmedOnPartner,
     scrollTo: ".set-type-row",
   },
   {

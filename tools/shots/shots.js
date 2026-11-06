@@ -163,7 +163,9 @@ async function render(shot) {
       await settle(page);
     }
     // Fails the shot unless exactly one element matches: a screenshot of
-    // the wrong part of a screen would pass for the right one (#110).
+    // the wrong part of a screen would pass for the right one (#110). The
+    // page has settled, so a selector that matches nothing fails in 5 s,
+    // not Playwright's 30.
     if (shot.scrollTo)
       await page
         .locator(shot.scrollTo)
