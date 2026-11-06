@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { deleteApp } from "firebase/app";
 import * as sdk from "firebase/firestore";
 import { createFirestoreStore } from "../../app/js/store/firestore-store.js";
@@ -18,19 +18,43 @@ afterAll(async () => {
   await deleteApp(owner.app);
 });
 
-/** A fresh, empty Firestore store for each contract test. */
+/** @type {Awaited<ReturnType<typeof signedInFirestore>>[]} */
+const instances = [];
+
+// Each test's writes reach the server before the next test clears it.
+afterEach(async () => {
+  for (const { app, db } of instances.splice(0)) {
+    await sdk.waitForPendingWrites(db);
+    await deleteApp(app);
+  }
+});
+
+/**
+ * A fresh, empty Firestore store for each contract test: its own app
+ * instance, since the store answers reads from a copy that starts from the
+ * local cache (ADR-0007), and an earlier test's documents may be cached.
+ */
 async function freshStore() {
-  await sdk.waitForPendingWrites(owner.db);
   await clearFirestore();
-  return createFirestoreStore({ sdk, db: owner.db, uid: owner.uid });
+  const instance = await signedInFirestore(OWNER_UID);
+  instances.push(instance);
+  return createFirestoreStore({ sdk, db: instance.db, uid: instance.uid });
 }
 
 describeStoreContract("Firestore", freshStore);
 
 describe("Firestore store", () => {
-  it("keeps documents on the server once writes have synced", async () => {
+  it("keeps documents on the server exactly as put, once writes have synced", async () => {
     const store = await freshStore();
-    await store.put("gyms", { id: "work", name: "Work" });
+    // The contract reads back from the live copy (ADR-0007); this is what
+    // Firestore itself keeps.
+    await store.put("gyms", {
+      id: "work",
+      name: "Work",
+      exerciseIds: ["lat-pulldown", "leg-press"],
+      settings: { lastUsed: null, notes: { seat: 4 } },
+      note: undefined,
+    });
     await store.synced();
 
     // A second app instance has an empty cache, so this read must come from the server.
@@ -40,11 +64,74 @@ describe("Firestore store", () => {
       db: reader.db,
       uid: reader.uid,
     });
-    expect(await readerStore.get("gyms", "work")).toEqual({
+    const stored = await readerStore.get("gyms", "work");
+    expect(stored).toEqual({
       id: "work",
       name: "Work",
+      exerciseIds: ["lat-pulldown", "leg-press"],
+      settings: { lastUsed: null, notes: { seat: 4 } },
     });
+    expect(stored && "note" in stored).toBe(false);
     await deleteApp(reader.app);
+  });
+
+  it("works with no connection: reads what the device has, and keeps new writes", async () => {
+    await clearFirestore();
+    const device = await signedInFirestore(OWNER_UID);
+    instances.push(device);
+    const before = createFirestoreStore({ sdk, ...device });
+    await before.put("gyms", { id: "work", name: "Work" });
+    expect(await before.list("gyms")).toHaveLength(1);
+    await before.synced();
+
+    // The app opened again with no signal (spec #3, story 5).
+    await sdk.disableNetwork(device.db);
+    const offline = createFirestoreStore({ sdk, ...device });
+    expect(await offline.list("gyms")).toEqual([{ id: "work", name: "Work" }]);
+    expect(await offline.list("routines")).toEqual([]);
+    await offline.put("gyms", { id: "home", name: "Home" });
+    expect(await offline.get("gyms", "home")).toEqual({
+      id: "home",
+      name: "Home",
+    });
+
+    await sdk.enableNetwork(device.db);
+    await offline.synced();
+    const reader = await signedInFirestore(OWNER_UID);
+    instances.push(reader);
+    expect(
+      await createFirestoreStore({ sdk, ...reader }).get("gyms", "home"),
+    ).toEqual({ id: "home", name: "Home" });
+  });
+
+  it("shows changes made on another device without starting again", async () => {
+    const store = await freshStore();
+    await store.put("gyms", { id: "work", name: "Work" });
+    expect(await store.list("gyms")).toHaveLength(1);
+
+    // The desktop, say: its own app instance and cache.
+    const other = await signedInFirestore(OWNER_UID);
+    const otherStore = createFirestoreStore({
+      sdk,
+      db: other.db,
+      uid: other.uid,
+    });
+    await otherStore.put("gyms", { id: "work", name: "Work (upstairs)" });
+    await otherStore.put("gyms", { id: "home", name: "Home" });
+    await otherStore.synced();
+    await expect
+      .poll(() => store.list("gyms"), { timeout: 10000 })
+      .toEqual([
+        { id: "home", name: "Home" },
+        { id: "work", name: "Work (upstairs)" },
+      ]);
+
+    await otherStore.remove("gyms", "home");
+    await otherStore.synced();
+    await expect
+      .poll(() => store.get("gyms", "home"), { timeout: 10000 })
+      .toBeUndefined();
+    await deleteApp(other.app);
   });
 
   it("reports a write the server rejects to onError instead of failing silently", async () => {
