@@ -50,6 +50,22 @@ describe("ADR-0007: reads come from a live copy", () => {
     expect(messages.map((m) => m.ruleId)).toEqual(["no-restricted-properties"]);
   });
 
+  it.each([
+    "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js",
+    "firebase/firestore",
+  ])("fails app code that imports a one-off read from %s", async (from) => {
+    const messages = await lint(
+      `import { getDocs } from "${from}";\nexport const read = getDocs;\n`,
+      "app/js/store/firestore-store.js",
+    );
+    expect(messages).toEqual([
+      {
+        ruleId: "no-restricted-imports",
+        message: expect.stringContaining("ADR-0007"),
+      },
+    ]);
+  });
+
   it("leaves test code free to read the server", async () => {
     const messages = await lint(
       "export const read = (sdk, ref) => sdk.getDoc(ref);\n",
