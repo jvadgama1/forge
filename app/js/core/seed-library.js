@@ -1254,4 +1254,37 @@ export const SEED_LIBRARY = [
     secondary: [],
     body: "upper",
   },
+  // Added for the maintainer's gym equipment (#107).
+  {
+    id: "kettlebell-swing",
+    name: "Kettlebell Swing",
+    type: "weight-reps",
+    primary: ["glutes", "hamstrings"],
+    secondary: ["lower-back"],
+    body: "lower",
+  },
+  {
+    id: "medicine-ball-slam",
+    name: "Medicine Ball Slam",
+    type: "weight-reps",
+    primary: ["lats-upper-back", "abs"],
+    secondary: ["front-delts", "triceps"],
+    body: "upper",
+  },
+  {
+    id: "stability-ball-hamstring-curl",
+    name: "Stability Ball Hamstring Curl",
+    type: "bodyweight-reps",
+    primary: ["hamstrings"],
+    secondary: ["glutes"],
+    body: "lower",
+  },
+  {
+    id: "db-floor-press",
+    name: "DB Floor Press",
+    type: "weight-reps",
+    primary: ["chest"],
+    secondary: ["triceps", "front-delts"],
+    body: "upper",
+  },
 ];

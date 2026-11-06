@@ -177,3 +177,45 @@ describe("exercises added for the maintainer's gyms (#39)", () => {
       expect(SEED_LIBRARY.find((e) => e.id === exercise.id)).toEqual(exercise);
   });
 });
+
+describe("exercises added for the maintainer's gym equipment (#107)", () => {
+  it("are in the library, tagged like their closest existing exercises", () => {
+    /** @type {import("../../app/js/core/types.js").Exercise[]} */
+    const added = [
+      {
+        id: "kettlebell-swing",
+        name: "Kettlebell Swing",
+        type: "weight-reps",
+        primary: ["glutes", "hamstrings"],
+        secondary: ["lower-back"],
+        body: "lower",
+      },
+      {
+        id: "medicine-ball-slam",
+        name: "Medicine Ball Slam",
+        type: "weight-reps",
+        primary: ["lats-upper-back", "abs"],
+        secondary: ["front-delts", "triceps"],
+        body: "upper",
+      },
+      {
+        id: "stability-ball-hamstring-curl",
+        name: "Stability Ball Hamstring Curl",
+        type: "bodyweight-reps",
+        primary: ["hamstrings"],
+        secondary: ["glutes"],
+        body: "lower",
+      },
+      {
+        id: "db-floor-press",
+        name: "DB Floor Press",
+        type: "weight-reps",
+        primary: ["chest"],
+        secondary: ["triceps", "front-delts"],
+        body: "upper",
+      },
+    ];
+    for (const exercise of added)
+      expect(SEED_LIBRARY.find((e) => e.id === exercise.id)).toEqual(exercise);
+  });
+});
