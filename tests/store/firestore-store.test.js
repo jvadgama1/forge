@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFirestoreStore } from "../../app/js/store/firestore-store.js";
 import { slowFirestore } from "./slow-firestore.js";
 
-// The store against a slow server (#102). Its behaviour against the real
-// SDK is the emulator suite's job; this is only about waiting.
+// The store against a slow server whose timing the test controls (#102):
+// what waits on the server, and which version of a document wins when
+// snapshots and writes cross. Its behaviour against the real SDK is the
+// emulator suite's job.
 
 const SERVER_MS = 500;
+const GYMS = "users/me/gyms";
 
 /**
  * The value `promise` settles to while the clock stands still, or a failure
@@ -24,6 +27,16 @@ async function withoutWaiting(promise) {
   return value;
 }
 
+/**
+ * Settles `promise`, letting the clock run as far as the server needs.
+ * @template T
+ * @param {Promise<T>} promise
+ */
+async function settled(promise) {
+  await vi.advanceTimersByTimeAsync(SERVER_MS);
+  return promise;
+}
+
 describe("Firestore store with a slow server", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -32,44 +45,76 @@ describe("Firestore store with a slow server", () => {
     vi.useRealTimers();
   });
 
-  function store() {
-    const sdk = /** @type {any} */ (slowFirestore(SERVER_MS));
-    return createFirestoreStore({
-      sdk,
+  function setUp() {
+    const { sdk, server } = slowFirestore(SERVER_MS);
+    const store = createFirestoreStore({
+      sdk: /** @type {any} */ (sdk),
       db: /** @type {any} */ ({}),
       uid: "me",
     });
+    return { store, server };
   }
 
   it("answers reads without waiting on the server once it has read the collection", async () => {
-    const gyms = store();
-    await gyms.put("gyms", { id: "work", name: "Work" });
-    const first = gyms.list("gyms");
-    await vi.advanceTimersByTimeAsync(SERVER_MS);
-    await first;
+    const { store } = setUp();
+    await store.put("gyms", { id: "work", name: "Work" });
+    await settled(store.list("gyms"));
 
-    expect(await withoutWaiting(gyms.get("gyms", "work"))).toEqual({
+    expect(await withoutWaiting(store.get("gyms", "work"))).toEqual({
       id: "work",
       name: "Work",
     });
-    expect(await withoutWaiting(gyms.get("gyms", "nope"))).toBeUndefined();
-    expect(await withoutWaiting(gyms.list("gyms"))).toEqual([
+    expect(await withoutWaiting(store.get("gyms", "nope"))).toBeUndefined();
+    expect(await withoutWaiting(store.list("gyms"))).toEqual([
       { id: "work", name: "Work" },
     ]);
   });
 
   it("answers a read straight after a write without waiting on the server", async () => {
-    const gyms = store();
-    const first = gyms.list("gyms");
-    await vi.advanceTimersByTimeAsync(SERVER_MS);
-    await first;
+    const { store } = setUp();
+    await settled(store.list("gyms"));
 
-    await gyms.put("gyms", { id: "home", name: "Home" });
-    expect(await withoutWaiting(gyms.get("gyms", "home"))).toEqual({
+    await store.put("gyms", { id: "home", name: "Home" });
+    expect(await withoutWaiting(store.get("gyms", "home"))).toEqual({
       id: "home",
       name: "Home",
     });
-    await gyms.remove("gyms", "home");
-    expect(await withoutWaiting(gyms.list("gyms"))).toEqual([]);
+    await store.remove("gyms", "home");
+    expect(await withoutWaiting(store.list("gyms"))).toEqual([]);
+  });
+
+  it("keeps its own write over a snapshot until the server answers, then takes the server's version", async () => {
+    const { store, server } = setUp();
+    await settled(store.list("gyms"));
+    server.holdAnswers();
+
+    await store.put("gyms", { id: "work", name: "Work (phone)" });
+    // The desktop's edit lands on the server after the phone's.
+    server.write(GYMS, "work", { id: "work", name: "Work (desktop)" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await store.get("gyms", "work")).toEqual({
+      id: "work",
+      name: "Work (phone)",
+    });
+
+    server.answerWrites();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await store.get("gyms", "work")).toEqual({
+      id: "work",
+      name: "Work (desktop)",
+    });
+  });
+
+  it("keeps a write the server hasn't answered when a listener breaks and starts again", async () => {
+    const { store, server } = setUp();
+    await settled(store.list("gyms"));
+    server.holdAnswers();
+
+    await store.put("gyms", { id: "home", name: "Home" });
+    server.breakListeners(new Error("listener ended"));
+    expect(await settled(store.get("gyms", "home"))).toEqual({
+      id: "home",
+      name: "Home",
+    });
   });
 });

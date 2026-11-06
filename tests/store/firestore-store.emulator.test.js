@@ -19,11 +19,11 @@ afterAll(async () => {
 });
 
 /** @type {Awaited<ReturnType<typeof signedInFirestore>>[]} */
-const fresh = [];
+const instances = [];
 
 // Each test's writes reach the server before the next test clears it.
 afterEach(async () => {
-  for (const { app, db } of fresh.splice(0)) {
+  for (const { app, db } of instances.splice(0)) {
     await sdk.waitForPendingWrites(db);
     await deleteApp(app);
   }
@@ -37,16 +37,24 @@ afterEach(async () => {
 async function freshStore() {
   await clearFirestore();
   const instance = await signedInFirestore(OWNER_UID);
-  fresh.push(instance);
+  instances.push(instance);
   return createFirestoreStore({ sdk, db: instance.db, uid: instance.uid });
 }
 
 describeStoreContract("Firestore", freshStore);
 
 describe("Firestore store", () => {
-  it("keeps documents on the server once writes have synced", async () => {
+  it("keeps documents on the server exactly as put, once writes have synced", async () => {
     const store = await freshStore();
-    await store.put("gyms", { id: "work", name: "Work" });
+    // The contract reads back from the live copy (ADR-0007); this is what
+    // Firestore itself keeps.
+    await store.put("gyms", {
+      id: "work",
+      name: "Work",
+      exerciseIds: ["lat-pulldown", "leg-press"],
+      settings: { lastUsed: null, notes: { seat: 4 } },
+      note: undefined,
+    });
     await store.synced();
 
     // A second app instance has an empty cache, so this read must come from the server.
@@ -56,11 +64,44 @@ describe("Firestore store", () => {
       db: reader.db,
       uid: reader.uid,
     });
-    expect(await readerStore.get("gyms", "work")).toEqual({
+    const stored = await readerStore.get("gyms", "work");
+    expect(stored).toEqual({
       id: "work",
       name: "Work",
+      exerciseIds: ["lat-pulldown", "leg-press"],
+      settings: { lastUsed: null, notes: { seat: 4 } },
     });
+    expect(stored && "note" in stored).toBe(false);
     await deleteApp(reader.app);
+  });
+
+  it("works with no connection: reads what the device has, and keeps new writes", async () => {
+    await clearFirestore();
+    const device = await signedInFirestore(OWNER_UID);
+    instances.push(device);
+    const before = createFirestoreStore({ sdk, ...device });
+    await before.put("gyms", { id: "work", name: "Work" });
+    expect(await before.list("gyms")).toHaveLength(1);
+    await before.synced();
+
+    // The app opened again with no signal (spec #3, story 5).
+    await sdk.disableNetwork(device.db);
+    const offline = createFirestoreStore({ sdk, ...device });
+    expect(await offline.list("gyms")).toEqual([{ id: "work", name: "Work" }]);
+    expect(await offline.list("routines")).toEqual([]);
+    await offline.put("gyms", { id: "home", name: "Home" });
+    expect(await offline.get("gyms", "home")).toEqual({
+      id: "home",
+      name: "Home",
+    });
+
+    await sdk.enableNetwork(device.db);
+    await offline.synced();
+    const reader = await signedInFirestore(OWNER_UID);
+    instances.push(reader);
+    expect(
+      await createFirestoreStore({ sdk, ...reader }).get("gyms", "home"),
+    ).toEqual({ id: "home", name: "Home" });
   });
 
   it("shows changes made on another device without starting again", async () => {
