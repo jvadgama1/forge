@@ -655,29 +655,22 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
-/* Undo the last set (#42): small, out of the thumb's way, right-aligned. */
+/* Undo the last set (#42): small, out of the thumb's way, at the right end
+   of the Now row, where there's room (#104). "Tap again to undo" can name a
+   superset partner (#17): it wraps inside its column, leaving the set
+   number and Now in line, and never pushes the screen sideways. */
 .undo {
-  display: block;
-  max-width: 100%;
-  margin: 6px 0 4px auto;
-  /* "Tap again to undo" can name a superset partner (#17): wrap, never
-     push the screen sideways. */
-  padding-block: 6px;
-  text-align: right;
-}
-
-.undo[hidden] {
-  display: none;
-}
-
-/* On the Now row, where there's room (#104). A long "Tap again to undo"
-   wraps inside its column, leaving the set number and Now in line. */
-.set-now .undo {
   grid-column: 3 / -1;
   justify-self: end;
   min-width: 0;
   margin: 2px 0;
+  padding-block: 6px;
+  text-align: right;
   white-space: normal;
+}
+
+.undo[hidden] {
+  display: none;
 }
 
 /* The set type, and the superset button at the end of its row (#104). */
@@ -686,6 +679,7 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: 6px;
+  /* The chips' own padding, moved out to the row so the button lines up. */
   padding: 10px 0 4px;
 }
 
