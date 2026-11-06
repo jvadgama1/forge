@@ -153,37 +153,39 @@ export function setChoices(type, set = {}) {
       ? [{ value: /** @type {const} */ ("drop"), text: "Drop set" }]
       : []),
   ];
+  const rir = reps
+    ? h(
+        "div",
+        { class: "rir" },
+        h("span", { class: "label" }, "RIR"),
+        choiceChips({
+          label: "RIR, optional",
+          options: [0, 1, 2, 3, 4].map((value) => ({
+            value,
+            text: rirLabel(value),
+          })),
+          selected: choice.rir,
+          clearable: true,
+          onChoose: (value) => {
+            choice.rir = value;
+          },
+        }),
+      )
+    : null;
+  const setType = choiceChips({
+    label: "Set type",
+    options: flagOptions,
+    selected: choice.flag,
+    clearable: true,
+    onChoose: (value) => {
+      choice.flag = value;
+    },
+  });
   return {
-    nodes: [
-      reps
-        ? h(
-            "div",
-            { class: "rir" },
-            h("span", { class: "label" }, "RIR"),
-            choiceChips({
-              label: "RIR, optional",
-              options: [0, 1, 2, 3, 4].map((value) => ({
-                value,
-                text: rirLabel(value),
-              })),
-              selected: choice.rir,
-              clearable: true,
-              onChoose: (value) => {
-                choice.rir = value;
-              },
-            }),
-          )
-        : null,
-      choiceChips({
-        label: "Set type",
-        options: flagOptions,
-        selected: choice.flag,
-        clearable: true,
-        onChoose: (value) => {
-          choice.flag = value;
-        },
-      }),
-    ],
+    rir,
+    setType,
+    /** Both, in order, for a screen that shows them one under the other. */
+    nodes: [rir, setType],
     /** The choices as a set's fields. */
     read: () => ({
       rir: reps ? choice.rir : undefined,
@@ -293,17 +295,18 @@ async function celebration(forge, { exerciseId, set, records }, onScreen) {
 }
 
 /**
- * The superset line (#17): the partners and Unpair at the top when paired;
- * and at the foot, by the links to other exercises (pairing is once per
- * exercise, so the top stays short: #63), `Superset with…`, or `Add to
- * superset…` once paired, which opens a chip per exercise it can take:
- * two taps to pair.
+ * The superset controls (#17): the partners and Unpair at the top when
+ * paired; and `Superset with…`, or `Add to superset…` once paired, which opens a
+ * chip per exercise it can take: two taps to pair. The button sits at the
+ * end of the set-type row, where there's room (#104), and its chips open
+ * below that row (pairing is once per exercise, so the top stays short:
+ * #63).
  * @param {Forge} forge
  * @param {Workout} workout
  * @param {string} exerciseId
  * @param {() => void} changed
  */
-async function supersetLine(forge, workout, exerciseId, changed) {
+async function supersetControls(forge, workout, exerciseId, changed) {
   const nameOf = exerciseNamer(forge);
   const members = forge.supersetOf(workout, exerciseId);
   const top = members
@@ -334,10 +337,14 @@ async function supersetLine(forge, workout, exerciseId, changed) {
       )
     : null;
   const candidates = forge.partnersFor(workout, exerciseId);
-  if (!candidates.length) return { top, foot: null };
+  if (!candidates.length) return { top, open: null, choices: null };
   const choices = h(
     "div",
-    { class: "chips", role: "group", "aria-label": "Superset with" },
+    {
+      class: "chips superset-choices",
+      role: "group",
+      "aria-label": "Superset with",
+    },
     ...(await Promise.all(
       candidates.map(async (id) =>
         h(
@@ -369,7 +376,7 @@ async function supersetLine(forge, workout, exerciseId, changed) {
     },
     members ? "Add to superset…" : "Superset with…",
   );
-  return { top, foot: h("div", { class: "superset" }, open, choices) };
+  return { top, open, choices };
 }
 
 /**
@@ -584,7 +591,7 @@ export async function workoutScreen({
 
   const before = live[index - 1];
   const after = live[index + 1];
-  const superset = await supersetLine(forge, workout, exerciseId, () =>
+  const superset = await supersetControls(forge, workout, exerciseId, () =>
     onLogged(),
   );
   const nav = h(
@@ -662,17 +669,18 @@ export async function workoutScreen({
       "ol",
       { class: "sets", "aria-label": "Sets logged" },
       ...sets.map((set, i) => setRow(set, i, type)),
+      // Undo on the Now row, where there's room (#104).
       h(
         "li",
         { class: "set-now" },
         h("span", { class: "set-no" }, pad2(sets.length + 1)),
         h("span", { class: "set-what" }, "Now"),
+        undo,
       ),
     ),
     justLogged?.records.length
       ? await celebration(forge, justLogged, exerciseId)
       : null,
-    undo,
     restBar(),
     h(
       "div",
@@ -687,10 +695,12 @@ export async function workoutScreen({
         ),
       ),
     ),
-    ...choices.nodes,
+    choices.rir,
+    // The set type, with the superset button at the end of its row (#104).
+    h("div", { class: "set-type-row" }, choices.setType, superset.open),
+    superset.choices,
     logButton,
     status,
     nav,
-    superset.foot,
   );
 }
