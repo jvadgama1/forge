@@ -19,7 +19,7 @@ The judgement calls a reviewer checks. Anything ESLint, Prettier, `tsc` (strict,
 
 ## UI
 
-- UI changes follow CLAUDE.md § UI conventions and `DESIGN.md` § Look. The pull request shows a 390 px phone screenshot of every changed screen, taken with made-up data (pull requests are public: ADR-0005), and quotes old and new wording for any copy change.
+- UI changes follow CLAUDE.md § UI conventions and `DESIGN.md` § Look. The pull request shows a 390 px phone screenshot of every changed screen, taken with made-up data (pull requests are public: ADR-0005), and quotes old and new wording for any copy change. `npm run shots:publish -- <pr> <label> <shot…>` puts shots from a `npm run shots` run on the `screenshots` branch and prints the `<img>` tags for the body.
 
 ## Security and data
 

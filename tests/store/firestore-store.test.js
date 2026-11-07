@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createForge } from "../../app/js/core/forge.js";
 import { createFirestoreStore } from "../../app/js/store/firestore-store.js";
+import { library } from "../core/library-fixture.js";
 import { slowFirestore } from "./slow-firestore.js";
+
+/** @import { Forge } from "../../app/js/core/forge.js" */
+/** @import { Workout } from "../../app/js/core/types.js" */
 
 // The store against a slow server whose timing the test controls (#102):
 // what waits on the server, and which version of a document wins when
@@ -28,33 +33,41 @@ async function withoutWaiting(promise) {
 }
 
 /**
- * Settles `promise`, letting the clock run as far as the server needs.
+ * Settles `promise`, letting the clock run in server-sized steps as far as
+ * it needs: a chain of first reads waits on the server once per collection.
  * @template T
  * @param {Promise<T>} promise
+ * @returns {Promise<T>}
  */
 async function settled(promise) {
-  await vi.advanceTimersByTimeAsync(SERVER_MS);
+  let done = false;
+  promise.finally(() => (done = true)).catch(() => {});
+  for (let step = 0; !done; step++) {
+    if (step === 100) throw new Error("still waiting after 100 round trips");
+    await vi.advanceTimersByTimeAsync(SERVER_MS);
+  }
   return promise;
 }
 
+/** The store over a slow server, and that server. */
+function setUp() {
+  const { sdk, server } = slowFirestore(SERVER_MS);
+  const store = createFirestoreStore({
+    sdk: /** @type {any} */ (sdk),
+    db: /** @type {any} */ ({}),
+    uid: "me",
+  });
+  return { store, server };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("Firestore store with a slow server", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  function setUp() {
-    const { sdk, server } = slowFirestore(SERVER_MS);
-    const store = createFirestoreStore({
-      sdk: /** @type {any} */ (sdk),
-      db: /** @type {any} */ ({}),
-      uid: "me",
-    });
-    return { store, server };
-  }
-
   it("answers reads without waiting on the server once it has read the collection", async () => {
     const { store } = setUp();
     await store.put("gyms", { id: "work", name: "Work" });
@@ -116,5 +129,72 @@ describe("Firestore store with a slow server", () => {
       id: "home",
       name: "Home",
     });
+  });
+});
+
+// The guard on ADR-0007 that lint can't give (#108): the core over the real
+// store, doing in effect what the logging screen does when a set is logged.
+// A read that waits on the server anywhere along the way fails it.
+describe("logging a set over a slow server", () => {
+  /**
+   * Logs a set, then makes the reads the logging screen makes: those after
+   * the tap, with the workout logSet returns, then the redraw's.
+   * @param {Forge} forge
+   * @param {string} workoutId
+   * @param {string} exerciseId
+   */
+  async function logAndRedraw(forge, workoutId, exerciseId) {
+    const logged = await forge.logSet(workoutId, exerciseId, {
+      load: 20,
+      reps: 12,
+    });
+    await forge.restAfterSet(exerciseId, logged);
+    await forge.recordsSetBy(logged, exerciseId);
+    await forge.nextExercise(logged, exerciseId);
+
+    const workout = /** @type {Workout} */ (await forge.currentWorkout());
+    const shown = /** @type {string} */ (
+      forge.exerciseToShow(workout, exerciseId)
+    );
+    await forge.getGym(workout.gymId);
+    await forge.workoutTitle(workout);
+    await forge.getExercise(shown);
+    await forge.exerciseType(forge.undoTarget(workout, shown));
+    await forge.exerciseSettings(shown);
+    await forge.nextSet(workout, shown);
+    await forge.suggestedWeight(workout, shown);
+    await forge.lastWorkoutLine(shown, workout.id);
+    await forge.targets(workout, shown);
+    await forge.swapOffer(workout, shown);
+    return workout;
+  }
+
+  it("reads nothing from the server for a custom exercise in a superset, once loaded", async () => {
+    const forge = createForge({ store: setUp().store, library });
+    const { workoutId, exerciseId } = await settled(
+      (async () => {
+        const gym = await forge.createGym("Work");
+        const band = await forge.saveCustomExercise({
+          name: "Band Row",
+          type: "weight-reps",
+          primary: ["lats-upper-back"],
+          secondary: ["biceps"],
+          body: "upper",
+        });
+        const workout = await forge.startWorkout(gym.id);
+        await forge.addExercise(workout.id, "bench-press");
+        await forge.addExercise(workout.id, band.id);
+        await forge.pairExercises(workout.id, "bench-press", band.id);
+        await logAndRedraw(forge, workout.id, band.id);
+        return { workoutId: workout.id, exerciseId: band.id };
+      })(),
+    );
+
+    const workout = await withoutWaiting(
+      logAndRedraw(forge, workoutId, exerciseId),
+    );
+    expect(
+      workout.entries.find((e) => e.exerciseId === exerciseId)?.sets,
+    ).toHaveLength(2);
   });
 });
