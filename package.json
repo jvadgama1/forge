@@ -17,6 +17,7 @@
     "deploy:rules": "firebase deploy --only firestore:rules --project forge-eb613",
     "shots": "node tools/shots/shots.js",
     "shots:compare": "node tools/shots/compare.js",
+    "shots:publish": "node tools/shots/publish.js",
     "prepare": "husky"
   },
   "devDependencies": {
