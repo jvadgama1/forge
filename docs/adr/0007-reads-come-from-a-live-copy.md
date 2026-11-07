@@ -14,3 +14,4 @@ The Firestore store answers every read from an in-memory copy of each collection
 - When the phone and the desktop edit the same document, the edit that reaches the server last wins, as with any Firestore write. Each device shows its own edit until the server answers it, then the winner. With no signal, the phone keeps its own until it reconnects.
 - A listener that fails (signing out ends them all) is started again by the next read of that collection, which reports the failure; the copy's documents are kept.
 - The listeners replace a full collection read on every screen, so the store also makes far fewer billed reads.
+- ESLint fails any one-off read (`getDoc`, `getDocs` and their cache and server forms) in app code, and a test logs a set through the core over the store and a slow server, failing if any read waits on it (#108).
