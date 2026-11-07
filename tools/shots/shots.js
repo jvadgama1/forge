@@ -162,6 +162,16 @@ async function render(shot) {
       await shot.steps(page);
       await settle(page);
     }
+    // Fails the shot unless exactly one element matches: a screenshot of
+    // the wrong part of a screen would pass for the right one (#110). The
+    // page has settled, so a selector that matches nothing fails in 5 s,
+    // not Playwright's 30.
+    if (shot.scrollTo)
+      await page
+        .locator(shot.scrollTo)
+        .evaluate((el) => el.scrollIntoView({ block: "center" }), undefined, {
+          timeout: 5000,
+        });
     // No screen may scroll sideways at any width (#23).
     const wider = await page.evaluate(
       () =>
