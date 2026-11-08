@@ -6,7 +6,7 @@ A workout tracker I built to log my own workouts: log sets on the phone at the g
   <img src="docs/images/log.png" width="260" alt="Logging a set of bench press: the last workout, a suggested weight, the sets so far and big steppers for the next one">
   <img src="docs/images/history.png" width="260" alt="An exercise's history: records and an estimated one-rep-max trend">
 </p>
-<img src="docs/images/stats-desktop.png" alt="The Stats board on a wide screen: one-rep-max trend, body heat map of weekly volume, hard sets per muscle group, training calendar and records">
+<img src="docs/images/stats-desktop.png" alt="The Stats board on a wide screen: one-rep-max trend, body heat map of weekly volume, hard sets per muscle group, calendar of workouts and records">
 
 <sub>Screenshots use made-up data.</sub>
 
