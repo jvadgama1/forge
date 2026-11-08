@@ -1,6 +1,6 @@
 # Forge
 
-A workout tracker I built for my own training: log sets on the phone at the gym, then see progress on a dashboard on any screen. It's a solo project run like a professional software project, with specs, tickets, triage, test-first development, code review and CI.
+A workout tracker I built to log my own workouts: log sets on the phone at the gym, then see progress on a dashboard on any screen. It's a solo project run like a professional software project, with specs, tickets, triage, test-first development, code review and CI.
 
 <p>
   <img src="docs/images/log.png" width="260" alt="Logging a set of bench press: the last workout, a suggested weight, the sets so far and big steppers for the next one">
@@ -13,7 +13,7 @@ A workout tracker I built for my own training: log sets on the phone at the gym,
 ## What it does
 
 - **Logging, phone first.** A set takes one tap: each set fills in from the last one, with steppers to adjust. The screen shows the last workout's sets and a suggested weight from double progression. It also has a rest timer, supersets, swapping an exercise for one this gym has, records, undo, and logging with no signal.
-- **Dashboard.** Estimated one-rep-max trends, hard sets per muscle group against a target band, a body heat map, a training calendar, tonnage and a record timeline. Phone and wide-screen layouts.
+- **Dashboard.** Estimated one-rep-max trends, hard sets per muscle group against a target band, a body heat map, a calendar of workouts, tonnage and a record timeline. Phone and wide-screen layouts.
 - **Library and routines.** About 150 exercises tagged across 17 muscle groups, custom exercises, versioned routines, and gyms defined by the exercises they have.
 - **Your data is yours.** Export everything as JSON or CSV.
 - **AI coach (next).** A weekly review that proposes routine changes. Everything else works without AI.
@@ -42,7 +42,7 @@ The working agreement is in [`CLAUDE.md`](CLAUDE.md).
 
 ## Status
 
-In use for my own training since late October 2026.
+Logging my own workouts since late October 2026.
 
 - **Phase 1, logging:** done.
 - **Phase 2, dashboard:** done.
