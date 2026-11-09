@@ -41,6 +41,27 @@ const noSplitCards = async (page) => {
   if (split.length) throw new Error(`Cards split across columns: ${split}`);
 };
 
+/**
+ * Fails the shot unless every element `selector` matches sits inside the
+ * screen's 16 px gutters (#117), as each row of a screen should.
+ * @param {Page} page
+ * @param {string} selector
+ */
+const inGutters = async (page, selector) => {
+  await page.locator(selector).first().waitFor();
+  const out = await page.evaluate((selector) => {
+    const width = globalThis.innerWidth;
+    return [...globalThis.document.querySelectorAll(selector)]
+      .map((el) => ({ el, box: el.getBoundingClientRect() }))
+      .filter(({ box }) => box.left < 16 || box.right > width - 16)
+      .map(
+        ({ el, box }) =>
+          `${el.textContent} (left ${Math.round(box.left)} px, right ${Math.round(width - box.right)} px)`,
+      );
+  }, selector);
+  if (out.length) throw new Error(`Outside the 16 px gutters: ${out}`);
+};
+
 /** Three made-up gyms, Work last used. */
 const GYMS = {
   gyms: [
@@ -637,6 +658,9 @@ const desktop = (name, route, seed) => ({
 /** A small phone, 360 px wide, for what must still fit on one. */
 const SMALL_PHONE = { width: 360, height: 740 };
 
+/** The narrowest phone a row must still fit on (#117). */
+const NARROWEST_PHONE = { width: 320, height: 740 };
+
 /** The screen a shot is taken on unless it gives its own. */
 export const PHONE = { width: 390, height: 844 };
 
@@ -937,6 +961,29 @@ export const SHOTS = [
     steps: undoArmedOnPartner,
     scrollTo: ".set-type-row",
   },
+  // The links to the previous and next exercise, both names long, keep to
+  // one line inside the gutters (#117): checked at the shot's width and at a
+  // 320 px phone, whose set-type row doesn't fit yet (#136), so it isn't a
+  // shot. The full names stay the links' accessible names.
+  ...[PHONE, SMALL_PHONE].map((viewport) => ({
+    name: viewport === PHONE ? "superset-nav" : "superset-nav-360",
+    as: /** @type {const} */ ("owner"),
+    route: "/log/ex/lat-pulldown",
+    seed: PAIRED,
+    viewport,
+    /** @param {Page} page */
+    steps: async (page) => {
+      for (const name of ["← Barbell Bench Press", "Triceps Pushdown →"])
+        await page
+          .getByRole("link", { name, exact: true })
+          .waitFor({ timeout: 5000 });
+      await page.setViewportSize(NARROWEST_PHONE);
+      await inGutters(page, ".workout-nav .chip");
+      await page.setViewportSize(viewport);
+      await inGutters(page, ".workout-nav .chip");
+    },
+    scrollTo: ".workout-nav",
+  })),
   {
     name: "superset-pick",
     as: "owner",
