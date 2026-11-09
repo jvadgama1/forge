@@ -1,18 +1,35 @@
-// Service worker: keeps the app shell available with no signal.
-// Same-origin files, Google Fonts and the pinned Firebase SDK are served from
-// cache while a fresh copy is fetched in the background, so a deploy shows up
-// on the next launch. Firestore and sign-in traffic is never cached here;
-// Firestore keeps its own offline cache.
+// Service worker: runs one whole app version at a time, and keeps it
+// running with no signal (#129).
+//
+// The deploy stamps version.js with its commit (ADR-0002), so every deploy
+// changes what the browser compares and it installs the new version: the
+// whole SHELL, in a cache named after the commit, or nothing. It then waits
+// until the app asks it to take over (the Update button, or on opening the
+// app: js/updates.js); older versions' caches go once it has. Requests are
+// answered from the active version's cache alone, never a mix of versions.
+// Firestore and sign-in traffic is never cached here; Firestore keeps its
+// own offline cache (ADR-0007).
+importScripts("version.js");
 
-const CACHE = "forge-shell-v1";
+const CACHE = `forge-${self.forgeAppVersion.commit}`;
+// Fonts load from URLs only the font service's stylesheet names, so they're
+// kept as they're first used, across versions.
+const FONTS = "forge-fonts";
+// The cache of the service worker before #129, which refreshed files one by
+// one and took over at once.
+const BEFORE = "forge-shell-v1";
 const SHELL = [
   "./",
   "index.html",
   "manifest.webmanifest",
+  "version.js",
   "css/slab.css",
   "js/main.js",
   "js/auth.js",
   "js/save-error.js",
+  "js/updates.js",
+  "js/update-bar.js",
+  "js/app-version.js",
   "js/dom.js",
   "js/screens/screen.js",
   "js/screens/sign-in.js",
@@ -63,11 +80,31 @@ const SHELL = [
   "icons/icon.svg",
   "icons/icon-192.png",
   "icons/icon-512.png",
+  // The pinned Firebase SDK (js/firebase-sdk.js), part of every version.
+  "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js",
+  "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js",
+  "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js",
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
-  self.skipWaiting();
+  // "reload": straight from the site, so the HTTP cache can't hand back an
+  // older deploy's copy of a file. addAll stores all or none.
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) =>
+        cache.addAll(SHELL.map((url) => new Request(url, { cache: "reload" }))),
+      )
+      .then(() => caches.has(BEFORE))
+      // Replacing that worker, take over at once as it did: its pages have
+      // no Update to tap, and kept running they would mix in new files.
+      .then((replacing) => replacing && self.skipWaiting()),
+  );
+});
+
+// The app's go-ahead to take over from the version running (#129).
+self.addEventListener("message", (event) => {
+  if (event.data === "switch") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -76,7 +113,9 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)),
+          keys
+            .filter((key) => key !== CACHE && key !== FONTS)
+            .map((key) => caches.delete(key)),
         ),
       )
       .then(() => self.clients.claim()),
@@ -84,26 +123,36 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
-  const cacheable =
-    event.request.method === "GET" &&
-    (url.origin === self.location.origin ||
-      url.hostname.endsWith("fonts.googleapis.com") ||
-      url.hostname.endsWith("fonts.gstatic.com") ||
-      (url.hostname === "www.gstatic.com" &&
-        url.pathname.startsWith("/firebasejs/")));
-  if (!cacheable) return;
-
-  event.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(event.request, { ignoreSearch: true });
-      const fresh = fetch(event.request)
-        .then((response) => {
-          if (response.ok) cache.put(event.request, response.clone());
-          return response;
-        })
-        .catch(() => cached);
-      return cached ?? fresh;
-    }),
-  );
+  const { request } = event;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (
+    url.hostname === "fonts.googleapis.com" ||
+    url.hostname === "fonts.gstatic.com"
+  )
+    event.respondWith(fromFonts(request));
+  else if (url.origin === self.location.origin || SHELL.includes(request.url))
+    event.respondWith(fromVersion(request));
 });
+
+/**
+ * The active version's copy; the network only for what no version has.
+ * @param {Request} request
+ */
+async function fromVersion(request) {
+  const cache = await caches.open(CACHE);
+  return (await cache.match(request, { ignoreSearch: true })) ?? fetch(request);
+}
+
+/**
+ * A font as first fetched, kept for next time.
+ * @param {Request} request
+ */
+async function fromFonts(request) {
+  const cache = await caches.open(FONTS);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok) await cache.put(request, response.clone());
+  return response;
+}

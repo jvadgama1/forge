@@ -3,11 +3,12 @@ import { h } from "../dom.js";
 
 /** @import { User } from "firebase/auth" */
 /** @import { Forge } from "../core/forge.js" */
+/** @import { Updates } from "../updates.js" */
 
 /**
  * What a signed-in screen is built from; `id` is the last segment of a /:id
  * route.
- * @typedef {{ user: User, forge: Forge, signOut: () => Promise<void>, id: string | undefined }} ScreenContext
+ * @typedef {{ user: User, forge: Forge, signOut: () => Promise<void>, updates: Updates, id: string | undefined }} ScreenContext
  */
 
 export const MONTHS = [
@@ -32,6 +33,15 @@ export const MONTHS = [
 export function monthDay(date) {
   const [, month, day] = date.split("-").map(Number);
   return `${MONTHS[month - 1]} ${day}`;
+}
+
+/**
+ * A deploy's day in local time, as the issue writes it (#129): "8 Nov".
+ * @param {string} date ISO 8601
+ */
+export function versionDay(date) {
+  const day = new Date(date);
+  return `${day.getDate()} ${MONTHS[day.getMonth()]}`;
 }
 
 /**

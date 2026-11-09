@@ -8,7 +8,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
-import { SHOTS } from "./list.js";
+import { stampSource } from "../stamp-version.js";
+import { PHONE, SHOTS } from "./list.js";
 import { LABEL, runDir } from "./run-dir.js";
 
 /** @import { Page } from "playwright-core" */
@@ -90,17 +91,23 @@ const browser = await chromium.launch({
   ],
 });
 
+// The stamp a shot with `stamp` is served, as a deploy writes it (#129).
+const STAMP = stampSource("0a1b2c3", "2026-11-08T12:00:00.000Z");
+
 /**
  * A context serving app/, with the stubs, at ORIGIN; no service worker.
  * @param {{ width: number, height: number }} viewport
+ * @param {boolean} stamped serve a deploy's stamp, not the repo's "dev"
  */
-async function newContext(viewport) {
+async function newContext(viewport, stamped) {
   const context = await browser.newContext({
     viewport,
     serviceWorkers: "block",
   });
   await context.route(`${ORIGIN}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (stamped && path === "/version.js")
+      return route.fulfill({ body: STAMP, contentType: "text/javascript" });
     const file = STUBS[path]
       ? join(stubDir, STUBS[path])
       : join(appDir, path === "/" ? "index.html" : path);
@@ -136,9 +143,6 @@ async function newContext(viewport) {
   return context;
 }
 
-/** The screen a shot is taken on unless it gives its own. */
-const PHONE = { width: 390, height: 844 };
-
 const errors = new Set();
 
 /**
@@ -146,17 +150,22 @@ const errors = new Set();
  * @param {Shot} shot
  */
 async function render(shot) {
-  const context = await newContext(shot.viewport ?? PHONE);
+  const context = await newContext(shot.viewport ?? PHONE, !!shot.stamp);
   try {
     // Read by the store stub as its starting documents.
     await context.addInitScript((seed) => {
       Object.assign(globalThis, { forgeShotSeed: seed });
     }, shot.seed ?? {});
+    // Service workers stand in for the browser's, blocked here (#129).
+    await context.addInitScript({ path: join(stubDir, "service-worker.js") });
     const page = await context.newPage();
     // A fixed "now", so the workout timer reads the same every run.
     await page.clock.setFixedTime(new Date(SHOT_TIME));
     page.on("pageerror", (error) => errors.add(`${shot.name}: ${error}`));
-    await page.goto(`${ORIGIN}/?as=${shot.as}#${shot.route ?? "/log"}`);
+    const update = shot.update ? `&update=${shot.update}` : "";
+    await page.goto(
+      `${ORIGIN}/?as=${shot.as}${update}#${shot.route ?? "/log"}`,
+    );
     await settle(page);
     if (shot.steps) {
       await shot.steps(page);
