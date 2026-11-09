@@ -639,7 +639,16 @@ a {
 
 .workout-row-actions {
   display: flex;
+  flex: none;
   gap: 6px;
+}
+
+/* Armed, Remove says what goes with it (#122) on two lines, leaving the
+   exercise name room on a 360 px phone. */
+.workout-row-actions .remove {
+  max-width: 136px;
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .add-exercise,

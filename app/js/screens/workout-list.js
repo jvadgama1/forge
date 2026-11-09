@@ -1,12 +1,14 @@
 import { h } from "../dom.js";
 import { endRest } from "./rest-timer.js";
-import { countOf, screen } from "./screen.js";
+import { countOf, screen, twoTapButton } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
+/** @import { WorkoutEntry } from "../core/types.js" */
 
 /**
- * The workout's exercises (#11): reorder, skip or bring back, jump to one,
- * add another; the workout's note; and finishing.
+ * The workout's exercises (#11): reorder, skip or bring back, remove one
+ * added by mistake (#122), jump to one, add another; the workout's note;
+ * and finishing.
  * @param {Pick<ScreenContext, "forge">} context
  */
 export function workoutListView({ forge }) {
@@ -27,6 +29,10 @@ export function workoutListView({ forge }) {
           (await forge.getExercise(e.exerciseId))?.name ?? e.exerciseId,
       ),
     );
+    // Which rows get Remove rather than Skip is the core's rule (#122).
+    const removable = await Promise.all(
+      workout.entries.map((e) => forge.canRemove(workout, e.exerciseId)),
+    );
 
     /** @param {string} text @param {string} label @param {() => Promise<unknown>} act */
     const action = (text, label, act) =>
@@ -43,6 +49,28 @@ export function workoutListView({ forge }) {
         },
         text,
       );
+
+    /**
+     * Remove, at once with no sets; with sets, on a second tap that says
+     * how many go with it.
+     * @param {WorkoutEntry} entry
+     * @param {string} name
+     */
+    const remove = (entry, name) => {
+      const act = () => forge.removeExercise(id, entry.exerciseId);
+      if (!entry.sets.length) return action("Remove", `Remove ${name}`, act);
+      return twoTapButton({
+        className: "chip remove",
+        text: "Remove",
+        label: `Remove ${name}`,
+        again: () => `Tap again to remove ${countOf(entry.sets.length, "set")}`,
+        disarmAfter: 4000,
+        act: async () => {
+          await act();
+          show();
+        },
+      });
+    };
 
     const rows = workout.entries.map((entry, i) => {
       const name = names[i];
@@ -83,9 +111,11 @@ export function workoutListView({ forge }) {
             ? action("Bring back", `Bring back ${name}`, () =>
                 forge.addExercise(id, entry.exerciseId),
               )
-            : action("Skip", `Skip ${name}`, () =>
-                forge.skipExercise(id, entry.exerciseId),
-              ),
+            : removable[i]
+              ? remove(entry, name)
+              : action("Skip", `Skip ${name}`, () =>
+                  forge.skipExercise(id, entry.exerciseId),
+                ),
         ),
       );
     });

@@ -77,6 +77,52 @@ describe("exercises in a workout", () => {
   });
 });
 
+describe("removing an exercise added by mistake (#122)", () => {
+  it("takes one with no sets out of the workout", async () => {
+    const { f, id } = await started();
+    await f.addExercise(id, "bench-press");
+    await f.addExercise(id, "leg-press");
+    const workout = await f.removeExercise(id, "leg-press");
+    expect(workout.entries).toEqual([{ exerciseId: "bench-press", sets: [] }]);
+    expect(await f.currentWorkout()).toEqual(workout);
+  });
+
+  it("takes its sets with it, so adding it again starts with none", async () => {
+    const { f, id } = await started();
+    await f.addExercise(id, "bench-press");
+    await f.addExercise(id, "leg-press");
+    await f.logSet(id, "leg-press", { load: 200, reps: 10 });
+    await f.logSet(id, "leg-press", { load: 200, reps: 9 });
+    let workout = await f.removeExercise(id, "leg-press");
+    expect(workout.entries).toEqual([{ exerciseId: "bench-press", sets: [] }]);
+    workout = await f.addExercise(id, "leg-press");
+    expect(workout.entries[1]).toEqual({ exerciseId: "leg-press", sets: [] });
+  });
+
+  it("moves the Log tab to another exercise, or to none when it was the last", async () => {
+    const { f, id } = await started();
+    await f.addExercise(id, "bench-press");
+    await f.addExercise(id, "leg-press");
+    let workout = await f.removeExercise(id, "leg-press");
+    expect(f.exerciseToShow(workout, "leg-press")).toBe("bench-press");
+    workout = await f.removeExercise(id, "bench-press");
+    expect(f.exerciseToShow(workout, "bench-press")).toBeUndefined();
+  });
+
+  it("is refused for one not in the workout, or a finished workout", async () => {
+    const { f, id } = await started();
+    await f.addExercise(id, "bench-press");
+    await expect(f.removeExercise(id, "leg-press")).rejects.toThrow(
+      "Add the exercise to the workout first",
+    );
+    await f.logSet(id, "bench-press", { load: 135, reps: 8 });
+    await f.finishWorkout(id);
+    await expect(f.removeExercise(id, "bench-press")).rejects.toThrow(
+      "That workout is finished",
+    );
+  });
+});
+
 describe("logging a set", () => {
   it("records load in lb, reps and when it was logged", async () => {
     const { f, id, at } = await started();

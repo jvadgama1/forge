@@ -367,3 +367,39 @@ describe("saving a workout's changes to its routine (#14)", () => {
     expect(saved?.versions[1].days[1]).toEqual(routine.versions[0].days[1]);
   });
 });
+
+describe("removing an exercise from a routine workout (#122)", () => {
+  async function pushDay() {
+    const env = await withRoutine();
+    const push = env.routine.versions[0].days[0];
+    const w = await env.f.startWorkout(env.gym.id, {
+      day: { routineId: env.routine.id, dayId: push.id },
+    });
+    return { ...env, w };
+  }
+
+  it("is for exercises added on the day; those in its slots are skipped instead", async () => {
+    const { f, w } = await pushDay();
+    await f.addExercise(w.id, "leg-press");
+    await f.swapExercise(w.id, "bench-press", "incline-db-press");
+    const workout = await f.getWorkout(w.id);
+    if (!workout) throw new Error("no workout");
+    expect(await f.canRemove(workout, "leg-press")).toBe(true);
+    expect(await f.canRemove(workout, "triceps-pushdown")).toBe(false);
+    // Swapped in, it still stands for the day's slot (#16).
+    expect(await f.canRemove(workout, "incline-db-press")).toBe(false);
+    await expect(f.removeExercise(w.id, "triceps-pushdown")).rejects.toThrow(
+      "Skip an exercise in the routine day's slots",
+    );
+  });
+
+  it("is for every exercise in a freestyle workout, but not a skipped one", async () => {
+    const { f, gym } = await withRoutine();
+    let w = await f.startWorkout(gym.id);
+    w = await f.addExercise(w.id, "bench-press");
+    w = await f.addExercise(w.id, "leg-press");
+    expect(await f.canRemove(w, "bench-press")).toBe(true);
+    w = await f.skipExercise(w.id, "leg-press");
+    expect(await f.canRemove(w, "leg-press")).toBe(false);
+  });
+});

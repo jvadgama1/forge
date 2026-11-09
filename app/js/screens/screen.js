@@ -98,21 +98,55 @@ export const listDate = (date, today) =>
 /**
  * A button that acts on its second tap, since what it does can't be undone
  * (#10, #18): the first tap says, in words, what a second tap will do.
- * @param {{ className: string, text: string, again: () => string, act: () => unknown }} button
+ * With `disarmAfter` (ms), a tap elsewhere or that long disarms it
+ * (#122), for a button in a list, where the tap may be meant for another
+ * row. `label` names it for a screen reader until it's armed; armed, its
+ * words do.
+ * @param {{ className: string, text: string, again: () => string, act: () => unknown, label?: string, disarmAfter?: number }} button
  */
-export function twoTapButton({ className, text, again, act }) {
+export function twoTapButton({
+  className,
+  text,
+  again,
+  act,
+  label,
+  disarmAfter,
+}) {
   let armed = false;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  /** @param {Event} e */
+  const elsewhere = (e) => {
+    if (!button.contains(/** @type {Node} */ (e.target))) reset();
+  };
+  const stopWatching = () => {
+    clearTimeout(timer);
+    document.removeEventListener("pointerdown", elsewhere, true);
+  };
+  const reset = () => {
+    armed = false;
+    stopWatching();
+    button.textContent = text;
+    if (label) button.setAttribute("aria-label", label);
+  };
   const button = h(
     "button",
     {
       class: className,
       type: "button",
+      ...(label && { "aria-label": label }),
       onclick: async () => {
         if (!armed) {
           armed = true;
           button.textContent = again();
+          button.removeAttribute("aria-label");
+          if (disarmAfter) {
+            timer = setTimeout(reset, disarmAfter);
+            document.addEventListener("pointerdown", elsewhere, true);
+          }
           return;
         }
+        stopWatching();
         button.disabled = true;
         await act();
       },
