@@ -438,11 +438,11 @@ async function swapLine(forge, workout, exerciseId, gymName, swapped) {
  * (#117); the link's text, and so its accessible name, is the whole name.
  * @param {string} href
  * @param {string} name
- * @param {"back" | "on"} way
+ * @param {"previous" | "next"} direction
  */
-function navLink(href, name, way) {
+function navLink(href, name, direction) {
   const label = h("span", { class: "nav-name" }, name);
-  return way === "back"
+  return direction === "previous"
     ? h("a", { class: "chip", href }, h("span", {}, "← "), label)
     : h("a", { class: "chip", href }, label, h("span", {}, " →"));
 }
@@ -616,16 +616,16 @@ export async function workoutScreen({
       ? navLink(
           `#/log/ex/${before.exerciseId}`,
           await nameOf(before.exerciseId),
-          "back",
+          "previous",
         )
       : h("span"),
     after
       ? navLink(
           `#/log/ex/${after.exerciseId}`,
           await nameOf(after.exerciseId),
-          "on",
+          "next",
         )
-      : navLink("#/log/add", "Add exercise", "on"),
+      : navLink("#/log/add", "Add exercise", "next"),
   );
 
   const lastWorkout = await forge.lastWorkoutLine(exerciseId, workout.id);

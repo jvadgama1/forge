@@ -587,7 +587,8 @@ a {
 }
 
 /* A name too long for its column ends in "…"; the arrow, kept apart from
-   it, always shows (#117). */
+   it, always shows (#117). The arrow's span holds the space between them,
+   so the link's text, its accessible name, still reads "← Name". */
 .workout-nav .chip > span {
   flex: none;
   white-space: pre;
