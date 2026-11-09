@@ -94,6 +94,25 @@ const navArrowsShow = async (page) => {
     throw new Error(`Arrow hidden or text spilling: ${broken}`);
 };
 
+/**
+ * Fails the shot if anything on the workout list spills out of its box
+ * (#122): a long name out of its column into the row's buttons, as one did
+ * beside an armed Remove on a 360 px phone, or a button's words out of it.
+ * @param {Page} page
+ */
+const rowsFit = async (page) => {
+  const spilling = await page.evaluate(() =>
+    [
+      ...globalThis.document.querySelectorAll(
+        ".workout-row-main, .workout-row .chip",
+      ),
+    ]
+      .filter((el) => el.scrollWidth > el.clientWidth)
+      .map((el) => el.textContent),
+  );
+  if (spilling.length) throw new Error(`Spilling: ${spilling}`);
+};
+
 /** Three made-up gyms, Work last used. */
 const GYMS = {
   gyms: [
@@ -1373,6 +1392,81 @@ export const SHOTS = [
     route: "/log/exercises",
     seed: WORKOUT,
   },
+  // Removing an exercise added by mistake (#122): Bench Press has two sets,
+  // so its Remove arms first; a tap elsewhere disarms it; the second tap
+  // takes it out, and the Log tab moves on to Lat Pulldown.
+  ...[PHONE, SMALL_PHONE].flatMap((viewport) => {
+    const size = viewport === SMALL_PHONE ? "-360" : "";
+    /** @param {Page} page */
+    const arm = async (page) => {
+      await page
+        .getByRole("button", { name: "Remove Barbell Bench Press" })
+        .click();
+      await page
+        .getByRole("button", { name: "Tap again to remove 2 sets" })
+        .waitFor();
+    };
+    return [
+      {
+        name: `workout-remove${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/log/exercises",
+        seed: WORKOUT,
+        viewport,
+        steps: async (/** @type {Page} */ page) => {
+          await inGutters(page, ".workout-row-actions");
+          await rowsFit(page);
+        },
+      },
+      {
+        name: `workout-remove-armed${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/log/exercises",
+        seed: WORKOUT,
+        viewport,
+        steps: async (/** @type {Page} */ page) => {
+          await arm(page);
+          await inGutters(page, ".workout-row-actions");
+          await rowsFit(page);
+        },
+      },
+      {
+        name: `workout-remove-disarmed${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/log/exercises",
+        seed: WORKOUT,
+        viewport,
+        steps: async (/** @type {Page} */ page) => {
+          await arm(page);
+          await page.locator(".title").click();
+          await page
+            .getByRole("button", { name: "Remove Barbell Bench Press" })
+            .waitFor();
+        },
+      },
+      {
+        name: `workout-removed-log${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/log/exercises",
+        seed: WORKOUT,
+        viewport,
+        steps: async (/** @type {Page} */ page) => {
+          await arm(page);
+          await page
+            .getByRole("button", { name: "Tap again to remove 2 sets" })
+            .click();
+          await page
+            .getByRole("button", { name: "Remove Barbell Bench Press" })
+            .waitFor({ state: "detached" });
+          // Back to the Log tab as it was, on the removed exercise.
+          await page.evaluate(() => {
+            globalThis.location.hash = "#/log/ex/barbell-bench-press";
+          });
+          await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
+        },
+      },
+    ];
+  }),
   { name: "workout-add", as: "owner", route: "/log/add", seed: WORKOUT },
   {
     name: "workout-done",
