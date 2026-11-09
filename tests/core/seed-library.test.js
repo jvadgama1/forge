@@ -219,3 +219,16 @@ describe("exercises added for the maintainer's gym equipment (#107)", () => {
       expect(SEED_LIBRARY.find((e) => e.id === exercise.id)).toEqual(exercise);
   });
 });
+
+describe("exercise added for a plain dumbbell squat (#123)", () => {
+  it("is in the library, tagged like Goblet Squat without the abs", () => {
+    expect(SEED_LIBRARY.find((e) => e.id === "db-squat")).toEqual({
+      id: "db-squat",
+      name: "DB Squat",
+      type: "weight-reps",
+      primary: ["quads"],
+      secondary: ["glutes"],
+      body: "lower",
+    });
+  });
+});

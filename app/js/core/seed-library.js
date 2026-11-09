@@ -1287,4 +1287,13 @@ export const SEED_LIBRARY = [
     secondary: ["triceps", "front-delts"],
     body: "upper",
   },
+  // A plain dumbbell squat, dumbbells at the sides (#123).
+  {
+    id: "db-squat",
+    name: "DB Squat",
+    type: "weight-reps",
+    primary: ["quads"],
+    secondary: ["glutes"],
+    body: "lower",
+  },
 ];
