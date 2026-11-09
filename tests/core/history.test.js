@@ -251,6 +251,28 @@ describe("records (#13)", () => {
     const { f } = await withHistory();
     expect(await f.records("bench-press")).toEqual({ repsAtLoad: [] });
   });
+
+  it("lose a record set when its exercise is removed from the workout (#122)", async () => {
+    const { f } = await withHistory(past("a", "2026-10-14", [set(135, 10)]));
+    const work = await f.createGym("Work");
+    const w = await f.startWorkout(work.id);
+    await f.addExercise(w.id, "bench-press");
+    await f.addExercise(w.id, "lat-pulldown");
+    await f.logSet(w.id, "bench-press", { load: 185, reps: 5 });
+    expect((await f.records("bench-press")).heaviest).toEqual({
+      load: 185,
+      unit: "lb",
+    });
+    await f.removeExercise(w.id, "bench-press");
+    await f.logSet(w.id, "lat-pulldown", { load: 120, reps: 10 });
+    await f.finishWorkout(w.id);
+    const records = await f.records("bench-press");
+    expect(records.heaviest).toEqual({ load: 135, unit: "lb" });
+    expect(records.repsAtLoad).toEqual([{ load: 135, unit: "lb", reps: 10 }]);
+    expect((await f.history("bench-press")).map((h) => h.workout.id)).toEqual([
+      "a",
+    ]);
+  });
 });
 
 describe("a set that sets a record (#13)", () => {

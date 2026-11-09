@@ -312,6 +312,25 @@ describe("superset edge cases (#17)", () => {
     expect(step.rest).toBe(90);
   });
 
+  it("takes a removed exercise out of its superset, leaving its partner and its sets alone (#122)", async () => {
+    const env = await setup();
+    const { f } = env;
+    let w = await freestyle(env);
+    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
+    w = await f.logSet(w.id, "bench-press", { load: 135, reps: 8 });
+    w = await f.logSet(w.id, "lat-pulldown", { load: 120, reps: 10 });
+    const benchSets = w.entries[0].sets;
+    w = await f.removeExercise(w.id, "lat-pulldown");
+    expect(w.supersets).toEqual([]);
+    expect(w.entries.map((e) => e.exerciseId)).toEqual([
+      "bench-press",
+      "leg-press",
+    ]);
+    expect(w.entries[0].sets).toEqual(benchSets);
+    const step = await log(f, w, "bench-press");
+    expect(step.next).toBe("bench-press");
+  });
+
   it("keeps warm-ups and drop sets out of the rotation", async () => {
     const env = await setup();
     const { f } = env;

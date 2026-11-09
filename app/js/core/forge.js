@@ -1284,6 +1284,31 @@ export function createForge({ store, library, now = () => new Date() }) {
       }));
     },
 
+    canRemove,
+
+    /**
+     * Takes an exercise added by mistake out of the workout in progress,
+     * with any sets logged for it (#122). One the routine day plans is
+     * skipped instead.
+     * @param {string} workoutId
+     * @param {string} exerciseId
+     */
+    async removeExercise(workoutId, exerciseId) {
+      const workout = await workoutById(workoutId);
+      inPlay(workout, exerciseId);
+      if (!(await canRemove(workout, exerciseId)))
+        throw new Error("Skip an exercise the routine day plans");
+      return changeWorkout(workoutId, (w) => {
+        inPlay(w, exerciseId);
+        return {
+          ...w,
+          entries: w.entries.filter((e) => e.exerciseId !== exerciseId),
+          // It leaves its superset, as a skipped one does.
+          supersets: withoutMember(w.supersets ?? [], exerciseId),
+        };
+      });
+    },
+
     /**
      * All the user's data, as one JSON-ready object (#22; spec #3, story
      * 58): every gym, custom exercise, exercise setting, routine with all
@@ -1875,6 +1900,20 @@ export function createForge({ store, library, now = () => new Date() }) {
     return (await followedDay(workout))?.slots.find(
       (s) => s.exerciseId === slotId,
     );
+  }
+
+  /**
+   * Whether an exercise can be removed from the workout, rather than
+   * skipped (#122): one added during a workout in progress, which in
+   * freestyle is every one. One the routine day plans, swapped or not
+   * (#16), is skipped instead; a skipped one is brought back.
+   * @param {Workout} workout
+   * @param {string} exerciseId
+   */
+  async function canRemove(workout, exerciseId) {
+    const entry = workout.entries.find((e) => e.exerciseId === exerciseId);
+    if (workout.finishedAt || !entry || entry.skipped) return false;
+    return !(await followedSlot(workout, exerciseId));
   }
 
   /**
