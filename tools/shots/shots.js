@@ -5,12 +5,13 @@
 // installed Microsoft Edge, so nothing downloads a browser. Sign-in and
 // Firestore are stubbed: no personal data reaches a shot (ADR-0005).
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { stampSource } from "../stamp-version.js";
 import { PHONE, SHOTS } from "./list.js";
 import { LABEL, runDir } from "./run-dir.js";
+import { ORIGIN, serveApp } from "./serve.js";
 
 /** @import { Page } from "playwright-core" */
 /** @import { Shot } from "./list.js" */
@@ -21,8 +22,6 @@ if (!LABEL.test(label)) {
   process.exit(1);
 }
 
-const appDir = fileURLToPath(new URL("../../app/", import.meta.url));
-const stubDir = fileURLToPath(new URL("stubs/", import.meta.url));
 const fontDir = fileURLToPath(new URL("fonts/", import.meta.url));
 const outDir = runDir(label);
 
@@ -35,26 +34,6 @@ const fontCss = (await readFile(join(fontDir, "fonts.css"), "utf8")).replaceAll(
 // The font URL the copy was fetched for: the app asking for another one
 // (a family or weight added) means the copy is stale.
 const fontUrl = fontCss.match(/^\/\* Fetched for (\S+) \*\//)?.[1];
-
-// A made-up origin, answered from app/ below. https, because the app needs a
-// secure context (crypto.randomUUID makes every new id).
-const ORIGIN = "https://forge.test";
-
-/** @type {Record<string, string>} served path → stub file */
-const STUBS = {
-  "/js/firebase-sdk.js": "firebase-sdk.js",
-  "/js/store/firestore-store.js": "firestore-store.js",
-};
-
-/** @type {Record<string, string>} */
-const CONTENT_TYPES = {
-  ".html": "text/html",
-  ".js": "text/javascript",
-  ".css": "text/css",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".webmanifest": "application/manifest+json",
-};
 
 const ATTEMPTS = 5;
 
@@ -96,29 +75,16 @@ const STAMP = stampSource("0a1b2c3", "2026-11-08T12:00:00.000Z");
 
 /**
  * A context serving app/, with the stubs, at ORIGIN; no service worker.
- * @param {{ width: number, height: number }} viewport
- * @param {boolean} stamped serve a deploy's stamp, not the repo's "dev"
+ * @param {Shot} shot
  */
-async function newContext(viewport, stamped) {
+async function newContext(shot) {
   const context = await browser.newContext({
-    viewport,
+    viewport: shot.viewport ?? PHONE,
     serviceWorkers: "block",
   });
-  await context.route(`${ORIGIN}/**`, async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (stamped && path === "/version.js")
-      return route.fulfill({ body: STAMP, contentType: "text/javascript" });
-    const file = STUBS[path]
-      ? join(stubDir, STUBS[path])
-      : join(appDir, path === "/" ? "index.html" : path);
-    try {
-      await route.fulfill({
-        body: await readFile(file),
-        contentType: CONTENT_TYPES[extname(file)] ?? "application/octet-stream",
-      });
-    } catch {
-      await route.fulfill({ status: 404 });
-    }
+  await serveApp(context, {
+    seed: shot.seed ?? {},
+    ...(shot.stamp && { stamp: STAMP }),
   });
   // The fonts come from a copy in fonts/, so text never depends on what the
   // live font service sends (#37).
@@ -150,14 +116,8 @@ const errors = new Set();
  * @param {Shot} shot
  */
 async function render(shot) {
-  const context = await newContext(shot.viewport ?? PHONE, !!shot.stamp);
+  const context = await newContext(shot);
   try {
-    // Read by the store stub as its starting documents.
-    await context.addInitScript((seed) => {
-      Object.assign(globalThis, { forgeShotSeed: seed });
-    }, shot.seed ?? {});
-    // Service workers stand in for the browser's, blocked here (#129).
-    await context.addInitScript({ path: join(stubDir, "service-worker.js") });
     const page = await context.newPage();
     // A fixed "now", so the workout timer reads the same every run.
     await page.clock.setFixedTime(new Date(SHOT_TIME));
