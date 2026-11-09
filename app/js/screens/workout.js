@@ -433,6 +433,21 @@ async function swapLine(forge, workout, exerciseId, gymName, swapped) {
 }
 
 /**
+ * A link to the exercise before or after this one, or to add one. A name too
+ * long for its share of the row is cut short with "…" but its arrow stays
+ * (#117); the link's text, and so its accessible name, is the whole name.
+ * @param {string} href
+ * @param {string} name
+ * @param {"previous" | "next"} direction
+ */
+function navLink(href, name, direction) {
+  const label = h("span", { class: "nav-name" }, name);
+  return direction === "previous"
+    ? h("a", { class: "chip", href }, h("span", {}, "← "), label)
+    : h("a", { class: "chip", href }, label, h("span", {}, " →"));
+}
+
+/**
  * The logging screen for one exercise of the workout in progress.
  * @param {{ forge: Forge, workout: Workout, exerciseId: string, gymName: string, logged?: Logged, onLogged: (logged?: Logged | { back: string }) => void }} screen
  *   `logged` is the set just logged, if any, to celebrate.
@@ -598,19 +613,19 @@ export async function workoutScreen({
     "div",
     { class: "workout-nav" },
     before
-      ? h(
-          "a",
-          { class: "chip", href: `#/log/ex/${before.exerciseId}` },
-          `← ${await nameOf(before.exerciseId)}`,
+      ? navLink(
+          `#/log/ex/${before.exerciseId}`,
+          await nameOf(before.exerciseId),
+          "previous",
         )
       : h("span"),
     after
-      ? h(
-          "a",
-          { class: "chip", href: `#/log/ex/${after.exerciseId}` },
-          `${await nameOf(after.exerciseId)} →`,
+      ? navLink(
+          `#/log/ex/${after.exerciseId}`,
+          await nameOf(after.exerciseId),
+          "next",
         )
-      : h("a", { class: "chip", href: "#/log/add" }, "Add exercise →"),
+      : navLink("#/log/add", "Add exercise", "next"),
   );
 
   const lastWorkout = await forge.lastWorkoutLine(exerciseId, workout.id);

@@ -569,8 +569,11 @@ a {
   background: var(--secondary);
 }
 
+/* Two columns that share out the row (#117): a short name gets its full
+   width and a long one the rest; two long names get half each. */
 .workout-nav {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
   justify-content: space-between;
   gap: 8px;
   margin-top: 14px;
@@ -581,6 +584,22 @@ a {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
+}
+
+/* A name too long for its column ends in "…"; the arrow, kept apart from
+   it, always shows (#117). The arrow's span holds the space between them,
+   so the link's text, its accessible name, still reads "← Name". */
+.workout-nav .chip > span {
+  flex: none;
+  white-space: pre;
+}
+
+.workout-nav .chip > .nav-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* An exercise row that's a button, in the picker's add mode. */

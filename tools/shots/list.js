@@ -41,6 +41,59 @@ const noSplitCards = async (page) => {
   if (split.length) throw new Error(`Cards split across columns: ${split}`);
 };
 
+/** The space each side of a screen's rows (slab.css), in px. */
+const GUTTER = 16;
+
+/**
+ * Fails the shot unless every element `selector` matches sits inside the
+ * screen's gutters (#117), as each row of a screen should.
+ * @param {Page} page
+ * @param {string} selector
+ */
+const inGutters = async (page, selector) => {
+  await page.locator(selector).first().waitFor();
+  const outside = await page.evaluate(([selector, gutter]) => {
+    const width = globalThis.innerWidth;
+    return [...globalThis.document.querySelectorAll(selector)]
+      .map((el) => ({ el, box: el.getBoundingClientRect() }))
+      .filter(({ box }) => box.left < gutter || box.right > width - gutter)
+      .map(
+        ({ el, box }) =>
+          `${el.textContent} (left ${Math.round(box.left)} px, right ${Math.round(width - box.right)} px)`,
+      );
+  }, /** @type {const} */ ([selector, GUTTER]));
+  if (outside.length)
+    throw new Error(`Outside the ${GUTTER} px gutters: ${outside}`);
+};
+
+/**
+ * Fails the shot unless each previous/next exercise link shows its arrow
+ * whole and nothing spills out of it (#117): a long name is cut short
+ * inside the link instead.
+ * @param {Page} page
+ */
+const navArrowsShow = async (page) => {
+  const broken = await page.evaluate(() =>
+    [...globalThis.document.querySelectorAll(".workout-nav .chip")]
+      .filter((chip) => {
+        const box = chip.getBoundingClientRect();
+        const arrow = chip
+          .querySelector("span:not(.nav-name)")
+          ?.getBoundingClientRect();
+        return (
+          chip.scrollWidth > chip.clientWidth ||
+          !arrow ||
+          arrow.width === 0 ||
+          arrow.left < box.left ||
+          arrow.right > box.right
+        );
+      })
+      .map((chip) => chip.textContent),
+  );
+  if (broken.length)
+    throw new Error(`Arrow hidden or text spilling: ${broken}`);
+};
+
 /** Three made-up gyms, Work last used. */
 const GYMS = {
   gyms: [
@@ -637,6 +690,9 @@ const desktop = (name, route, seed) => ({
 /** A small phone, 360 px wide, for what must still fit on one. */
 const SMALL_PHONE = { width: 360, height: 740 };
 
+/** The narrowest phone a row must still fit on (#117). */
+const NARROWEST_PHONE = { width: 320, height: 740 };
+
 /** The screen a shot is taken on unless it gives its own. */
 export const PHONE = { width: 390, height: 844 };
 
@@ -937,6 +993,36 @@ export const SHOTS = [
     steps: undoArmedOnPartner,
     scrollTo: ".set-type-row",
   },
+  // The links to the previous and next exercise, both names long, keep to
+  // one line inside the gutters (#117), and the full names stay the links'
+  // accessible names. The 360 px shot also checks a 320 px phone, whose
+  // set-type row doesn't fit yet (#136), so that isn't a shot.
+  ...[PHONE, SMALL_PHONE].map((viewport) => {
+    const size = viewport === SMALL_PHONE ? "-360" : "";
+    return {
+      name: `superset-nav${size}`,
+      as: /** @type {const} */ ("owner"),
+      route: "/log/ex/lat-pulldown",
+      seed: PAIRED,
+      viewport,
+      /** @param {Page} page */
+      steps: async (page) => {
+        for (const name of ["← Barbell Bench Press", "Triceps Pushdown →"])
+          await page
+            .getByRole("link", { name, exact: true })
+            .waitFor({ timeout: 5000 });
+        if (viewport === SMALL_PHONE) {
+          await page.setViewportSize(NARROWEST_PHONE);
+          await inGutters(page, ".workout-nav .chip");
+          await navArrowsShow(page);
+          await page.setViewportSize(viewport);
+        }
+        await inGutters(page, ".workout-nav .chip");
+        await navArrowsShow(page);
+      },
+      scrollTo: ".workout-nav",
+    };
+  }),
   {
     name: "superset-pick",
     as: "owner",
