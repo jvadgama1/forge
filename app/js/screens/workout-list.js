@@ -64,7 +64,7 @@ export function workoutListView({ forge }) {
         text: "Remove",
         label: `Remove ${name}`,
         again: () => `Tap again to remove ${countOf(entry.sets.length, "set")}`,
-        disarm: 4000,
+        disarmAfter: 4000,
         act: async () => {
           await act();
           show();

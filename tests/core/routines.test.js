@@ -378,7 +378,7 @@ describe("removing an exercise from a routine workout (#122)", () => {
     return { ...env, w };
   }
 
-  it("is for exercises added on the day; the day's planned ones are skipped instead", async () => {
+  it("is for exercises added on the day; those in its slots are skipped instead", async () => {
     const { f, w } = await pushDay();
     await f.addExercise(w.id, "leg-press");
     await f.swapExercise(w.id, "bench-press", "incline-db-press");
@@ -389,7 +389,7 @@ describe("removing an exercise from a routine workout (#122)", () => {
     // Swapped in, it still stands for the day's slot (#16).
     expect(await f.canRemove(workout, "incline-db-press")).toBe(false);
     await expect(f.removeExercise(w.id, "triceps-pushdown")).rejects.toThrow(
-      "Skip an exercise the routine day plans",
+      "Skip an exercise in the routine day's slots",
     );
   });
 

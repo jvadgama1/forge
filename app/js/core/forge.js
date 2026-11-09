@@ -1288,22 +1288,25 @@ export function createForge({ store, library, now = () => new Date() }) {
 
     /**
      * Takes an exercise added by mistake out of the workout in progress,
-     * with any sets logged for it (#122). One the routine day plans is
-     * skipped instead.
+     * with any sets logged for it (#122). One in a slot of the routine day
+     * is skipped instead.
      * @param {string} workoutId
      * @param {string} exerciseId
      */
     async removeExercise(workoutId, exerciseId) {
+      // Checked before the turn, as the slot lookup is async; whether an
+      // entry has a slot can't change meanwhile (a swap keeps its slot).
+      // inPlay first, so a finished workout or missing exercise says so.
       const workout = await workoutById(workoutId);
       inPlay(workout, exerciseId);
       if (!(await canRemove(workout, exerciseId)))
-        throw new Error("Skip an exercise the routine day plans");
+        throw new Error("Skip an exercise in the routine day's slots");
       return changeWorkout(workoutId, (w) => {
         inPlay(w, exerciseId);
         return {
           ...w,
           entries: w.entries.filter((e) => e.exerciseId !== exerciseId),
-          // It leaves its superset, as a skipped one does.
+          // It leaves its superset, as a skipped one does (#17).
           supersets: withoutMember(w.supersets ?? [], exerciseId),
         };
       });
@@ -1905,8 +1908,8 @@ export function createForge({ store, library, now = () => new Date() }) {
   /**
    * Whether an exercise can be removed from the workout, rather than
    * skipped (#122): one added during a workout in progress, which in
-   * freestyle is every one. One the routine day plans, swapped or not
-   * (#16), is skipped instead; a skipped one is brought back.
+   * freestyle is every one. One in a slot of the routine day, swapped or
+   * not (#16), is skipped instead; a skipped one is brought back.
    * @param {Workout} workout
    * @param {string} exerciseId
    */

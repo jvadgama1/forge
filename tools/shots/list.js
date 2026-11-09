@@ -1437,11 +1437,16 @@ export const SHOTS = [
         seed: WORKOUT,
         viewport,
         steps: async (/** @type {Page} */ page) => {
+          const unarmed = page.getByRole("button", {
+            name: "Remove Barbell Bench Press",
+          });
+          // A tap elsewhere disarms it…
           await arm(page);
           await page.locator(".title").click();
-          await page
-            .getByRole("button", { name: "Remove Barbell Bench Press" })
-            .waitFor();
+          await unarmed.waitFor();
+          // …and so does waiting 4 s.
+          await arm(page);
+          await unarmed.waitFor({ timeout: 6000 });
         },
       },
       {
