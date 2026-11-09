@@ -33,3 +33,15 @@ describe("the Stats board over sixty workouts (#131)", () => {
     },
   );
 });
+
+describe("the board in two parts (#131)", () => {
+  it.each(/** @type {RangeId[]} */ (["4w", "12w", "1y"]))(
+    "gives the e1RM card first and the other cards after, as the whole board has them, over %s",
+    async (range) => {
+      const forge = forgeOn(range);
+      const { range: shown, e1rm, ...rest } = await forge.dashboard();
+      expect(await forge.dashboardFirst()).toEqual({ range: shown, e1rm });
+      expect(await forge.dashboardRest()).toEqual({ range: shown, ...rest });
+    },
+  );
+});

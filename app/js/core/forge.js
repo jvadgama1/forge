@@ -1460,37 +1460,26 @@ export function createForge({ store, library, now = () => new Date() }) {
      * chosen.
      */
     async dashboard() {
-      const { dashboardRange = DEFAULT_RANGE, dashboardExerciseId } =
-        await settings();
-      const range = rangeFor(dashboardRange, localDate(now()));
       // One read of the workouts for the whole board, so opening Stats
       // costs one Firestore query however many exercises there are.
-      const workouts = await listWorkouts();
-      const choices = await e1rmChoices(workouts);
-      // The one chosen while it's still offered, else the most recent
-      // (spec #80, Rules: Default exercise).
-      const exerciseId =
-        choices.find((id) => id === dashboardExerciseId) ?? choices[0];
-      const counted = workouts.filter(countsIn(range));
-      const exerciseOf = await exercisesIn(counted);
-      return {
-        range,
-        e1rm:
-          exerciseId === undefined
-            ? undefined
-            : await e1rmCard(exerciseId, countsIn(range), choices, workouts),
-        hardSets: hardSetsCard(counted, exerciseOf),
-        calendar: calendarCard(counted, exerciseOf, range, localDate(now())),
-        tonnage: tonnageCard(
-          counted,
-          exerciseOf,
-          await bodyWeightLookup(),
-          range,
-          displayUnit(finishedOf(workouts)),
-        ),
-        regionSplit: regionSplitCard(counted, exerciseOf, range),
-        records: await recordTimeline(finishedOf(workouts), range, exerciseOf),
-      };
+      const board = await boardInputs();
+      return { ...(await boardFirst(board)), ...(await boardRest(board)) };
+    },
+
+    /**
+     * The Stats board's first card, the e1RM trend, with the range: what
+     * Stats draws before the slower cards (#131), as `dashboard` has it.
+     */
+    async dashboardFirst() {
+      return boardFirst(await boardInputs());
+    },
+
+    /**
+     * The rest of the Stats board's cards, with the range, as `dashboard`
+     * has them: what Stats fills in after the first card (#131).
+     */
+    async dashboardRest() {
+      return boardRest(await boardInputs());
     },
 
     /**
@@ -2583,6 +2572,63 @@ export function createForge({ store, library, now = () => new Date() }) {
       ),
     );
     return (id) => exercises.get(id);
+  }
+
+  /**
+   * What the Stats board is drawn from (spec #80): the settings, the range
+   * last chosen and every workout, read once.
+   */
+  async function boardInputs() {
+    const chosen = await settings();
+    const range = rangeFor(
+      chosen.dashboardRange ?? DEFAULT_RANGE,
+      localDate(now()),
+    );
+    return { chosen, range, workouts: await listWorkouts() };
+  }
+
+  /** @typedef {Awaited<ReturnType<typeof boardInputs>>} BoardInputs */
+
+  /**
+   * The board's range and e1RM card (spec #80).
+   * @param {BoardInputs} board
+   */
+  async function boardFirst({ chosen, range, workouts }) {
+    const choices = await e1rmChoices(workouts);
+    // The one chosen while it's still offered, else the most recent
+    // (spec #80, Rules: Default exercise).
+    const exerciseId =
+      choices.find((id) => id === chosen.dashboardExerciseId) ?? choices[0];
+    return {
+      range,
+      e1rm:
+        exerciseId === undefined
+          ? undefined
+          : await e1rmCard(exerciseId, countsIn(range), choices, workouts),
+    };
+  }
+
+  /**
+   * The board's range and its cards after the e1RM card (spec #80).
+   * @param {BoardInputs} board
+   */
+  async function boardRest({ range, workouts }) {
+    const counted = workouts.filter(countsIn(range));
+    const exerciseOf = await exercisesIn(counted);
+    return {
+      range,
+      hardSets: hardSetsCard(counted, exerciseOf),
+      calendar: calendarCard(counted, exerciseOf, range, localDate(now())),
+      tonnage: tonnageCard(
+        counted,
+        exerciseOf,
+        await bodyWeightLookup(),
+        range,
+        displayUnit(finishedOf(workouts)),
+      ),
+      regionSplit: regionSplitCard(counted, exerciseOf, range),
+      records: await recordTimeline(finishedOf(workouts), range, exerciseOf),
+    };
   }
 
   /**
