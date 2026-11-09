@@ -21,6 +21,8 @@ import { workoutsView } from "./screens/workouts.js";
 import { pastWorkoutView } from "./screens/past-workout.js";
 import { moreView } from "./screens/more.js";
 import { statsView } from "./screens/stats.js";
+import { createUpdates } from "./updates.js";
+import { showUpdateBar } from "./update-bar.js";
 import {
   markBesideView,
   markView,
@@ -144,6 +146,20 @@ function resolve(path) {
  */
 let shown;
 
+// New app versions (#129). One already downloaded when the app opens takes
+// over before anything is drawn; otherwise the app checks now and whenever
+// it returns to the foreground, and offers one that arrives with a bar.
+const updates = createUpdates({
+  container: "serviceWorker" in navigator ? navigator.serviceWorker : undefined,
+  page: document,
+  reload: () => location.reload(),
+});
+if (await updates.open()) {
+  // Reloading into the new version: draw nothing.
+  await new Promise(() => {});
+}
+updates.onReady(() => showUpdateBar(updates));
+
 const auth = startAuth({
   onChange: () => {
     render();
@@ -178,6 +194,7 @@ function render() {
     user: state.user,
     forge: state.forge,
     signOut: auth.signOut,
+    updates,
     id,
   };
   const main = route.render(context);
@@ -262,5 +279,3 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") finishAbandoned();
 });
 render();
-
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");

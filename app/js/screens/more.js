@@ -1,4 +1,6 @@
+import { appVersion, versionDay } from "../app-version.js";
 import { h } from "../dom.js";
+import { updateButton } from "../update-bar.js";
 import { accountId, screen } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
@@ -20,8 +22,56 @@ function download(name, text, type) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** @param {Pick<ScreenContext, "user" | "signOut" | "forge">} context */
-export function moreView({ user, signOut, forge }) {
+/**
+ * The app version this is, and a check for a newer one (#129): Update if one
+ * is waiting, otherwise a check that says what it found.
+ * @param {ScreenContext["updates"]} updates
+ */
+function versionSection(updates) {
+  const { commit, date } = appVersion();
+  const found = h("span", { class: "label", role: "status" });
+  const offer = () =>
+    row.replaceChildren(
+      updateButton(updates),
+      h("span", { class: "label" }, "New version ready"),
+    );
+  const check = h(
+    "button",
+    {
+      class: "chip",
+      type: "button",
+      onclick: async () => {
+        check.disabled = true;
+        check.textContent = "Checking…";
+        found.textContent = "";
+        const result = await updates.check();
+        check.disabled = false;
+        check.textContent = "Check for updates";
+        if (result === "ready") offer();
+        else
+          found.textContent =
+            result === "up-to-date" ? "Up to date" : "Couldn't check";
+      },
+    },
+    "Check for updates",
+  );
+  const row = h("div", { class: "version-check" }, check, found);
+  if (updates.ready) offer();
+  return [
+    // The commit as written, lowercase; "dev" in capitals with the rest.
+    h(
+      "p",
+      { class: "label section version" },
+      "Version ",
+      commit === "dev" ? "dev" : h("span", { class: "commit" }, commit),
+      date && ` · ${versionDay(date)}`,
+    ),
+    row,
+  ];
+}
+
+/** @param {Pick<ScreenContext, "user" | "signOut" | "forge" | "updates">} context */
+export function moreView({ user, signOut, forge, updates }) {
   /**
    * A button that downloads an export, named with today's date.
    * @param {string} text
@@ -104,5 +154,6 @@ export function moreView({ user, signOut, forge }) {
       { class: "button secondary", type: "button", onclick: () => signOut() },
       "Sign out",
     ),
+    ...versionSection(updates),
   );
 }

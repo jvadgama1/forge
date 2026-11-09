@@ -3,11 +3,12 @@ import { h } from "../dom.js";
 
 /** @import { User } from "firebase/auth" */
 /** @import { Forge } from "../core/forge.js" */
+/** @import { Updates } from "../updates.js" */
 
 /**
  * What a signed-in screen is built from; `id` is the last segment of a /:id
  * route.
- * @typedef {{ user: User, forge: Forge, signOut: () => Promise<void>, id: string | undefined }} ScreenContext
+ * @typedef {{ user: User, forge: Forge, signOut: () => Promise<void>, updates: Updates, id: string | undefined }} ScreenContext
  */
 
 export const MONTHS = [

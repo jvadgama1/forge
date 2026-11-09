@@ -17,6 +17,10 @@
  * @property {(page: Page) => Promise<void>} [steps] Interactions to run before the shot.
  * @property {{ width: number, height: number }} [viewport] The screen, if
  *   not a 390 × 844 phone (#23).
+ * @property {"ready" | "later"} [update] A new app version on the site,
+ *   found by the check on opening ("ready") or only by a later one
+ *   ("later"), as the stand-in service workers serve it (#129).
+ * @property {boolean} [stamp] Runs as a deployed app version, not "dev" (#129).
  * @property {string} [scrollTo] A CSS selector for the one element to scroll
  *   to the middle of the screen before the shot, for a part of a screen
  *   below the fold (#110).
@@ -633,6 +637,9 @@ const desktop = (name, route, seed) => ({
 /** A small phone, 360 px wide, for what must still fit on one. */
 const SMALL_PHONE = { width: 360, height: 740 };
 
+/** The phone a shot is taken on unless it gives its own (shots.js). */
+const PHONE_390 = { width: 390, height: 844 };
+
 /**
  * Logs bench press set 02 in the PAIRED superset, which moves to its
  * partner, Lat Pulldown, with no rest (#17).
@@ -1039,6 +1046,66 @@ export const SHOTS = [
   { name: "exercises", as: "owner", route: "/exercises" },
   { name: "coach", as: "owner", route: "/coach" },
   { name: "more", as: "owner", route: "/more" },
+  // The app version and the update bar (#129).
+  ...[PHONE_390, SMALL_PHONE].flatMap((viewport) => {
+    const size = viewport === SMALL_PHONE ? "-360" : "";
+    /** @param {Page} page */
+    const checkForUpdates = async (page) => {
+      await page.getByRole("button", { name: "Check for updates" }).click();
+      await page.getByText("Up to date").waitFor();
+    };
+    return [
+      {
+        name: `update-bar${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/log",
+        seed: WORKOUT,
+        update: /** @type {const} */ ("ready"),
+        viewport,
+      },
+      {
+        name: `more-version${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/more",
+        stamp: true,
+        viewport,
+        scrollTo: ".version-check",
+      },
+      {
+        name: `more-up-to-date${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/more",
+        stamp: true,
+        viewport,
+        steps: checkForUpdates,
+        scrollTo: ".version-check",
+      },
+      {
+        name: `more-update${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/more",
+        stamp: true,
+        update: /** @type {const} */ ("later"),
+        viewport,
+        steps: async (/** @type {Page} */ page) => {
+          await page.getByRole("button", { name: "Check for updates" }).click();
+          // Offered under More, and by the bar above it.
+          await page
+            .locator(".version-check")
+            .getByRole("button", { name: "Update" })
+            .waitFor();
+        },
+        scrollTo: ".version-check",
+      },
+    ];
+  }),
+  {
+    name: "more-dev",
+    as: "owner",
+    route: "/more",
+    scrollTo: ".version-check",
+  },
+  { ...desktop("desktop-update-bar", "/log", WORKOUT), update: "ready" },
   {
     // Filtering by a muscle group and searching (#27).
     name: "exercises-filtered",

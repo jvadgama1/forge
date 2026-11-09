@@ -1542,3 +1542,41 @@ a.pick {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* The update bar (#129): above every screen, in the page's flow so it
+   pushes the screen down and never covers it. The words say what it is;
+   the lime button is the one action. As wide as the app below it. */
+.update-bar {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 2px solid var(--rule-strong);
+  background: var(--surface);
+}
+
+.update-bar .label {
+  color: var(--text);
+}
+
+@media (min-width: 960px) {
+  .update-bar {
+    max-width: 1240px;
+  }
+}
+
+/* Under More (#129): the app version, and a check for a newer one. */
+.version .commit {
+  text-transform: none;
+  color: var(--text);
+}
+
+.version-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}

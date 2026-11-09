@@ -39,6 +39,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # The app version (#129): the one file the deploy writes, into the copy
+      # it uploads, never committed back (ADR-0002).
+      - run: node tools/stamp-version.js "$GITHUB_SHA"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

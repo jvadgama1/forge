@@ -1,32 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { appFiles, shellList } from "./worker-scope.js";
 
-const appDir = fileURLToPath(new URL("../../app/", import.meta.url));
-
-/** @param {string} dir @returns {string[]} */
-function filesUnder(dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-    entry.isDirectory()
-      ? filesUnder(join(dir, entry.name))
-      : [relative(appDir, join(dir, entry.name)).split(sep).join("/")],
-  );
-}
-
-/** The SHELL list as written in the service worker. */
-function shellList() {
-  const source = readFileSync(join(appDir, "sw.js"), "utf8");
-  const block = source.match(/const SHELL = \[([\s\S]*?)\];/);
-  if (!block) throw new Error("SHELL list not found in sw.js");
-  return [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-}
+/** @param {string} file under app/ */
+const source = (file) =>
+  readFileSync(new URL(`../../app/${file}`, import.meta.url), "utf8");
 
 describe("offline app shell", () => {
   it("lists every app file in the service worker's SHELL, so nothing is missing offline", () => {
-    const missing = filesUnder(appDir)
+    const missing = appFiles()
       .filter((file) => file !== "sw.js")
       .filter((file) => !shellList().includes(file));
     expect(missing).toEqual([]);
+  });
+
+  it("lists the stamp the service worker loads, so a version's stamp is its own (#129)", () => {
+    const imported = [
+      ...source("sw.js").matchAll(/importScripts\("([^"]+)"\)/g),
+    ].map((m) => m[1]);
+    expect(imported).toEqual(["version.js"]);
+    expect(shellList()).toContain("version.js");
+  });
+
+  it("lists the Firebase SDK the app loads, so a version installs whole (#129)", () => {
+    const sdk = [
+      ...source("js/firebase-sdk.js").matchAll(/from "(https:[^"]+)"/g),
+    ].map((m) => m[1]);
+    expect(sdk).toHaveLength(3);
+    expect(shellList().filter((entry) => entry.startsWith("https:"))).toEqual(
+      sdk,
+    );
   });
 });
