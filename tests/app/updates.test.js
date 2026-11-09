@@ -69,8 +69,6 @@ class FakeBrowser {
     this.failing = false;
     /** Whether a worker asked to switch takes over. */
     this.switches = true;
-    /** The service worker claims the page on its first install. */
-    this.claims = true;
     if (running) {
       const active = new FakeWorker("activated", this);
       this.registration.active = active;
@@ -99,10 +97,9 @@ class FakeBrowser {
     this.registration.waiting = null;
     this.registration.active = worker;
     worker.become("activated");
-    const first = !this.container.controller;
+    // On a first install too: the service worker claims the page.
     this.container.controller = worker;
-    if (!first || this.claims)
-      this.container.dispatchEvent(new Event("controllerchange"));
+    this.container.dispatchEvent(new Event("controllerchange"));
   }
 
   /** A version already downloaded and waiting, as after the app was last closed. */

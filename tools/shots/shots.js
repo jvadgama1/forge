@@ -9,7 +9,7 @@ import { basename, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { stampSource } from "../stamp-version.js";
-import { SHOTS } from "./list.js";
+import { PHONE, SHOTS } from "./list.js";
 import { LABEL, runDir } from "./run-dir.js";
 
 /** @import { Page } from "playwright-core" */
@@ -142,9 +142,6 @@ async function newContext(viewport, stamped) {
   });
   return context;
 }
-
-/** The screen a shot is taken on unless it gives its own. */
-const PHONE = { width: 390, height: 844 };
 
 const errors = new Set();
 

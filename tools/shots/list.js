@@ -637,8 +637,8 @@ const desktop = (name, route, seed) => ({
 /** A small phone, 360 px wide, for what must still fit on one. */
 const SMALL_PHONE = { width: 360, height: 740 };
 
-/** The phone a shot is taken on unless it gives its own (shots.js). */
-const PHONE_390 = { width: 390, height: 844 };
+/** The screen a shot is taken on unless it gives its own. */
+export const PHONE = { width: 390, height: 844 };
 
 /**
  * Logs bench press set 02 in the PAIRED superset, which moves to its
@@ -1047,7 +1047,7 @@ export const SHOTS = [
   { name: "coach", as: "owner", route: "/coach" },
   { name: "more", as: "owner", route: "/more" },
   // The app version and the update bar (#129).
-  ...[PHONE_390, SMALL_PHONE].flatMap((viewport) => {
+  ...[PHONE, SMALL_PHONE].flatMap((viewport) => {
     const size = viewport === SMALL_PHONE ? "-360" : "";
     /** @param {Page} page */
     const checkForUpdates = async (page) => {

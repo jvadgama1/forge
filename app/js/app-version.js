@@ -2,7 +2,6 @@
 // into version.js, or "dev" when unstamped. Read here, not off the stamp's
 // global, so whatever records it (feedback, #124) has one place to ask.
 import "../version.js";
-import { MONTHS } from "./screens/screen.js";
 
 /**
  * @typedef {object} AppVersion
@@ -19,13 +18,4 @@ export function appVersion() {
     commit: forgeAppVersion?.commit ?? "dev",
     date: forgeAppVersion?.date ?? "",
   };
-}
-
-/**
- * A deploy's day in local time: "8 Nov".
- * @param {string} date ISO 8601
- */
-export function versionDay(date) {
-  const day = new Date(date);
-  return `${day.getDate()} ${MONTHS[day.getMonth()]}`;
 }

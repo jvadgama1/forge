@@ -36,6 +36,15 @@ export function monthDay(date) {
 }
 
 /**
+ * A deploy's day in local time, as the issue writes it (#129): "8 Nov".
+ * @param {string} date ISO 8601
+ */
+export function versionDay(date) {
+  const day = new Date(date);
+  return `${day.getDate()} ${MONTHS[day.getMonth()]}`;
+}
+
+/**
  * Two digits: 3 → "03", for set numbers and clock times.
  * @param {number} n
  */

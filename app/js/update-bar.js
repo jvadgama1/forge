@@ -5,6 +5,9 @@ import { h } from "./dom.js";
 
 /** @import { Updates } from "./updates.js" */
 
+/** What the bar says, and More beside its Update button. */
+export const READY = "New version ready";
+
 /**
  * The Update button, here and under More: switches to the new version and
  * reloads.
@@ -34,7 +37,7 @@ export function showUpdateBar(updates) {
     h(
       "div",
       { id: "update", class: "update-bar", role: "status" },
-      h("span", { class: "label" }, "New version ready"),
+      h("span", { class: "label" }, READY),
       updateButton(updates),
     ),
   );

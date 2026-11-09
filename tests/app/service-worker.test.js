@@ -85,6 +85,15 @@ describe("the service worker (#129)", () => {
     expect(next.skippedWaiting).toBe(true);
   });
 
+  it("takes over at once from the service worker before #129, whose pages can't offer the update", async () => {
+    const browser = deployed("aaaaaaa");
+    await browser.caches.open("forge-shell-v1");
+    const first = startWorker(browser.site, browser.caches);
+
+    await first.install();
+    expect(first.skippedWaiting).toBe(true);
+  });
+
   it("deletes older versions' caches once a new version is active", async () => {
     const browser = deployed("aaaaaaa");
     await running(browser);

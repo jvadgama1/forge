@@ -1,7 +1,7 @@
-import { appVersion, versionDay } from "../app-version.js";
+import { appVersion } from "../app-version.js";
 import { h } from "../dom.js";
-import { updateButton } from "../update-bar.js";
-import { accountId, screen } from "./screen.js";
+import { READY, updateButton } from "../update-bar.js";
+import { accountId, screen, versionDay } from "./screen.js";
 
 /** @import { ScreenContext } from "./screen.js" */
 
@@ -29,33 +29,33 @@ function download(name, text, type) {
  */
 function versionSection(updates) {
   const { commit, date } = appVersion();
-  const found = h("span", { class: "label", role: "status" });
+  const outcome = h("span", { class: "label", role: "status" });
   const offer = () =>
     row.replaceChildren(
       updateButton(updates),
-      h("span", { class: "label" }, "New version ready"),
+      h("span", { class: "label" }, READY),
     );
-  const check = h(
+  const checkButton = h(
     "button",
     {
       class: "chip",
       type: "button",
       onclick: async () => {
-        check.disabled = true;
-        check.textContent = "Checking…";
-        found.textContent = "";
+        checkButton.disabled = true;
+        checkButton.textContent = "Checking…";
+        outcome.textContent = "";
         const result = await updates.check();
-        check.disabled = false;
-        check.textContent = "Check for updates";
+        checkButton.disabled = false;
+        checkButton.textContent = "Check for updates";
         if (result === "ready") offer();
         else
-          found.textContent =
+          outcome.textContent =
             result === "up-to-date" ? "Up to date" : "Couldn't check";
       },
     },
     "Check for updates",
   );
-  const row = h("div", { class: "version-check" }, check, found);
+  const row = h("div", { class: "version-check" }, checkButton, outcome);
   if (updates.ready) offer();
   return [
     // The commit as written, lowercase; "dev" in capitals with the rest.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { appVersion, versionDay } from "../../app/js/app-version.js";
+import { appVersion } from "../../app/js/app-version.js";
+import { versionDay } from "../../app/js/screens/screen.js";
 
 describe("the app version (#129)", () => {
   it("is the stamp's: dev in the repo's copy", () => {

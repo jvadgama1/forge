@@ -8,8 +8,7 @@ import vm from "node:vm";
 import { stampSource } from "../../tools/stamp-version.js";
 
 const appDir = fileURLToPath(new URL("../../app/", import.meta.url));
-export const ORIGIN = "https://forge.test";
-const SCOPE = `${ORIGIN}/`;
+const SCOPE = "https://forge.test/";
 
 /** @param {string} dir @returns {string[]} */
 function filesUnder(dir) {
@@ -29,6 +28,9 @@ export function shellList() {
 }
 
 export const appFiles = () => filesUnder(appDir);
+
+/** @param {string} url */
+const withoutSearch = (url) => url.split("?")[0];
 
 /**
  * The deployed site and the network to it. `deploy(commit)` serves the
@@ -63,10 +65,6 @@ export function createSite() {
       online = false;
       return site;
     },
-    online() {
-      online = true;
-      return site;
-    },
     /** @param {string} path a file the next downloads fail on */
     fail(path) {
       failing.add(`${SCOPE}${path}`);
@@ -88,7 +86,7 @@ export function createSite() {
       if (failing.has(url)) return new Response("", { status: 500 });
       if (!url.startsWith(SCOPE))
         return new Response(`// ${url}`, { status: 200 });
-      const body = files.get(url.split("?")[0]);
+      const body = files.get(withoutSearch(url));
       return body === undefined
         ? new Response("", { status: 404 })
         : new Response(body, { status: 200 });
@@ -96,9 +94,6 @@ export function createSite() {
   };
   return site;
 }
-
-/** @param {string} url */
-const withoutSearch = (url) => url.split("?")[0];
 
 /** One cache: requests by URL, as the browser's Cache does. */
 class FakeCache {
@@ -173,14 +168,6 @@ export function createCacheStorage(fetch) {
     async keys() {
       return [...caches.keys()];
     },
-    /** @param {RequestInfo | URL} request @param {{ ignoreSearch?: boolean }} [options] */
-    async match(request, options) {
-      for (const cache of caches.values()) {
-        const found = await cache.match(request, options);
-        if (found) return found;
-      }
-      return undefined;
-    },
   };
 }
 
@@ -193,7 +180,7 @@ export function createCacheStorage(fetch) {
 export function startWorker(site, caches) {
   /** @type {Record<string, ((event: any) => void)[]>} */
   const listeners = {};
-  const worker = { skippedWaiting: false, claimed: false };
+  const worker = { skippedWaiting: false };
   const scope = vm.createContext({
     URL,
     Request: class extends Request {
@@ -210,9 +197,7 @@ export function startWorker(site, caches) {
       site.fetch(typeof input === "string" ? new URL(input, SCOPE) : input),
     location: new URL(`${SCOPE}sw.js`),
     clients: {
-      claim: async () => {
-        worker.claimed = true;
-      },
+      claim: async () => {},
     },
     skipWaiting: async () => {
       worker.skippedWaiting = true;

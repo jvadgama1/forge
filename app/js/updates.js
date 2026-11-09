@@ -67,14 +67,14 @@ export function createUpdates({ container, page, reload, wait = 3000 }) {
    */
   function switchTo(worker) {
     if (!container) return Promise.resolve(false);
-    const changed = container;
+    const serviceWorkers = container;
     switching = true;
     return new Promise((resolve) => {
       const done = () => resolve(true);
-      changed.addEventListener("controllerchange", done, { once: true });
+      serviceWorkers.addEventListener("controllerchange", done, { once: true });
       worker.postMessage("switch");
       setTimeout(() => {
-        changed.removeEventListener("controllerchange", done);
+        serviceWorkers.removeEventListener("controllerchange", done);
         switching = false;
         resolve(false);
       }, wait);

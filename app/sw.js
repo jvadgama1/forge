@@ -15,6 +15,9 @@ const CACHE = `forge-${self.forgeAppVersion.commit}`;
 // Fonts load from URLs only the font service's stylesheet names, so they're
 // kept as they're first used, across versions.
 const FONTS = "forge-fonts";
+// The cache of the service worker before #129, which refreshed files one by
+// one and took over at once.
+const BEFORE = "forge-shell-v1";
 const SHELL = [
   "./",
   "index.html",
@@ -91,7 +94,11 @@ self.addEventListener("install", (event) => {
       .open(CACHE)
       .then((cache) =>
         cache.addAll(SHELL.map((url) => new Request(url, { cache: "reload" }))),
-      ),
+      )
+      .then(() => caches.has(BEFORE))
+      // Replacing that worker, take over at once as it did: its pages have
+      // no Update to tap, and kept running they would mix in new files.
+      .then((replacing) => replacing && self.skipWaiting()),
   );
 });
 
