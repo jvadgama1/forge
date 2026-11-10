@@ -67,6 +67,15 @@ const loadKey = (load) => Math.round(inKg(load) * 10);
 const working = (set) => !set.warmUp && !set.drop;
 
 /**
+ * Two ISO 8601 dates, or two times, in order. Written alike, they sort as
+ * plain text, as localeCompare puts them but many times faster: sorting
+ * workouts was the biggest of the Stats board's sums (#131).
+ * @param {string} a
+ * @param {string} b
+ */
+const byTime = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
  * A set's measure (#19): its load and count, with nothing else.
  * @param {WorkoutSet} set
  * @returns {Measure}
@@ -2018,8 +2027,7 @@ export function createForge({ store, library, now = () => new Date() }) {
       await store.list("bodyWeights")
     );
     return entries.sort(
-      (a, b) =>
-        b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt),
+      (a, b) => byTime(b.date, a.date) || byTime(b.loggedAt, a.loggedAt),
     );
   }
 
@@ -2136,9 +2144,7 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @param {Workout} b
    */
   function byWorkoutDate(a, b) {
-    return (
-      b.date.localeCompare(a.date) || b.startedAt.localeCompare(a.startedAt)
-    );
+    return byTime(b.date, a.date) || byTime(b.startedAt, a.startedAt);
   }
 
   /**
@@ -2665,28 +2671,36 @@ export function createForge({ store, library, now = () => new Date() }) {
    * @returns {Promise<string[]>}
    */
   async function e1rmChoices(workouts) {
-    /** @param {Workout} w */
-    const finished = (w) => Boolean(w.finishedAt);
-    const done = new Set(
-      finishedOf(workouts).flatMap((w) => w.entries.map((e) => e.exerciseId)),
-    );
-    /** @type {{ id: string, order: number, loggedAt: string }[]} */
-    const offered = [];
-    for (const id of done) {
-      if (!(await findExercise(id))) continue;
-      const latest = (await e1rmTrendOf(id, finished, workouts)).points.at(-1);
-      if (!latest) continue;
-      const order = workouts.findIndex((w) => w.id === latest.workoutId);
-      const sets =
-        workouts[order].entries.find((e) => e.exerciseId === id)?.sets ?? [];
-      const loggedAt = sets.reduce(
-        (last, set) => (set.loggedAt > last ? set.loggedAt : last),
-        "",
-      );
-      offered.push({ id, order, loggedAt });
+    // Each exercise's workout with its latest e1RM, found in one pass from
+    // the newest workout back, so a workout is looked at once for all its
+    // exercises, not once for each (#131). Null once an exercise can't
+    // have one: an e1RM type's latest is the first found.
+    /** @type {Map<string, { order: number, loggedAt: string } | null>} */
+    const latest = new Map();
+    for (const [order, workout] of workouts.entries()) {
+      if (!workout.finishedAt) continue;
+      for (const { exerciseId: id } of workout.entries) {
+        if (latest.has(id)) continue;
+        const exercise = await findExercise(id);
+        if (!exercise || !TYPE_RULES[exercise.type].e1rm) {
+          latest.set(id, null);
+          continue;
+        }
+        // Its first entry in the workout, as its history reads it.
+        const sets =
+          workout.entries.find((e) => e.exerciseId === id)?.sets ?? [];
+        const [each] = await counted([{ workout, sets }], exercise.type);
+        if (!recordsOf(each, exercise.type).bestE1rm) continue;
+        const loggedAt = sets.reduce(
+          (last, set) => (set.loggedAt > last ? set.loggedAt : last),
+          "",
+        );
+        latest.set(id, { order, loggedAt });
+      }
     }
-    return offered
-      .sort((a, b) => a.order - b.order || b.loggedAt.localeCompare(a.loggedAt))
+    return [...latest]
+      .flatMap(([id, found]) => (found ? [{ id, ...found }] : []))
+      .sort((a, b) => a.order - b.order || byTime(b.loggedAt, a.loggedAt))
       .map((o) => o.id);
   }
 
