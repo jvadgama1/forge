@@ -232,3 +232,40 @@ describe("exercise added for a plain dumbbell squat (#123)", () => {
     });
   });
 });
+
+describe("curl-bar exercises added for the work gym (#142)", () => {
+  it("are in the library, tagged like their closest existing exercises", () => {
+    /** @type {import("../../app/js/core/types.js").Exercise[]} */
+    const added = [
+      // Like Overhead DB Extension.
+      {
+        id: "ez-bar-overhead-extension",
+        name: "EZ-bar Overhead Extension",
+        type: "weight-reps",
+        primary: ["triceps"],
+        secondary: [],
+        body: "upper",
+      },
+      // Like Cable Upright Row.
+      {
+        id: "ez-bar-upright-row",
+        name: "EZ-bar Upright Row",
+        type: "weight-reps",
+        primary: ["side-delts"],
+        secondary: ["traps"],
+        body: "upper",
+      },
+      // Like EZ-bar Curl.
+      {
+        id: "ez-bar-drag-curl",
+        name: "EZ-bar Drag Curl",
+        type: "weight-reps",
+        primary: ["biceps"],
+        secondary: ["forearms"],
+        body: "upper",
+      },
+    ];
+    for (const exercise of added)
+      expect(SEED_LIBRARY.find((e) => e.id === exercise.id)).toEqual(exercise);
+  });
+});
