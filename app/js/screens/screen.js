@@ -53,13 +53,23 @@ export const pad2 = (n) => String(n).padStart(2, "0");
 /** @param {number} value e.g. 186.67 → "187" */
 export const whole = (value) => String(Math.round(value));
 
+// One formatter for every number: toLocaleString makes a new one each
+// time, which made the tonnage card the slowest to draw (#131).
+const THOUSANDS = new Intl.NumberFormat("en-US");
+
+/**
+ * A number with thousands marked, as toLocaleString("en-US") writes it:
+ * 15000 → "15,000".
+ * @param {number} n
+ */
+export const thousands = (n) => THOUSANDS.format(n);
+
 /**
  * A tonnage with its unit, thousands marked: "8,450 lb" (#87).
  * @param {number} n
  * @param {string} unit
  */
-export const tonnageText = (n, unit) =>
-  `${Math.round(n).toLocaleString("en-US")} ${unit}`;
+export const tonnageText = (n, unit) => `${thousands(Math.round(n))} ${unit}`;
 
 /**
  * A range in words, as the Stats board writes it: "12 weeks", or "year".

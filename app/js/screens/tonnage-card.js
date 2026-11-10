@@ -12,7 +12,7 @@ import {
   svg,
 } from "./chart.js";
 import { openMark } from "./mark.js";
-import { countOf, monthDay, tonnageText } from "./screen.js";
+import { countOf, monthDay, thousands, tonnageText } from "./screen.js";
 
 /** @import { Forge } from "../core/forge.js" */
 /** @import { Frame } from "./chart.js" */
@@ -70,9 +70,7 @@ export function tonnageCardView({ unit, weeks }, rangeWords) {
     FRAME,
     `Tonnage by week over ${rangeWords}, in ${unit}: this week ${tonnageText(latest, unit)}, highest ${tonnageText(most, unit)}.`,
   );
-  chart.append(
-    ...grid(FRAME, [0, top], y, (tick) => tick.toLocaleString("en-US")),
-  );
+  chart.append(...grid(FRAME, [0, top], y, thousands));
   weeks.forEach((week, i) => {
     if (week.tonnage > 0)
       chart.append(
