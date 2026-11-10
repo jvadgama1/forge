@@ -1,7 +1,7 @@
 import { h } from "../dom.js";
 import { clockTime, listDate, pad2, screen } from "./screen.js";
 
-/** @import { Feedback } from "../core/types.js" */
+/** @import { FeedbackItem } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
 /**
@@ -87,7 +87,7 @@ export function feedbackView({ forge }) {
 
 /**
  * One item: when it was sent, "Filed #N" once it's an issue, and its text.
- * @param {Feedback} item
+ * @param {FeedbackItem} item
  * @param {string} today
  */
 function itemRow({ sentAt, filed, text }, today) {

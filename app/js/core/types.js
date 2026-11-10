@@ -216,7 +216,7 @@
 /**
  * Feedback the maintainer sent from the app (GLOSSARY: Feedback item; #124),
  * for the agent to read with `npm run feedback`.
- * @typedef {object} Feedback
+ * @typedef {object} FeedbackItem
  * @property {string} id
  * @property {string} text As typed, trimmed.
  * @property {string} sentAt ISO 8601 timestamp.

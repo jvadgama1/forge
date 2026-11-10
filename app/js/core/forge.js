@@ -1,5 +1,5 @@
 /** @import { Mark, Range, RangeId } from "./dashboard.js" */
-/** @import { AppVersion, BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Feedback, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { AppVersion, BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, FeedbackItem, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 import { fromKg, inKg, plusBody } from "./units.js";
@@ -569,14 +569,14 @@ export function createForge({
      * workout in progress, if any, so the agent reading it has the context.
      * Like a set, it's kept with no signal and syncs later.
      * @param {string} text
-     * @returns {Promise<Feedback>}
+     * @returns {Promise<FeedbackItem>}
      */
     sendFeedback(text) {
       return inTurn(async () => {
         const trimmed = text.trim();
         if (!trimmed) throw new Error("Write some feedback first");
         const workout = await workoutInProgress();
-        /** @type {Feedback} */
+        /** @type {FeedbackItem} */
         const item = {
           id: crypto.randomUUID(),
           text: trimmed,
@@ -591,10 +591,12 @@ export function createForge({
 
     /**
      * Feedback sent, newest first (#124).
-     * @returns {Promise<Feedback[]>}
+     * @returns {Promise<FeedbackItem[]>}
      */
     async listFeedback() {
-      const items = /** @type {Feedback[]} */ (await store.list("feedback"));
+      const items = /** @type {FeedbackItem[]} */ (
+        await store.list("feedback")
+      );
       return items.sort((a, b) => byTime(b.sentAt, a.sentAt));
     },
 
@@ -608,7 +610,7 @@ export function createForge({
       return inTurn(async () => {
         if (!Number.isInteger(issue) || issue < 1)
           throw new Error("An issue number is a whole number from 1");
-        const item = /** @type {Feedback | undefined} */ (
+        const item = /** @type {FeedbackItem | undefined} */ (
           await store.get("feedback", id)
         );
         if (!item) throw new Error("Feedback not found");

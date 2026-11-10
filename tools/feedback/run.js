@@ -5,7 +5,7 @@
 // only ever printed, never saved to a file: it is personal (ADR-0005).
 import { FIREBASE_CONFIG, OWNER_UID } from "../../app/js/firebase-config.js";
 
-/** @import { Feedback } from "../../app/js/core/types.js" */
+/** @import { FeedbackItem } from "../../app/js/core/types.js" */
 
 const COLLECTION = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/users/${OWNER_UID}/feedback`;
 
@@ -48,19 +48,19 @@ export async function runFeedback(args, deps) {
 
 /** @param {Deps} deps */
 async function printUnfiled(deps) {
-  /** @type {Feedback[]} */
+  /** @type {FeedbackItem[]} */
   const items = [];
   let page = "";
   do {
     const answer = await request(
-      `${COLLECTION}?pageSize=300${page && `&pageToken=${page}`}`,
+      `${COLLECTION}?pageSize=300${page && `&pageToken=${encodeURIComponent(page)}`}`,
       {},
       deps,
     );
     if (!answer.ok) return refused(answer, deps);
     const body = await answer.json();
     for (const doc of body.documents ?? [])
-      items.push(/** @type {Feedback} */ (fromFields(doc.fields ?? {})));
+      items.push(/** @type {FeedbackItem} */ (fromFields(doc.fields ?? {})));
     page = body.nextPageToken ?? "";
   } while (page);
 
@@ -85,7 +85,7 @@ async function printUnfiled(deps) {
 /**
  * One item: a heading line, then its text indented, so where one ends reads
  * plainly even when the text has blank lines.
- * @param {Feedback} item
+ * @param {FeedbackItem} item
  */
 function itemLines({ id, sentAt, appVersion, workoutId, text }) {
   const heading = [id, sentAt, `version ${appVersion?.commit ?? "unknown"}`];

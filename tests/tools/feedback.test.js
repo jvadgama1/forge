@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { runFeedback } from "../../tools/feedback/run.js";
 
 // Where the owner's feedback lives in the live project's REST API.
@@ -80,7 +80,7 @@ describe("npm run feedback (#124)", () => {
                 filed: { integerValue: "131" },
               }),
             ],
-            nextPageToken: "page-2",
+            nextPageToken: "pa+ge/2=",
           },
         },
         {
@@ -113,7 +113,7 @@ describe("npm run feedback (#124)", () => {
         headers: { Authorization: "Bearer test-token" },
       },
       {
-        url: `${COLLECTION}?pageSize=300&pageToken=page-2`,
+        url: `${COLLECTION}?pageSize=300&pageToken=pa%2Bge%2F2%3D`,
         method: "GET",
         headers: { Authorization: "Bearer test-token" },
       },
@@ -203,13 +203,14 @@ describe("npm run feedback (#124)", () => {
     );
   });
 
+  // A tripwire, not a proof: no module of the command touches the file system.
   it("never writes to a file: feedback text stays out of the repo (ADR-0005)", () => {
-    for (const file of ["run.js", "feedback.js"]) {
-      const source = readFileSync(
-        new URL(`../../tools/feedback/${file}`, import.meta.url),
-        "utf8",
+    const dir = new URL("../../tools/feedback/", import.meta.url);
+    const files = readdirSync(dir);
+    expect(files).toEqual(["feedback.js", "run.js"]);
+    for (const file of files)
+      expect(readFileSync(new URL(file, dir), "utf8")).not.toMatch(
+        /node:fs|writeFile|appendFile|WriteStream/,
       );
-      expect(source).not.toMatch(/node:fs|writeFile|appendFile|WriteStream/);
-    }
   });
 });
