@@ -220,7 +220,12 @@ export function sixtyWorkouts(today) {
       });
     });
   return {
-    gyms: [{ id: "gym-work", name: "Work", exerciseIds: [] }],
+    // Three gyms, as the maintainer has: the Log tab sorts them by name.
+    gyms: ["Apartment", "Home", "Work"].map((name) => ({
+      id: `gym-${name.toLowerCase()}`,
+      name,
+      exerciseIds: [],
+    })),
     settings: [{ id: "user", lastGymId: "gym-work" }],
     bodyWeights: [0, 1, 2, 3, 4].map((month) => {
       const date = dateOf(firstMonday + month * 28);

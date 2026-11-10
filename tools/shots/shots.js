@@ -4,14 +4,13 @@
 // the run. Drives the
 // installed Microsoft Edge, so nothing downloads a browser. Sign-in and
 // Firestore are stubbed: no personal data reaches a shot (ADR-0005).
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { stampSource } from "../stamp-version.js";
 import { PHONE, SHOTS } from "./list.js";
 import { LABEL, runDir } from "./run-dir.js";
-import { ORIGIN, serveApp } from "./serve.js";
+import { ORIGIN, serveApp, serveFonts } from "./serve.js";
 
 /** @import { Page } from "playwright-core" */
 /** @import { Shot } from "./list.js" */
@@ -22,18 +21,7 @@ if (!LABEL.test(label)) {
   process.exit(1);
 }
 
-const fontDir = fileURLToPath(new URL("fonts/", import.meta.url));
 const outDir = runDir(label);
-
-// The app's fonts use `font-display: swap`, which paints a fallback first;
-// `block` draws text once, in its web font.
-const fontCss = (await readFile(join(fontDir, "fonts.css"), "utf8")).replaceAll(
-  "font-display: swap",
-  "font-display: block",
-);
-// The font URL the copy was fetched for: the app asking for another one
-// (a family or weight added) means the copy is stale.
-const fontUrl = fontCss.match(/^\/\* Fetched for (\S+) \*\//)?.[1];
 
 const ATTEMPTS = 5;
 
@@ -48,6 +36,11 @@ const SHOT_TIME = "2026-10-25T18:32:14Z";
  */
 async function settle(page) {
   await page.waitForLoadState("networkidle");
+  // A screen still filling in, as the Stats board does after its first
+  // card (#131), marks itself busy.
+  await page.waitForFunction(
+    () => !globalThis.document.querySelector("[aria-busy]"),
+  );
   await page.evaluate("document.fonts.ready");
   await page.waitForTimeout(200);
 }
@@ -59,7 +52,7 @@ await mkdir(outDir, { recursive: true });
 // code. Over ten-run batches, only all of these together cut that to about
 // one render in a hundred (see stableRender): no GPU, no LCD antialiasing
 // (phones don't use it), no subpixel glyph positioning, no hinting, and text
-// drawn once (see fontCss).
+// drawn once (serveFonts with display "block").
 const browser = await chromium.launch({
   channel: "msedge",
   args: [
@@ -86,25 +79,10 @@ async function newContext(shot) {
     seed: shot.seed ?? {},
     ...(shot.stamp && { stamp: STAMP }),
   });
-  // The fonts come from a copy in fonts/, so text never depends on what the
-  // live font service sends (#37).
-  await context.route("https://fonts.googleapis.com/**", (route) => {
-    if (route.request().url() !== fontUrl)
-      errors.add(`font URL not in tools/shots/fonts: ${route.request().url()}`);
-    return route.fulfill({ body: fontCss, contentType: "text/css" });
-  });
-  await context.route("https://fonts.gstatic.com/**", async (route) => {
-    const file = basename(new URL(route.request().url()).pathname);
-    try {
-      await route.fulfill({
-        body: await readFile(join(fontDir, file)),
-        contentType: "font/woff2",
-      });
-    } catch {
-      // The app asked for a font the copy lacks: see fonts/README.md.
-      errors.add(`font file not in tools/shots/fonts: ${file}`);
-      await route.fulfill({ status: 404 });
-    }
+  // Text drawn once, in its web font (see the browser flags above).
+  await serveFonts(context, {
+    display: "block",
+    onMissing: (problem) => errors.add(problem),
   });
   return context;
 }
