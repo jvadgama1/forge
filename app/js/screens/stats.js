@@ -15,7 +15,7 @@ import { rangeWords, screen, whole } from "./screen.js";
 /** @import { ScreenContext } from "./screen.js" */
 /** @import { Forge } from "../core/forge.js" */
 /** @import { RangeId } from "../core/dashboard.js" */
-/** @typedef {Awaited<ReturnType<Forge["dashboardFirst"]>>} DashboardFirst */
+/** @typedef {Awaited<ReturnType<Forge["dashboardInParts"]>>} Dashboard */
 
 // Each range's chip; typed by the core's ranges, so a new one can't be
 // left without a chip.
@@ -39,42 +39,50 @@ export function statsView({ forge }) {
   // shows one range under another's chips.
   async function show() {
     const mine = ++drawing;
-    const first = await forge.dashboardFirst();
+    const dashboard = await forge.dashboardInParts();
     if (mine !== drawing) return;
     const head = [
-      rangeChips(first.range.id, async (range) => {
+      rangeChips(dashboard.range.id, async (range) => {
         await forge.chooseDashboard({ range });
         show();
       }),
       ...sections([
-        e1rmCard(first, async (exerciseId) => {
+        e1rmCard(dashboard, async (exerciseId) => {
           await forge.chooseDashboard({ exerciseId });
           show();
         }),
       ]),
     ];
     const opening = !board.hasChildNodes();
-    if (opening) {
-      board.setAttribute("aria-busy", "true");
-      board.replaceChildren(...head);
-      await nextFrame();
+    try {
+      if (opening) {
+        board.setAttribute("aria-busy", "true");
+        board.replaceChildren(...head);
+        await nextFrame();
+      }
+      const rest = await dashboard.rest();
+      if (mine !== drawing) return;
+      const range = {
+        id: dashboard.range.id,
+        words: rangeWords(dashboard.range.weeks),
+      };
+      // Each card in its own section, so a wide screen can flow them into
+      // columns without splitting one (#90); a phone reads them in this
+      // order.
+      const cards = sections([
+        hardSetsCardView(rest.hardSets, range),
+        bodyMapCardView(rest.hardSets, range),
+        calendarCardView(rest.calendar, dashboard.range.weeks),
+        tonnageCardView(rest.tonnage, range.words),
+        regionSplitCardView(rest.regionSplit, range.words),
+        recordTimelineCardView(rest.records, range.words, forge.today()),
+      ]);
+      if (opening) board.append(...cards);
+      else board.replaceChildren(...head, ...cards);
+    } finally {
+      // Filled in, or failed: either way nothing more is coming.
+      if (mine === drawing) board.removeAttribute("aria-busy");
     }
-    const rest = await forge.dashboardRest();
-    if (mine !== drawing) return;
-    const range = { id: rest.range.id, words: rangeWords(rest.range.weeks) };
-    // Each card in its own section, so a wide screen can flow them into
-    // columns without splitting one (#90); a phone reads them in this order.
-    const cards = sections([
-      hardSetsCardView(rest.hardSets, range),
-      bodyMapCardView(rest.hardSets, range),
-      calendarCardView(rest.calendar, rest.range.weeks),
-      tonnageCardView(rest.tonnage, range.words),
-      regionSplitCardView(rest.regionSplit, range.words),
-      recordTimelineCardView(rest.records, range.words, forge.today()),
-    ]);
-    if (opening) board.append(...cards);
-    else board.replaceChildren(...head, ...cards);
-    board.removeAttribute("aria-busy");
   }
 }
 
@@ -121,7 +129,7 @@ function rangeChips(current, choose) {
 /**
  * The e1RM card (stories 11–17): the exercise, its latest e1RM as the hero,
  * the change over the range and the trend line.
- * @param {DashboardFirst} dashboard
+ * @param {Dashboard} dashboard
  * @param {(exerciseId: string) => void} choose
  * @returns {Node[]}
  */

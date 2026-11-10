@@ -39,9 +39,10 @@ describe("the board in two parts (#131)", () => {
     "gives the e1RM card first and the other cards after, as the whole board has them, over %s",
     async (range) => {
       const forge = forgeOn(range);
-      const { range: shown, e1rm, ...rest } = await forge.dashboard();
-      expect(await forge.dashboardFirst()).toEqual({ range: shown, e1rm });
-      expect(await forge.dashboardRest()).toEqual({ range: shown, ...rest });
+      const { range: shown, e1rm, ...others } = await forge.dashboard();
+      const { rest, ...first } = await forge.dashboardInParts();
+      expect(first).toEqual({ range: shown, e1rm });
+      expect(await rest()).toEqual(others);
     },
   );
 });

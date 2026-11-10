@@ -1476,19 +1476,14 @@ export function createForge({ store, library, now = () => new Date() }) {
     },
 
     /**
-     * The Stats board's first card, the e1RM trend, with the range: what
-     * Stats draws before the slower cards (#131), as `dashboard` has it.
+     * The Stats board as `dashboard` has it, in two parts from the same one
+     * read (#131): the range and the e1RM card at once, and `rest()` for
+     * the slower cards, summed only when asked, so Stats can draw the
+     * first card before them.
      */
-    async dashboardFirst() {
-      return boardFirst(await boardInputs());
-    },
-
-    /**
-     * The rest of the Stats board's cards, with the range, as `dashboard`
-     * has them: what Stats fills in after the first card (#131).
-     */
-    async dashboardRest() {
-      return boardRest(await boardInputs());
+    async dashboardInParts() {
+      const board = await boardInputs();
+      return { ...(await boardFirst(board)), rest: () => boardRest(board) };
     },
 
     /**
@@ -2615,14 +2610,13 @@ export function createForge({ store, library, now = () => new Date() }) {
   }
 
   /**
-   * The board's range and its cards after the e1RM card (spec #80).
+   * The board's cards after the e1RM card (spec #80).
    * @param {BoardInputs} board
    */
   async function boardRest({ range, workouts }) {
     const counted = workouts.filter(countsIn(range));
     const exerciseOf = await exercisesIn(counted);
     return {
-      range,
       hardSets: hardSetsCard(counted, exerciseOf),
       calendar: calendarCard(counted, exerciseOf, range, localDate(now())),
       tonnage: tonnageCard(
@@ -2677,7 +2671,8 @@ export function createForge({ store, library, now = () => new Date() }) {
     // have one: an e1RM type's latest is the first found.
     /** @type {Map<string, { order: number, loggedAt: string } | null>} */
     const latest = new Map();
-    for (const [order, workout] of workouts.entries()) {
+    for (let order = 0; order < workouts.length; order++) {
+      const workout = workouts[order];
       if (!workout.finishedAt) continue;
       for (const { exerciseId: id } of workout.entries) {
         if (latest.has(id)) continue;
