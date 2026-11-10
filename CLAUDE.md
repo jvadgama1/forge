@@ -28,6 +28,10 @@ The review is the plugin's two-axis `mattpocock-skills:code-review`, not the bui
 - **Branches**: `main` is protected; no direct pushes. One short-lived branch per issue, named `<issue-number>-<slug>` (e.g. `12-log-a-set`).
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`, `chore:`), imperative mood, subject ≤ 72 chars.
 - **Pull requests**: body follows `mattpocock-skills:pr`; includes `Closes #<n>`. Merge only when CI is green and review findings are resolved. Squash-merge, then delete the branch.
+- **Choices made without the maintainer**: test each with two questions: would the maintainer notice it while using the app, and is it cheap to undo? Both yes: decide and record it. Either no: ask first.
+  - Ask first: **security and privacy** (security rules, sign-in, what's stored, anything that leaves the device, anything committed to the public repo); **data** (stored-shape changes that need a migration, deleting or rewriting data, any write to the live Firestore); **how the app works** (a new screen or feature, moving or removing a control already in use, changes to the logging flow, scope beyond the ticket); **training advice** (anything that changes suggested weights or sets); **architecture** (contradicting an ADR, a new dependency, service or cost).
+  - Decide and record: secondary wording, spacing and detail within Slab, changeable defaults, edge cases with a safe answer, code structure, tests.
+  - Record them in the PR: list them under **Decided without you** and label the PR `agent-decided`. The PR is the whole record; file no "confirm N choices" issues. A disagreement the maintainer finds in use is feedback, filed as a normal issue linking the PR. Each hand-check (on the phone, at the gym) is its own `ready-for-human` issue, linked from the PR.
 - **Checks**: the pre-commit hook formats staged files, then runs lint, typecheck and tests; GitHub Actions runs the full `npm run check` (job `check`, required on `main`) on every PR. Never bypass hooks (`--no-verify`).
 - **Releases**: `main` deploys to GitHub Pages. Only merge what is ready to ship.
 

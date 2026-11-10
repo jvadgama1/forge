@@ -13,3 +13,11 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
+
+## Record labels
+
+These sit outside the five triage roles. They never mark an issue as waiting on anyone, so triage leaves them alone.
+
+| Label           | Meaning                                                                                                                                                                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-decided` | Marks a pull request that lists choices the agent made without the maintainer under **Decided without you** (and the closed issues that recorded such choices before #125). A record, not a triage state. The rule is in `CLAUDE.md` § How we work. |
