@@ -1296,4 +1296,29 @@ export const SEED_LIBRARY = [
     secondary: ["glutes"],
     body: "lower",
   },
+  // Curl-bar exercises for the work gym (#142).
+  {
+    id: "ez-bar-overhead-extension",
+    name: "EZ-bar Overhead Extension",
+    type: "weight-reps",
+    primary: ["triceps"],
+    secondary: [],
+    body: "upper",
+  },
+  {
+    id: "ez-bar-upright-row",
+    name: "EZ-bar Upright Row",
+    type: "weight-reps",
+    primary: ["side-delts"],
+    secondary: ["traps"],
+    body: "upper",
+  },
+  {
+    id: "ez-bar-drag-curl",
+    name: "EZ-bar Drag Curl",
+    type: "weight-reps",
+    primary: ["biceps"],
+    secondary: ["forearms"],
+    body: "upper",
+  },
 ];
