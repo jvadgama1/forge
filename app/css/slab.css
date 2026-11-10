@@ -34,6 +34,9 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
   --tap: 44px;
+  /* The bottom tab bar, as tall as it's drawn; a side rail on a wide screen
+     takes none of the height. */
+  --tabs-height: calc(52px + env(safe-area-inset-bottom));
   color-scheme: dark;
 }
 
@@ -762,6 +765,45 @@ a {
   display: none;
 }
 
+/* The logging screen's dock (#63): Log set, and the rest bar above it while
+   resting, pinned just above the tab bar while the column scrolls behind.
+   A rule along its top edge and the ground behind it set it apart from the
+   column, so it isn't told apart by colour. The screen fills the height
+   above the tabs, so a short column still leaves the dock at its foot; at
+   the end of a long one, the column's last row scrolls clear above it. */
+.logging {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 18px - var(--tabs-height));
+}
+
+.view:not(.two-pane):has(.logging) {
+  padding-bottom: 0;
+}
+
+.dock {
+  position: sticky;
+  bottom: var(--tabs-height);
+  z-index: 1;
+  margin: auto -16px 0;
+  padding: 10px 16px;
+  border-top: 2px solid var(--rule-strong);
+  background: var(--ground);
+}
+
+.dock .rest {
+  margin: 0 0 10px;
+}
+
+/* A failed log or undo says why under Log set; empty, it takes no room. */
+.dock .lede {
+  margin: 8px 0 0;
+}
+
+.dock .lede:empty {
+  display: none;
+}
+
 /* Last workout (#13): the prototype's coral-edged line; the whole line opens
    the history. */
 .last-workout {
@@ -1455,6 +1497,17 @@ a.pick {
 
   .view.two-pane {
     max-width: none;
+  }
+
+  /* The tabs are a side rail: the dock (#63) pins to the window's foot,
+     as wide as the column. */
+  :root {
+    --tabs-height: 0px;
+  }
+
+  .dock {
+    margin-inline: 0;
+    padding-inline: 0;
   }
 
   /* The Stats board (#90) keeps one column until there's room for two
