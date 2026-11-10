@@ -18,6 +18,7 @@
     "shots": "node tools/shots/shots.js",
     "shots:compare": "node tools/shots/compare.js",
     "shots:publish": "node tools/shots/publish.js",
+    "timing:stats": "node tools/timing/stats-open.js",
     "prepare": "husky"
   },
   "devDependencies": {

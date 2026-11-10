@@ -15,7 +15,7 @@ import { rangeWords, screen, whole } from "./screen.js";
 /** @import { ScreenContext } from "./screen.js" */
 /** @import { Forge } from "../core/forge.js" */
 /** @import { RangeId } from "../core/dashboard.js" */
-/** @typedef {Awaited<ReturnType<Forge["dashboard"]>>} Dashboard */
+/** @typedef {Awaited<ReturnType<Forge["dashboardInParts"]>>} Dashboard */
 
 // Each range's chip; typed by the core's ranges, so a new one can't be
 // left without a chip.
@@ -27,41 +27,78 @@ const CHIPS = { "4w": "4W", "12w": "12W", "1y": "1Y" };
  */
 export function statsView({ forge }) {
   const board = h("div", { class: "board" });
+  // Which drawing is the latest, so an older one still summing never
+  // draws over it.
+  let drawing = 0;
   show();
   return screen("Stats", board);
 
+  // The e1RM card is drawn first, and the slower cards fill in below it
+  // once it's on the screen (#131), so the tab opens at once on a phone.
+  // A change of range or exercise redraws the board in one go, so no card
+  // shows one range under another's chips.
   async function show() {
-    const dashboard = await forge.dashboard();
-    const range = {
-      id: dashboard.range.id,
-      words: rangeWords(dashboard.range.weeks),
-    };
-    // Each card in its own section, so a wide screen can flow them into
-    // columns without splitting one (#90); a phone reads them in this order.
-    const cards = [
-      e1rmCard(dashboard, async (exerciseId) => {
-        await forge.chooseDashboard({ exerciseId });
-        show();
-      }),
-      hardSetsCardView(dashboard.hardSets, range),
-      bodyMapCardView(dashboard.hardSets, range),
-      calendarCardView(dashboard.calendar, dashboard.range.weeks),
-      tonnageCardView(dashboard.tonnage, range.words),
-      regionSplitCardView(dashboard.regionSplit, range.words),
-      recordTimelineCardView(dashboard.records, range.words, forge.today()),
-    ];
-    board.replaceChildren(
+    const mine = ++drawing;
+    const dashboard = await forge.dashboardInParts();
+    if (mine !== drawing) return;
+    const head = [
       rangeChips(dashboard.range.id, async (range) => {
         await forge.chooseDashboard({ range });
         show();
       }),
-      ...cards.flatMap((card) => [
-        h("hr", { class: "rule" }),
-        h("section", { class: "board-card" }, ...card),
+      ...sections([
+        e1rmCard(dashboard, async (exerciseId) => {
+          await forge.chooseDashboard({ exerciseId });
+          show();
+        }),
       ]),
-    );
+    ];
+    const opening = !board.hasChildNodes();
+    try {
+      if (opening) {
+        board.setAttribute("aria-busy", "true");
+        board.replaceChildren(...head);
+        await nextFrame();
+      }
+      const rest = await dashboard.rest();
+      if (mine !== drawing) return;
+      const range = {
+        id: dashboard.range.id,
+        words: rangeWords(dashboard.range.weeks),
+      };
+      // Each card in its own section, so a wide screen can flow them into
+      // columns without splitting one (#90); a phone reads them in this
+      // order.
+      const cards = sections([
+        hardSetsCardView(rest.hardSets, range),
+        bodyMapCardView(rest.hardSets, range),
+        calendarCardView(rest.calendar, dashboard.range.weeks),
+        tonnageCardView(rest.tonnage, range.words),
+        regionSplitCardView(rest.regionSplit, range.words),
+        recordTimelineCardView(rest.records, range.words, forge.today()),
+      ]);
+      if (opening) board.append(...cards);
+      else board.replaceChildren(...head, ...cards);
+    } finally {
+      // Filled in, or failed: either way nothing more is coming.
+      if (mine === drawing) board.removeAttribute("aria-busy");
+    }
   }
 }
+
+/**
+ * Each card's content in a section of the board, after a rule.
+ * @param {Node[][]} cards
+ */
+const sections = (cards) =>
+  cards.flatMap((card) => [
+    h("hr", { class: "rule" }),
+    h("section", { class: "board-card" }, ...card),
+  ]);
+
+/** Resolves once the screen has been drawn with what's in the page now. */
+const nextFrame = () =>
+  new Promise((drawn) => requestAnimationFrame(() => setTimeout(drawn)));
 
 /**
  * The range control (story 2): pressed chip is the range shown.
