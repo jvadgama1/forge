@@ -78,6 +78,33 @@ describe("Firestore security rules", () => {
     await assertFails(bob.doc("users/bob").set({ id: "bob" }));
   });
 
+  // Feedback (#124) needs no rule of its own: users/{uid}/{document=**}
+  // already covers it, as it does every collection under the owner's root.
+  it("let the owner send, read and mark feedback filed, and nobody else", async () => {
+    const item = `${OWNER_ROOT}/feedback/item-1`;
+    const owner = env.authenticatedContext(OWNER_UID).firestore();
+    await assertSucceeds(
+      owner.doc(item).set({ id: "item-1", text: "Made-up feedback" }),
+    );
+    await assertSucceeds(owner.doc(item).get());
+    await assertSucceeds(owner.collection(`${OWNER_ROOT}/feedback`).get());
+    await assertSucceeds(owner.doc(item).update({ filed: 12 }));
+
+    const bob = env.authenticatedContext("bob").firestore();
+    const anon = env.unauthenticatedContext().firestore();
+    for (const other of [bob, anon]) {
+      await assertFails(other.doc(item).get());
+      await assertFails(other.collection(`${OWNER_ROOT}/feedback`).get());
+      await assertFails(other.doc(item).update({ filed: 99 }));
+      await assertFails(
+        other.doc(`${OWNER_ROOT}/feedback/item-2`).set({ id: "item-2" }),
+      );
+    }
+    await assertFails(
+      bob.doc("users/bob/feedback/item-1").set({ id: "item-1" }),
+    );
+  });
+
   it("refuse reads and writes outside users/", async () => {
     const owner = env.authenticatedContext(OWNER_UID).firestore();
     await assertFails(owner.doc("shared/anything").set({ id: "x" }));

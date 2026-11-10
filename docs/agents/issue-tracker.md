@@ -14,6 +14,14 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
+## Feedback from the app
+
+The maintainer sends feedback items from the app's Feedback screen (More → Feedback, #124). They live in Firestore, not here, until an issue is opened from one.
+
+- **Read the unfiled items**: `npm run feedback`. It signs in with the maintainer's Firebase CLI login and prints each item's id, when it was sent, the app version and any workout in progress, then its text. Only when the maintainer asks.
+- **File one**: open an issue that paraphrases the item, with made-up data where the details are personal (ADR-0005: issues are public; never paste the text). Then `npm run feedback -- --filed <itemId> <issueNumber>`, which sets that one item's `filed` field and nothing else; the app then shows "Filed #N" beside it. This is the only live write with a standing go-ahead.
+- Never save the printed feedback to a file, the repo or a scratchpad.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/mattpocock-skills:triage` reads this flag.)_

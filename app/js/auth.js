@@ -1,3 +1,4 @@
+import { appVersion } from "./app-version.js";
 import { createForge } from "./core/forge.js";
 import { SEED_LIBRARY } from "./core/seed-library.js";
 import { createFirestoreStore } from "./store/firestore-store.js";
@@ -52,6 +53,8 @@ export function startAuth({ onChange, onSaveError }) {
             onError: onSaveError,
           }),
           library: SEED_LIBRARY,
+          // Recorded with each feedback item (#124).
+          appVersion: appVersion(),
         }),
       };
     onChange();

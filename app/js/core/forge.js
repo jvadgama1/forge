@@ -1,5 +1,5 @@
 /** @import { Mark, Range, RangeId } from "./dashboard.js" */
-/** @import { BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { AppVersion, BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, FeedbackItem, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Superset, SupersetRound, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 import { fromKg, inKg, plusBody } from "./units.js";
@@ -198,10 +198,16 @@ function csv(rows) {
 
 /**
  * The Forge core: every phase 1 rule, with no DOM or Firestore inside.
- * @param {{ store: Store, library: Exercise[], now?: () => Date }} deps
- *   `now` is the clock; tests pass a fixed one.
+ * @param {{ store: Store, library: Exercise[], now?: () => Date, appVersion?: AppVersion }} deps
+ *   `now` is the clock; tests pass a fixed one. `appVersion` is the app
+ *   version running (#129), which feedback records.
  */
-export function createForge({ store, library, now = () => new Date() }) {
+export function createForge({
+  store,
+  library,
+  now = () => new Date(),
+  appVersion = { commit: "dev", date: "" },
+}) {
   // Changes that read a document and write it back run one at a time:
   // Firestore reads wait for the server, so two quick ticks would otherwise
   // both start from the old list and the second would erase the first.
@@ -556,6 +562,60 @@ export function createForge({ store, library, now = () => new Date() }) {
      */
     async bodyWeightOn(date) {
       return (await bodyWeightLookup())(date);
+    },
+
+    /**
+     * Sends a feedback item (#124): the text, when, the app version, and the
+     * workout in progress, if any, so the agent reading it has the context.
+     * Like a set, it's kept with no signal and syncs later.
+     * @param {string} text
+     * @returns {Promise<FeedbackItem>}
+     */
+    sendFeedback(text) {
+      return inTurn(async () => {
+        const trimmed = text.trim();
+        if (!trimmed) throw new Error("Write some feedback first");
+        const workout = await workoutInProgress();
+        /** @type {FeedbackItem} */
+        const item = {
+          id: crypto.randomUUID(),
+          text: trimmed,
+          sentAt: now().toISOString(),
+          ...(workout && { workoutId: workout.id }),
+          appVersion: { ...appVersion },
+        };
+        await store.put("feedback", item);
+        return item;
+      });
+    },
+
+    /**
+     * Feedback sent, newest first (#124).
+     * @returns {Promise<FeedbackItem[]>}
+     */
+    async listFeedback() {
+      const items = /** @type {FeedbackItem[]} */ (
+        await store.list("feedback")
+      );
+      return items.sort((a, b) => byTime(b.sentAt, a.sentAt));
+    },
+
+    /**
+     * Marks a feedback item filed as an issue (#124). `npm run feedback`
+     * makes the same change to the live data, to this one field.
+     * @param {string} id
+     * @param {number} issue
+     */
+    markFeedbackFiled(id, issue) {
+      return inTurn(async () => {
+        if (!Number.isInteger(issue) || issue < 1)
+          throw new Error("An issue number is a whole number from 1");
+        const item = /** @type {FeedbackItem | undefined} */ (
+          await store.get("feedback", id)
+        );
+        if (!item) throw new Error("Feedback not found");
+        await store.put("feedback", { ...item, filed: issue });
+      });
     },
 
     /**

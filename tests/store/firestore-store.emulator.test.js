@@ -5,6 +5,8 @@ import { createFirestoreStore } from "../../app/js/store/firestore-store.js";
 import { describeStoreContract } from "./store-contract.js";
 import { clearFirestore, signedInFirestore } from "../emulator.js";
 import { OWNER_UID } from "../../app/js/firebase-config.js";
+import { createForge } from "../../app/js/core/forge.js";
+import { library } from "../core/library-fixture.js";
 
 /** @type {Awaited<ReturnType<typeof signedInFirestore>>} */
 let owner;
@@ -102,6 +104,30 @@ describe("Firestore store", () => {
     expect(
       await createFirestoreStore({ sdk, ...reader }).get("gyms", "home"),
     ).toEqual({ id: "home", name: "Home" });
+  });
+
+  it("keeps feedback sent with no connection, and syncs it once there is one (#124)", async () => {
+    await clearFirestore();
+    const phone = await signedInFirestore(OWNER_UID);
+    instances.push(phone);
+    await sdk.disableNetwork(phone.db);
+    const forge = createForge({
+      store: createFirestoreStore({ sdk, ...phone }),
+      library,
+      appVersion: { commit: "0a1b2c3", date: "2026-11-08T12:00:00.000Z" },
+    });
+    const sent = await forge.sendFeedback("Made-up feedback from the gym");
+    expect((await forge.listFeedback()).map((item) => item.text)).toEqual([
+      "Made-up feedback from the gym",
+    ]);
+
+    await sdk.enableNetwork(phone.db);
+    await sdk.waitForPendingWrites(phone.db);
+    const desktop = await signedInFirestore(OWNER_UID);
+    instances.push(desktop);
+    expect(
+      await createFirestoreStore({ sdk, ...desktop }).get("feedback", sent.id),
+    ).toEqual(sent);
   });
 
   it("shows changes made on another device without starting again", async () => {

@@ -99,6 +99,13 @@ export function moreView({ user, signOut, forge, updates }) {
     h(
       "nav",
       { class: "menu" },
+      // First, so a thought about the app is one tap from More (#124).
+      h(
+        "a",
+        { href: "#/feedback" },
+        "Feedback",
+        h("span", { "aria-hidden": "true" }, "→"),
+      ),
       h(
         "a",
         { href: "#/workouts" },

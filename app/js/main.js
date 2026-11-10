@@ -20,6 +20,7 @@ import { bodyWeightView } from "./screens/body-weight.js";
 import { workoutsView } from "./screens/workouts.js";
 import { pastWorkoutView } from "./screens/past-workout.js";
 import { moreView } from "./screens/more.js";
+import { feedbackView } from "./screens/feedback.js";
 import { statsView } from "./screens/stats.js";
 import { createUpdates } from "./updates.js";
 import { showUpdateBar } from "./update-bar.js";
@@ -92,6 +93,7 @@ const routes = {
     render: () => placeholderView("Coach", "The coach arrives in phase 3."),
   },
   "/more": { tab: "more", render: moreView },
+  "/feedback": { tab: "more", render: feedbackView },
   "/gyms": { tab: "more", render: gymsView },
   "/gyms/:id": { tab: "more", render: gymView },
   "/routines": {
