@@ -1282,6 +1282,25 @@ select.small-number {
   gap: 6px;
 }
 
+/* Feedback (#124) */
+.feedback-text {
+  min-height: 120px;
+  font: 400 14px/1.4 var(--font-mono);
+}
+
+/* The words say it's filed; the accent only adds to them. */
+.feedback-item .filed {
+  flex: none;
+  color: var(--accent);
+}
+
+.feedback-body {
+  margin: 6px 0 0;
+  font: 400 14px/1.45 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Workouts (#20) */
 .workout-link {
   display: flex;

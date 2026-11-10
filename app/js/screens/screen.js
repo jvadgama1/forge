@@ -50,6 +50,15 @@ export function versionDay(date) {
  */
 export const pad2 = (n) => String(n).padStart(2, "0");
 
+/**
+ * A clock time in local time: "7:42 pm", "12:05 am".
+ * @param {Date} time
+ */
+export function clockTime(time) {
+  const hour = time.getHours() % 12 || 12;
+  return `${hour}:${pad2(time.getMinutes())} ${time.getHours() < 12 ? "am" : "pm"}`;
+}
+
 /** @param {number} value e.g. 186.67 → "187" */
 export const whole = (value) => String(Math.round(value));
 

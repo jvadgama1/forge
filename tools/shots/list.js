@@ -848,6 +848,32 @@ const WEIGHTS = {
   })),
 };
 
+/** Made-up feedback (#124), newest first, the middle one filed. */
+const FEEDBACK = {
+  feedback: [
+    {
+      id: "fb-3",
+      text: "The rest timer could buzz again when it's nearly up.",
+      sentAt: "2026-10-25T18:10:00.000Z",
+      workoutId: "w-made-up",
+      appVersion: { commit: "0a1b2c3", date: "2026-10-24T12:00:00.000Z" },
+    },
+    {
+      id: "fb-2",
+      text: "Long exercise names push Skip off the end of the row on the workout list.",
+      sentAt: "2026-10-24T07:45:00.000Z",
+      appVersion: { commit: "0a1b2c3", date: "2026-10-24T12:00:00.000Z" },
+      filed: 131,
+    },
+    {
+      id: "fb-1",
+      text: "Last week's tonnage beside this week's would help.\nMaybe on the Stats board?",
+      sentAt: "2026-10-20T12:02:00.000Z",
+      appVersion: { commit: "9f8e7d6", date: "2026-10-19T09:00:00.000Z" },
+    },
+  ],
+};
+
 /** @type {Shot[]} */
 export const SHOTS = [
   { name: "workouts", as: "owner", route: "/workouts", seed: WORKOUT },
@@ -1151,6 +1177,48 @@ export const SHOTS = [
   { name: "exercises", as: "owner", route: "/exercises" },
   { name: "coach", as: "owner", route: "/coach" },
   { name: "more", as: "owner", route: "/more" },
+  { name: "more-360", as: "owner", route: "/more", viewport: SMALL_PHONE },
+  // Feedback (#124): empty, and with made-up items, one of them filed.
+  ...[PHONE, SMALL_PHONE].flatMap((viewport) => {
+    const size = viewport === SMALL_PHONE ? "-360" : "";
+    return [
+      {
+        name: `feedback-empty${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/feedback",
+        viewport,
+      },
+      {
+        name: `feedback${size}`,
+        as: /** @type {const} */ ("owner"),
+        route: "/feedback",
+        seed: FEEDBACK,
+        viewport,
+      },
+    ];
+  }),
+  {
+    name: "feedback-sent",
+    as: "owner",
+    route: "/feedback",
+    seed: FEEDBACK,
+    steps: async (page) => {
+      await page
+        .getByRole("textbox", { name: "Feedback" })
+        .fill("A made-up note, just sent.");
+      await page.getByRole("button", { name: "Send" }).click();
+      await page.getByText("Sent.", { exact: true }).waitFor();
+    },
+  },
+  {
+    name: "feedback-refused",
+    as: "owner",
+    route: "/feedback",
+    steps: async (page) => {
+      await page.getByRole("button", { name: "Send" }).click();
+      await page.getByText("Write some feedback first").waitFor();
+    },
+  },
   // The app version and the update bar (#129).
   ...[PHONE, SMALL_PHONE].flatMap((viewport) => {
     const size = viewport === SMALL_PHONE ? "-360" : "";

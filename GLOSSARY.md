@@ -128,6 +128,10 @@ _Avoid_: PR (collides with "pull request" in this project's process vocabulary)
 The copy of Forge a device is running, named by its commit. Each deploy makes a new one. The screen calls it "Version"; it has nothing to do with a routine version.
 _Avoid_: Build, release
 
+**Feedback item**:
+A note about the app itself that the user sends from the Feedback screen, saved with when it was sent, the app version and any workout in progress. It is filed once an issue has been opened from it.
+_Avoid_: Bug report, comment (a comment belongs to an issue or pull request)
+
 ## Coaching
 
 **Coach**:

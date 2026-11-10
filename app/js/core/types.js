@@ -214,6 +214,24 @@
  */
 
 /**
+ * Feedback the maintainer sent from the app (GLOSSARY: Feedback item; #124),
+ * for the agent to read with `npm run feedback`.
+ * @typedef {object} Feedback
+ * @property {string} id
+ * @property {string} text As typed, trimmed.
+ * @property {string} sentAt ISO 8601 timestamp.
+ * @property {string} [workoutId] The workout in progress when it was sent.
+ * @property {AppVersion} appVersion The app version it was sent from (#129).
+ * @property {number} [filed] The issue it was filed as.
+ */
+
+/**
+ * A deploy of the app (#129): its commit, short ("02c4ce5"), and when it was
+ * deployed (ISO 8601); "dev" and "" when unstamped.
+ * @typedef {{ commit: string, date: string }} AppVersion
+ */
+
+/**
  * A stored document: plain JSON data with a string id, unique within its
  * collection. Only strings, numbers, booleans, null, arrays and plain objects:
  * dates and times are ISO 8601 strings (e.g. "2026-10-24", or a full
