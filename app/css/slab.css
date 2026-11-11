@@ -785,6 +785,11 @@ a {
   padding-bottom: 0;
 }
 
+/* The column's last row, clear of the dock's rule at the end. */
+.logging .workout-nav {
+  margin-bottom: 14px;
+}
+
 .dock {
   position: sticky;
   bottom: var(--tabs-height);
