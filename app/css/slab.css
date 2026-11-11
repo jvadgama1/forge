@@ -34,9 +34,13 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
   --tap: 44px;
-  /* The bottom tab bar, as tall as it's drawn; a side rail on a wide screen
-     takes none of the height. */
-  --tabs-height: calc(52px + env(safe-area-inset-bottom));
+  /* The space above a screen and each side of its rows. */
+  --view-top: 18px;
+  --gutter: 16px;
+  /* The bottom tab bar's height: its links' row and its safe-area padding
+     (.tabs). A side rail on a wide screen takes none of the height. */
+  --tab-row: 52px;
+  --tabs-height: calc(var(--tab-row) + env(safe-area-inset-bottom));
   color-scheme: dark;
 }
 
@@ -73,7 +77,7 @@ a {
 
 .view {
   flex: 1;
-  padding: 18px 16px 24px;
+  padding: var(--view-top) var(--gutter) 24px;
 }
 
 /* Bottom tabs */
@@ -88,7 +92,7 @@ a {
 }
 
 .tabs a {
-  min-height: 52px;
+  min-height: var(--tab-row);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -774,7 +778,7 @@ a {
 .logging {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 18px - var(--tabs-height));
+  min-height: calc(100dvh - var(--view-top) - var(--tabs-height));
 }
 
 .view:not(.two-pane):has(.logging) {
@@ -785,8 +789,8 @@ a {
   position: sticky;
   bottom: var(--tabs-height);
   z-index: 1;
-  margin: auto -16px 0;
-  padding: 10px 16px;
+  margin: auto calc(-1 * var(--gutter)) 0;
+  padding: 10px var(--gutter);
   border-top: 2px solid var(--rule-strong);
   background: var(--ground);
 }

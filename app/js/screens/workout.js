@@ -637,7 +637,7 @@ export async function workoutScreen({
   // with Log set, and the rest bar while resting, always in reach (#63).
   const column = h(
     "div",
-    { class: "logging-column" },
+    {},
     ...workoutHeader({
       workout,
       title: await forge.workoutTitle(workout),
