@@ -34,6 +34,13 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
   --tap: 44px;
+  /* The space above a screen and each side of its rows. */
+  --view-top: 18px;
+  --gutter: 16px;
+  /* The bottom tab bar's height: its links' row and its safe-area padding
+     (.tabs). A side rail on a wide screen takes none of the height. */
+  --tab-row: 52px;
+  --tabs-height: calc(var(--tab-row) + env(safe-area-inset-bottom));
   color-scheme: dark;
 }
 
@@ -70,7 +77,7 @@ a {
 
 .view {
   flex: 1;
-  padding: 18px 16px 24px;
+  padding: var(--view-top) var(--gutter) 24px;
 }
 
 /* Bottom tabs */
@@ -85,7 +92,7 @@ a {
 }
 
 .tabs a {
-  min-height: 52px;
+  min-height: var(--tab-row);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -759,6 +766,50 @@ a {
 }
 
 .rest-actions .chip[hidden] {
+  display: none;
+}
+
+/* The logging screen's dock (#63): Log set, and the rest bar above it while
+   resting, pinned just above the tab bar while the column scrolls behind.
+   A rule along its top edge and the ground behind it set it apart from the
+   column, so it isn't told apart by colour. The screen fills the height
+   above the tabs, so a short column still leaves the dock at its foot; at
+   the end of a long one, the column's last row scrolls clear above it. */
+.logging {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--view-top) - var(--tabs-height));
+}
+
+.view:not(.two-pane):has(.logging) {
+  padding-bottom: 0;
+}
+
+/* The column's last row, clear of the dock's rule at the end. */
+.logging .workout-nav {
+  margin-bottom: 14px;
+}
+
+.dock {
+  position: sticky;
+  bottom: var(--tabs-height);
+  z-index: 1;
+  margin: auto calc(-1 * var(--gutter)) 0;
+  padding: 10px var(--gutter);
+  border-top: 2px solid var(--rule-strong);
+  background: var(--ground);
+}
+
+.dock .rest {
+  margin: 0 0 10px;
+}
+
+/* A failed log or undo says why under Log set; empty, it takes no room. */
+.dock .lede {
+  margin: 8px 0 0;
+}
+
+.dock .lede:empty {
   display: none;
 }
 
@@ -1455,6 +1506,17 @@ a.pick {
 
   .view.two-pane {
     max-width: none;
+  }
+
+  /* The tabs are a side rail: the dock (#63) pins to the window's foot,
+     as wide as the column. */
+  :root {
+    --tabs-height: 0px;
+  }
+
+  .dock {
+    margin-inline: 0;
+    padding-inline: 0;
   }
 
   /* The Stats board (#90) keeps one column until there's room for two

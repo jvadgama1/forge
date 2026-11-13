@@ -113,6 +113,89 @@ const rowsFit = async (page) => {
   if (spilling.length) throw new Error(`Spilling: ${spilling}`);
 };
 
+/**
+ * Fails the shot unless Log set stays in reach on the logging screen (#63),
+ * both at the top of the screen and scrolled to its end: whole, inside the
+ * gutters, and pinned just above the tab bar (the bottom of the screen
+ * where the tabs are a side rail), the same distance from it at both ends.
+ * While resting, and only then, the rest bar shows whole, right above Log
+ * set. Scrolled to the end, the column's last row, the previous/next links,
+ * shows above them both. Leaves the screen scrolled back to the top.
+ * @param {Page} page
+ * @param {boolean} resting
+ */
+const logSetInReach = async (page, resting) => {
+  const log = page.getByRole("button", { name: /^Log set \d+/ });
+  const timer = page.getByRole("timer");
+  await log.waitFor();
+  await inGutters(page, ".dock .button");
+  /** @param {import("playwright-core").Locator} locator */
+  const box = async (locator) => {
+    const found = await locator.boundingBox();
+    if (!found) throw new Error(`Not on screen: ${locator}`);
+    return { top: found.y, bottom: found.y + found.height };
+  };
+  const screen = /** @type {{ height: number }} */ (page.viewportSize());
+  const tabs = await page
+    .getByRole("navigation", { name: "Main" })
+    .boundingBox();
+  // The tab bar along the bottom, or a side rail that starts at the top.
+  const floor = tabs && tabs.y > 0 ? tabs.y : screen.height;
+  const problems = [];
+  /** @type {number[]} */
+  const gaps = [];
+  for (const end of ["top", "end"]) {
+    await page.evaluate(
+      (y) => globalThis.scrollTo(0, y),
+      end === "top" ? 0 : 1e6,
+    );
+    const button = await box(log);
+    if (button.top < 0 || button.bottom > floor)
+      problems.push(`at the ${end}, Log set isn't whole above the tab bar`);
+    gaps.push(Math.round(floor - button.bottom));
+    let above = button.top;
+    if ((await timer.isVisible()) !== resting)
+      problems.push(
+        `at the ${end}, the rest bar ${resting ? "isn't" : "is"} showing`,
+      );
+    else if (resting) {
+      const rest = await box(timer);
+      if (rest.top < 0 || rest.bottom > button.top)
+        problems.push(`at the ${end}, the rest bar isn't whole above Log set`);
+      if (button.top - rest.bottom > 16)
+        problems.push(`at the ${end}, the rest bar isn't with Log set`);
+      above = rest.top;
+    }
+    if (
+      end === "end" &&
+      (await box(page.locator(".workout-nav"))).bottom > above
+    )
+      problems.push("at the end, the last row is hidden behind Log set");
+  }
+  if (gaps[0] !== gaps[1] || gaps[0] > 16)
+    problems.push(
+      `Log set isn't pinned above the tab bar (${gaps[0]} px from it at the top, ${gaps[1]} px at the end)`,
+    );
+  await page.evaluate(() => globalThis.scrollTo(0, 0));
+  if (problems.length)
+    throw new Error(`Log set out of reach: ${problems.join("; ")}`);
+};
+
+/**
+ * A logging screen's shot that also checks Log set stays in reach (#63)
+ * once its steps have run, resting or not.
+ * @param {Shot} shot
+ * @param {{ resting?: boolean }} [options]
+ * @returns {Shot}
+ */
+const inReach = (shot, { resting = false } = {}) => ({
+  ...shot,
+  steps: async (page) => {
+    await shot.steps?.(page);
+    await logSetInReach(page, resting);
+  },
+});
+
 /** Three made-up gyms, Work last used. */
 const GYMS = {
   gyms: [
@@ -352,6 +435,41 @@ const STATS = {
       ],
     ]),
   ]),
+};
+
+/**
+ * The workout in progress further on (#63): four bench sets logged, a
+ * warm-up and three working sets, so set 05 is next.
+ */
+const WORKOUT_MANY = {
+  ...WORKOUT,
+  workouts: WORKOUT.workouts.map((workout) =>
+    workout.id === "w-now"
+      ? {
+          ...workout,
+          entries: workout.entries.map((entry, i) =>
+            i === 0
+              ? {
+                  ...entry,
+                  sets: [
+                    ...entry.sets,
+                    ...[
+                      [135, 8, 2],
+                      [135, 7, 1],
+                    ].map(([load, reps, rir], j) => ({
+                      load,
+                      unit: "lb",
+                      reps,
+                      rir,
+                      loggedAt: `2026-10-25T18:1${2 + j * 4}:00.000Z`,
+                    })),
+                  ],
+                }
+              : entry,
+          ),
+        }
+      : workout,
+  ),
 };
 
 /** A workout just started, nothing added yet. */
@@ -900,12 +1018,14 @@ export const SHOTS = [
     ["type-assisted", "assisted-pull-up"],
     ["type-timed", "farmers-carry"],
     ["type-cardio", "treadmill"],
-  ].map(([name, exerciseId]) => ({
-    name,
-    as: /** @type {const} */ ("owner"),
-    route: `/log/ex/${exerciseId}`,
-    seed: TYPES,
-  })),
+  ].map(([name, exerciseId]) =>
+    inReach({
+      name,
+      as: "owner",
+      route: `/log/ex/${exerciseId}`,
+      seed: TYPES,
+    }),
+  ),
   {
     name: "type-history",
     as: "owner",
@@ -956,7 +1076,7 @@ export const SHOTS = [
   },
   // The wide layout (#23): a side rail, and list-and-item pages in two
   // panes. One at 1920 px and one at a 360 px phone check the extremes.
-  desktop("desktop-log", "/log", WORKOUT),
+  inReach(desktop("desktop-log", "/log", WORKOUT)),
   desktop("desktop-workouts", "/workouts", WORKOUT),
   desktop("desktop-workout", "/workouts/w-2026-10-14", WORKOUT),
   desktop("desktop-routine", "/routines/r-ppl", ROUTINE),
@@ -997,12 +1117,12 @@ export const SHOTS = [
   },
   // Supersets (#17): paired, logging a set moves to the partner with no
   // rest, pairing in two taps, and the routine editor's planned pairs.
-  {
+  inReach({
     name: "superset",
     as: "owner",
     route: "/log/ex/barbell-bench-press",
     seed: PAIRED,
-  },
+  }),
   {
     name: "superset-logged",
     as: "owner",
@@ -1021,14 +1141,14 @@ export const SHOTS = [
   },
   // The set-type row at 360 px, its longest (#110): Warm-up, Drop set and
   // Add to superset… on one line, here and with Undo armed above it.
-  {
+  inReach({
     name: "superset-360",
     as: "owner",
     route: "/log/ex/barbell-bench-press",
     seed: PAIRED,
     viewport: SMALL_PHONE,
     scrollTo: ".set-type-row",
-  },
+  }),
   {
     name: "superset-undo-360",
     as: "owner",
@@ -1228,14 +1348,14 @@ export const SHOTS = [
       await page.getByText("Up to date").waitFor();
     };
     return [
-      {
+      inReach({
         name: `update-bar${size}`,
-        as: /** @type {const} */ ("owner"),
+        as: "owner",
         route: "/log",
         seed: WORKOUT,
-        update: /** @type {const} */ ("ready"),
+        update: "ready",
         viewport,
-      },
+      }),
       {
         name: `more-version${size}`,
         as: /** @type {const} */ ("owner"),
@@ -1340,7 +1460,75 @@ export const SHOTS = [
       await page.getByRole("button", { name: /Start freestyle/ }).waitFor();
     },
   },
-  { name: "workout", as: "owner", route: "/log", seed: WORKOUT },
+  // The logging screen at 390 and 360 px: the first set, set 03 with two
+  // logged, set 05 with four logged, resting, resting after a new record,
+  // and after Skip.
+  ...[PHONE, SMALL_PHONE].flatMap((viewport) => {
+    const size = viewport === SMALL_PHONE ? "-360" : "";
+    /** @type {Array<[Shot, { resting?: boolean }?]>} */
+    const shots = [
+      [{ name: `workout${size}`, as: "owner", route: "/log", seed: WORKOUT }],
+      [
+        {
+          name: `workout-many${size}`,
+          as: "owner",
+          route: "/log",
+          seed: WORKOUT_MANY,
+          steps: async (page) => {
+            await page.getByRole("button", { name: /Log set 05/ }).waitFor();
+          },
+        },
+      ],
+      [
+        {
+          name: `workout-next${size}`,
+          as: "owner",
+          route: "/log/ex/lat-pulldown",
+          seed: WORKOUT,
+        },
+      ],
+      [
+        {
+          name: `record${size}`,
+          as: "owner",
+          route: "/log",
+          seed: WORKOUT,
+          steps: async (page) => {
+            await page.getByRole("textbox", { name: "Load in lb" }).fill("140");
+            await page.getByRole("button", { name: /Log set 03/ }).click();
+            await page.getByText(/New record/).waitFor();
+          },
+        },
+        { resting: true },
+      ],
+      [
+        {
+          name: `rest${size}`,
+          as: "owner",
+          route: "/log",
+          seed: WORKOUT,
+          steps: logThenRest(0),
+        },
+        { resting: true },
+      ],
+      [
+        {
+          name: `rest-skipped${size}`,
+          as: "owner",
+          route: "/log",
+          seed: WORKOUT,
+          steps: async (page) => {
+            await logThenRest(24)(page);
+            await page.getByRole("button", { name: "Skip" }).click();
+            await page.getByRole("timer").waitFor({ state: "hidden" });
+          },
+        },
+      ],
+    ];
+    return shots.map(([shot, options]) =>
+      inReach({ ...shot, viewport }, options),
+    );
+  }),
   {
     name: "workout-choices",
     as: "owner",
@@ -1400,59 +1588,30 @@ export const SHOTS = [
       await page.evaluate(() => globalThis.scrollBy(0, 400));
     },
   },
-  {
-    name: "record",
-    as: "owner",
-    route: "/log",
-    seed: WORKOUT,
-    steps: async (page) => {
-      await page.getByRole("textbox", { name: "Load in lb" }).fill("140");
-      await page.getByRole("button", { name: /Log set 03/ }).click();
-      await page.getByText(/New record/).waitFor();
+  inReach(
+    {
+      name: "rest-paused",
+      as: "owner",
+      route: "/log",
+      seed: WORKOUT,
+      steps: async (page) => {
+        await logThenRest(24)(page);
+        await page.getByRole("button", { name: "Pause" }).click();
+        await page.getByText("Paused", { exact: true }).waitFor();
+      },
     },
-  },
-  {
-    name: "rest",
-    as: "owner",
-    route: "/log",
-    seed: WORKOUT,
-    steps: logThenRest(0),
-  },
-  {
-    name: "rest-paused",
-    as: "owner",
-    route: "/log",
-    seed: WORKOUT,
-    steps: async (page) => {
-      await logThenRest(24)(page);
-      await page.getByRole("button", { name: "Pause" }).click();
-      await page.getByText("Paused", { exact: true }).waitFor();
+    { resting: true },
+  ),
+  inReach(
+    {
+      name: "rest-over",
+      as: "owner",
+      route: "/log",
+      seed: WORKOUT,
+      steps: logThenRest(91),
     },
-  },
-  {
-    name: "rest-over",
-    as: "owner",
-    route: "/log",
-    seed: WORKOUT,
-    steps: logThenRest(91),
-  },
-  {
-    name: "rest-skipped",
-    as: "owner",
-    route: "/log",
-    seed: WORKOUT,
-    steps: async (page) => {
-      await logThenRest(24)(page);
-      await page.getByRole("button", { name: "Skip" }).click();
-      await page.getByRole("timer").waitFor({ state: "hidden" });
-    },
-  },
-  {
-    name: "workout-next",
-    as: "owner",
-    route: "/log/ex/lat-pulldown",
-    seed: WORKOUT,
-  },
+    { resting: true },
+  ),
   { name: "workout-empty", as: "owner", route: "/log", seed: WORKOUT_EMPTY },
   {
     name: "workout-list",

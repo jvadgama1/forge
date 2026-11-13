@@ -1,7 +1,7 @@
 // The logging screen (#11), laid out as the Slab prototype: one exercise at
 // a time, its sets so far, a big two-number entry with steppers (load × reps,
 // or what the exercise type measures: #19), RIR, warm-up / drop-set flags and
-// one button to log the set.
+// one button to log the set, docked above the tab bar (#63).
 import { h } from "../dom.js";
 import { muscleGroup } from "../core/muscle-groups.js";
 import { TYPE_RULES } from "../core/exercise-types.js";
@@ -633,8 +633,10 @@ export async function workoutScreen({
   const targets = await forge.targets(workout, exerciseId);
   const suggested = await forge.suggestedWeight(workout, exerciseId);
   const primary = exercise && muscleGroup(exercise.primary[0]);
-  return h(
-    "section",
+  // The column scrolls; the dock below it stays pinned above the tab bar
+  // with Log set, and the rest bar while resting, always in reach (#63).
+  const column = h(
+    "div",
     {},
     ...workoutHeader({
       workout,
@@ -696,7 +698,6 @@ export async function workoutScreen({
     justLogged?.records.length
       ? await celebration(forge, justLogged, exerciseId)
       : null,
-    restBar(),
     h(
       "div",
       { class: "entry" },
@@ -714,8 +715,12 @@ export async function workoutScreen({
     // The set type, with the superset button at the end of its row (#104).
     h("div", { class: "set-type-row" }, choices.setType, superset.open),
     superset.choices,
-    logButton,
-    status,
     nav,
+  );
+  return h(
+    "section",
+    { class: "logging" },
+    column,
+    h("div", { class: "dock" }, restBar(), logButton, status),
   );
 }
