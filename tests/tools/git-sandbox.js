@@ -16,8 +16,10 @@ export const gitFreeEnv = () =>
   );
 
 /**
- * A POSIX sh: on Windows, Git's own (PowerShell has none on PATH; Git's
- * exec path is <Git>/mingw64/libexec/git-core, its sh is <Git>/bin/sh.exe).
+ * A POSIX sh by absolute path, so PATH never matters: on Windows, Git's own
+ * (PowerShell has none on PATH; Git's exec path is
+ * <Git>/mingw64/libexec/git-core, its sh is <Git>/bin/sh.exe); elsewhere
+ * /bin/sh, which POSIX systems always have.
  */
 export const SH =
   process.platform === "win32"
@@ -32,4 +34,4 @@ export const SH =
         "bin",
         "sh.exe",
       )
-    : "sh";
+    : "/bin/sh";
