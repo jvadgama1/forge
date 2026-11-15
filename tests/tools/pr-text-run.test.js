@@ -1,9 +1,8 @@
-import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { gitFreeEnv } from "./git-sandbox.js";
+import { git, run } from "./git-sandbox.js";
 
 const script = resolve("tools/pr-text/pr-text.js");
 
@@ -18,25 +17,17 @@ describe("the PR text check in CI (#153)", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  /** @param {string[]} args */
-  const git = (args) =>
-    execFileSync(
-      "git",
-      ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args],
-      { cwd: dir, encoding: "utf8", env: gitFreeEnv() },
-    ).trim();
-
   /**
    * A throwaway repo with one base commit, then the PR's commits.
    * @param {string[]} messages
    */
   const repo = (messages) => {
-    git(["init", "-q"]);
-    git(["commit", "-q", "--allow-empty", "-m", "base"]);
-    const base = git(["rev-parse", "HEAD"]);
+    git(dir, ["init", "-q"]);
+    git(dir, ["commit", "-q", "--allow-empty", "-m", "base"]);
+    const base = git(dir, ["rev-parse", "HEAD"]);
     for (const message of messages)
-      git(["commit", "-q", "--allow-empty", "-m", message]);
-    return { base, head: git(["rev-parse", "HEAD"]) };
+      git(dir, ["commit", "-q", "--allow-empty", "-m", message]);
+    return { base, head: git(dir, ["rev-parse", "HEAD"]) };
   };
 
   /**
@@ -44,7 +35,7 @@ describe("the PR text check in CI (#153)", () => {
    * @param {{ title: string, body: string | null }} pr
    * @param {string[]} [messages] the PR's commit messages
    */
-  const run = (pr, messages = []) => {
+  const runCheck = (pr, messages = []) => {
     const { base, head } = repo(messages);
     const event = join(dir, "event.json");
     writeFileSync(
@@ -53,21 +44,20 @@ describe("the PR text check in CI (#153)", () => {
         pull_request: { ...pr, base: { sha: base }, head: { sha: head } },
       }),
     );
-    return spawnSync(process.execPath, [script], {
+    return run(process.execPath, [script], {
       cwd: dir,
-      encoding: "utf8",
-      env: { ...gitFreeEnv(), GITHUB_EVENT_PATH: event },
+      env: { GITHUB_EVENT_PATH: event },
     });
   };
 
   it("passes a PR with no conflict, and one with no body", () => {
-    expect(run({ title: "fix: x", body: "Closes #5" }).status).toBe(0);
+    expect(runCheck({ title: "fix: x", body: "Closes #5" }).status).toBe(0);
     rmSync(join(dir, ".git"), { recursive: true, force: true });
-    expect(run({ title: "fix: x", body: null }).status).toBe(0);
+    expect(runCheck({ title: "fix: x", body: null }).status).toBe(0);
   });
 
   it("fails a conflict in a commit message and says which commit", () => {
-    const result = run({ title: "fix: x", body: "Part of #5" }, [
+    const result = runCheck({ title: "fix: x", body: "Part of #5" }, [
       "feat: one",
       "feat: two\n\nFixes #5",
     ]);
@@ -77,9 +67,10 @@ describe("the PR text check in CI (#153)", () => {
 
   it("reads hostile PR text and commit messages as data: nothing in them runs", () => {
     const hostile = `$(touch ${pwned}) \`touch ${pwned}\` "; touch ${pwned}; exit 0; " closes #9`;
-    const result = run({ title: hostile, body: `Part of #9\n${hostile}` }, [
-      hostile,
-    ]);
+    const result = runCheck(
+      { title: hostile, body: `Part of #9\n${hostile}` },
+      [hostile],
+    );
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("title");
     expect(result.stderr).toContain("body");
