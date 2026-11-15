@@ -1,5 +1,5 @@
 import { h } from "../dom.js";
-import { clockTime, listDate, pad2, screen } from "./screen.js";
+import { clockTime, listDate, localDay, screen } from "./screen.js";
 
 /** @import { FeedbackItem } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
@@ -11,9 +11,7 @@ import { clockTime, listDate, pad2, screen } from "./screen.js";
  * @param {string} today YYYY-MM-DD
  */
 function sentWhen(sentAt, today) {
-  const time = new Date(sentAt);
-  const date = `${time.getFullYear()}-${pad2(time.getMonth() + 1)}-${pad2(time.getDate())}`;
-  return `${listDate(date, today)} · ${clockTime(time)}`;
+  return `${listDate(localDay(sentAt), today)} · ${clockTime(new Date(sentAt))}`;
 }
 
 /**

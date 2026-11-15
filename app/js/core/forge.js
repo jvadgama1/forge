@@ -177,62 +177,69 @@ function recordsOf(counted, type) {
 const MAX_INSIGHTS = 6;
 
 /**
- * Text a coaching session needs: a non-blank string, trimmed; or undefined.
+ * Text a coaching session needs, trimmed; refused when it's missing or blank.
  * @param {unknown} value
+ * @param {string} message what the refusal says
  */
-const filled = (value) =>
-  typeof value === "string" && value.trim() ? value.trim() : undefined;
+function required(value, message) {
+  if (typeof value !== "string" || !value.trim()) throw new Error(message);
+  return value.trim();
+}
 
 /**
  * A drafted coaching session as it's stored (#172), or an error saying what
- * its shape is missing: a verdict, 1 to 6 insights each with a title, body
- * and level, and every commitment, follow-up and correction complete. Text
- * is trimmed, and fields the shape doesn't have are dropped.
+ * its shape is missing: a one-line verdict, 1 to 6 insights each with a
+ * title, body and level, and every commitment, follow-up and correction
+ * complete. Text is trimmed, and fields the shape doesn't have are dropped.
  * @param {CoachingSessionDraft} draft
  * @param {string} savedAt
  * @returns {CoachingSession}
  */
 function coachingSession(draft, savedAt) {
-  const id = filled(draft.id);
-  if (!id) throw new Error("A coaching session needs an id");
-  const verdict = filled(draft.verdict);
-  if (!verdict) throw new Error("A coaching session needs a verdict");
+  const id = required(draft.id, "A coaching session needs an id");
+  const verdict = required(draft.verdict, "A coaching session needs a verdict");
+  // One line, as the page shows it (spec #170, Data shape).
+  if (/[\r\n]/.test(verdict)) throw new Error("A verdict is one line");
   const { insights = [], commitments = [], followUps = [] } = draft;
   if (insights.length < 1 || insights.length > MAX_INSIGHTS)
     throw new Error(`A coaching session has 1 to ${MAX_INSIGHTS} insights`);
+  const insight = "An insight needs a title and a body";
+  const followUp =
+    "A follow-up needs its coaching session, commitment and result";
+  const correction = "A correction needs its coaching session and text";
   return {
     id,
     savedAt,
     verdict,
     insights: insights.map(({ title, body, level }) => {
-      const [t, b] = [filled(title), filled(body)];
-      if (!t || !b) throw new Error("An insight needs a title and a body");
+      const kept = {
+        title: required(title, insight),
+        body: required(body, insight),
+      };
       if (level !== "training" && level !== "strategy")
         throw new Error("An insight is at the training or the strategy level");
-      return { title: t, body: b, level };
+      return { ...kept, level };
     }),
-    commitments: commitments.map(({ text }) => {
-      const t = filled(text);
-      if (!t) throw new Error("A commitment needs its text");
-      return { text: t };
-    }),
+    commitments: commitments.map(({ text }) => ({
+      text: required(text, "A commitment needs its text"),
+    })),
     followUps: followUps.map(({ sessionId, commitment, result, checkedBy }) => {
-      const [s, c, r] = [filled(sessionId), filled(commitment), filled(result)];
-      if (!s || !c || !r)
-        throw new Error("A follow-up needs its session, commitment and result");
+      const kept = {
+        sessionId: required(sessionId, followUp),
+        commitment: required(commitment, followUp),
+        result: required(result, followUp),
+      };
       // The user's own account never reads as a measured one (spec #170,
       // story 52).
       if (checkedBy !== "data" && checkedBy !== "you")
         throw new Error("A follow-up was checked against data or by you");
-      return { sessionId: s, commitment: c, result: r, checkedBy };
+      return { ...kept, checkedBy };
     }),
     ...(draft.corrections?.length && {
-      corrections: draft.corrections.map(({ sessionId, text }) => {
-        const [s, t] = [filled(sessionId), filled(text)];
-        if (!s || !t)
-          throw new Error("A correction needs its session and text");
-        return { sessionId: s, text: t };
-      }),
+      corrections: draft.corrections.map(({ sessionId, text }) => ({
+        sessionId: required(sessionId, correction),
+        text: required(text, correction),
+      })),
     }),
   };
 }

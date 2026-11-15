@@ -1,5 +1,5 @@
 import { h } from "../dom.js";
-import { listDate, pad2, screen } from "./screen.js";
+import { listDate, localDay, screen } from "./screen.js";
 
 /** @import { CoachingSession, Insight } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
@@ -25,11 +25,7 @@ const CHECKED_BY = {
  * @param {string} savedAt ISO 8601
  * @param {string} today YYYY-MM-DD
  */
-function savedDay(savedAt, today) {
-  const time = new Date(savedAt);
-  const date = `${time.getFullYear()}-${pad2(time.getMonth() + 1)}-${pad2(time.getDate())}`;
-  return listDate(date, today);
-}
+const savedDay = (savedAt, today) => listDate(localDay(savedAt), today);
 
 /**
  * The Coach page (#172): the latest coaching session in full, or, before
@@ -71,7 +67,7 @@ export function coachView({ forge }) {
  *   a correction corrects
  * @param {string} today YYYY-MM-DD
  */
-export function coachingSessionView(session, sessions, today) {
+function coachingSessionView(session, sessions, today) {
   const {
     savedAt,
     verdict,

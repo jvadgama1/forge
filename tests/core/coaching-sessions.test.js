@@ -106,6 +106,11 @@ describe("coaching sessions (#172)", () => {
   it.each([
     ["no id", { id: "" }, "A coaching session needs an id"],
     ["no verdict", { verdict: "  " }, "A coaching session needs a verdict"],
+    [
+      "a verdict over two lines",
+      { verdict: "Stay hard.\nReally." },
+      "A verdict is one line",
+    ],
     ["no insights", { insights: [] }, "A coaching session has 1 to 6 insights"],
     [
       "7 insights",
@@ -150,17 +155,17 @@ describe("coaching sessions (#172)", () => {
     [
       "a follow-up with no result",
       { followUps: [{ ...followUp, result: "" }] },
-      "A follow-up needs its session, commitment and result",
+      "A follow-up needs its coaching session, commitment and result",
     ],
     [
       "a follow-up with no session",
       { followUps: [{ ...followUp, sessionId: undefined }] },
-      "A follow-up needs its session, commitment and result",
+      "A follow-up needs its coaching session, commitment and result",
     ],
     [
       "a correction with no text",
       { corrections: [{ sessionId: "cs-0", text: "" }] },
-      "A correction needs its session and text",
+      "A correction needs its coaching session and text",
     ],
   ])("refuse %s, storing nothing", async (_, change, message) => {
     const { f } = setup();

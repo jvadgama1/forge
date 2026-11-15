@@ -1063,7 +1063,7 @@ const COACHING = {
         insight(
           "strategy",
           "Sleep is your cheapest gain",
-          "Short nights blunt recovery between hard sessions. Guard the bedtime before adding volume.",
+          "Short nights blunt recovery between hard workouts. Guard the bedtime before adding volume.",
         ),
         insight(
           "strategy",

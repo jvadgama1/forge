@@ -237,6 +237,18 @@
  */
 
 /**
+ * An action the user agrees in a coaching session to take before the next
+ * one (GLOSSARY: Commitment).
+ * @typedef {{ text: string }} Commitment
+ */
+
+/**
+ * An earlier coaching session's insight now known to be wrong, recorded in a
+ * later one rather than editing it (spec #170, story 54).
+ * @typedef {{ sessionId: string, text: string }} Correction
+ */
+
+/**
  * The result of an earlier coaching session's commitment (GLOSSARY:
  * Follow-up): checked against logged data, or from the user's own account.
  * @typedef {{ sessionId: string, commitment: string, result: string, checkedBy: "data" | "you" }} FollowUp
@@ -250,10 +262,9 @@
  * @property {string} savedAt ISO 8601 timestamp.
  * @property {string} verdict One line, in the coach's voice.
  * @property {Insight[]} insights 1 to 6.
- * @property {{ text: string }[]} commitments
+ * @property {Commitment[]} commitments
  * @property {FollowUp[]} followUps
- * @property {{ sessionId: string, text: string }[]} [corrections] Of earlier
- *   coaching sessions' insights now known to be wrong.
+ * @property {Correction[]} [corrections]
  */
 
 /**
