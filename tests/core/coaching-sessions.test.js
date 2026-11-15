@@ -68,6 +68,25 @@ describe("coaching sessions (#172)", () => {
     });
   });
 
+  // "Last coached N days ago" (#176; spec #170, story 67), counted in
+  // calendar days where the user is, by the core's clock.
+  it("count the calendar days since they were saved", async () => {
+    const { f, later } = setup();
+    const saved = await f.saveCoachingSession(draft("cs-1"));
+    expect(f.daysSinceSaved(saved)).toBe(0);
+    later(24);
+    expect(f.daysSinceSaved(saved)).toBe(1);
+    later(21 * 24);
+    expect(f.daysSinceSaved(saved)).toBe(22);
+  });
+
+  it("count one saved after today, as a clock set behind may give, as today", async () => {
+    const { f, later } = setup();
+    const saved = await f.saveCoachingSession(draft("cs-1"));
+    later(-48);
+    expect(f.daysSinceSaved(saved)).toBe(0);
+  });
+
   it("are only added: one whose id exists is refused, and the stored one is unchanged", async () => {
     const { f, later } = setup();
     const saved = await f.saveCoachingSession(draft("cs-1"));

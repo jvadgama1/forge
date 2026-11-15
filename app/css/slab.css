@@ -1456,15 +1456,10 @@ select.small-number {
   margin-top: 36px;
 }
 
-/* The one open, marked by more than colour, as beside a list (#23). */
-.coaching-link[aria-current="page"] {
-  box-shadow: inset 3px 0 0 var(--accent);
-  padding-left: 12px;
-}
-
 /* On a wide screen (#176; spec #170, story 72): the coaching session open
-   on the left, the earlier ones on the right, staying in view while the
-   left scrolls. */
+   on the left, the earlier ones on the right. The list keeps #23's list
+   rules (below, with .pane-list): it stays in view while the left scrolls,
+   and marks the one open. */
 @media (min-width: 960px) {
   .view:has(.coach-page) {
     max-width: none;
@@ -1478,12 +1473,7 @@ select.small-number {
   }
 
   .coach-earlier {
-    position: sticky;
-    top: 0;
-    max-height: 100dvh;
-    overflow-y: auto;
     margin-top: 0;
-    padding-right: 8px;
   }
 
   /* Level with the first line on the left, a label's own top margin. */
@@ -1671,7 +1661,8 @@ a.pick {
   }
 
   /* The list stays in view while the item beside it scrolls. */
-  .pane-list {
+  .pane-list,
+  .coach-earlier {
     position: sticky;
     top: 0;
     max-height: 100dvh;
@@ -1691,7 +1682,8 @@ a.pick {
   }
 
   /* The item open beside the list, marked in it by more than colour. */
-  .pane-list a[aria-current="page"] {
+  .pane-list a[aria-current="page"],
+  .coach-earlier a[aria-current="page"] {
     box-shadow: inset 3px 0 0 var(--accent);
     padding-left: 12px;
   }
