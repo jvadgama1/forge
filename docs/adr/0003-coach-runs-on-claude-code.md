@@ -1,5 +1,7 @@
 # The coach runs on Claude Code, not the Claude API
 
+**Replaced by [ADR-0008](0008-coach-runs-on-the-laptop-only.md).**
+
 The coach is a Claude Code skill (`/coach`) plus a scheduled Claude Code cloud routine for the weekly review, running on the user's Claude subscription. The app never calls an LLM itself and holds no API key. The user preferred no per-use API cost, and expects to use the coach about once a week.
 
 ## Consequences

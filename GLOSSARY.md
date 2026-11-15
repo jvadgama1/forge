@@ -135,16 +135,30 @@ _Avoid_: Bug report, comment (a comment belongs to an issue or pull request)
 ## Coaching
 
 **Coach**:
-The AI persona (Goggins intensity, Huberman explanations) that reviews training and proposes changes. The only AI feature.
+The AI persona (Goggins intensity, mechanism-first explanations) that leads coaching sessions on the laptop. The only AI feature.
+
+**Coaching session**:
+One conversation with the coach and, once the user approves it, its saved entry: a date, a one-line verdict, insights, commitments, follow-ups and any corrections to earlier insights. A saved coaching session is never changed afterwards.
+_Avoid_: Weekly review, debrief, review, report, session (a session alone is ambiguous with a workout)
+
+**Insight**:
+One point the coach makes in a coaching session: a title and the reasoning behind it, at one of two levels. **Training** covers the training itself (sets, loads, exercise choice, progress, volume, frequency); **Strategy** covers the bigger picture (goals, the plan's structure, recovery, sleep, food, cardio, mobility, lifestyle).
+_Avoid_: Tip, finding, recommendation
+
+**Commitment**:
+An action the user agrees in a coaching session to take before the next one, about training or, when agreed, lifestyle.
+_Avoid_: Goal (goals belong to the coach profile), task, homework
+
+**Follow-up**:
+The result of an earlier commitment, recorded in the next coaching session, saying whether it was checked against logged data or comes from the user's own account.
+_Avoid_: Check-in
+
+**Coach notes**:
+The coach's private memory, kept on the laptop outside the repo and never uploaded: the coach profile, a running notebook and a summary of each conversation. Never shown in the app.
+_Avoid_: Memory, coach log
 
 **Coach profile**:
-What the coach always knows about the user: goals, age, body weight, experience, injuries and movements to avoid, target days per week.
-
-**Weekly review**:
-The coach's scheduled report on a week of training; skipped for a week with no workouts.
-
-**Debrief**:
-An on-demand coach report on recent workouts.
+What the coach always knows about the user (goals, age, experience, injuries and movements to avoid, target days per week, life constraints), kept as a private file in the coach notes.
 
 **Proposal**:
 A routine change written by the coach, with a change list and reasons, that does nothing until the user accepts it.
