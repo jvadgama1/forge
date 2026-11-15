@@ -34,18 +34,20 @@ export function createRestStore({
   fetch: send = globalThis.fetch,
   pageSize = 300,
 }) {
-  /** @param {string[]} segments under users/{uid} */
-  const url = (...segments) =>
-    [baseUrl, "users", uid, ...segments].map(encodeSegment).join("/");
+  const root = `${baseUrl.replace(/\/+$/, "")}/users/${encodeURIComponent(uid)}`;
 
   /**
+   * One request for a path under users/{uid}. It resolves with the answer
+   * when Firestore accepts it, or with undefined for a 404 when `missing` is
+   * allowed, and otherwise rejects with what Firestore answered.
    * @param {string} method
-   * @param {string} target the URL, query string included
-   * @param {string} what the request in a refusal's message
-   * @param {object} [body]
+   * @param {string[]} path the collection, then any document id
+   * @param {{ query?: string, body?: object, missing?: boolean }} [options]
+   * @returns {Promise<Response | undefined>}
    */
-  async function request(method, target, what, body) {
-    const answer = await send(target, {
+  async function request(method, path, { query, body, missing } = {}) {
+    const target = [root, ...path.map(encodeURIComponent)].join("/");
+    const answer = await send(query ? `${target}?${query}` : target, {
       method,
       headers: {
         Authorization: `Bearer ${await token()}`,
@@ -53,67 +55,41 @@ export function createRestStore({
       },
       ...(body && { body: JSON.stringify(body) }),
     });
-    return { answer, refuse: () => refused(answer, `${method} ${what}`) };
+    if (missing && answer.status === 404) return undefined;
+    if (!answer.ok) throw await refusal(answer, `${method} ${path.join("/")}`);
+    return answer;
   }
 
   return {
     async get(collection, id) {
-      const { answer, refuse } = await request(
-        "GET",
-        url(collection, id),
-        `${collection}/${id}`,
-      );
-      if (answer.status === 404) return undefined;
-      if (!answer.ok) throw await refuse();
-      return toDoc(await answer.json());
+      const answer = await request("GET", [collection, id], { missing: true });
+      return answer && toDoc(await answer.json());
     },
     async list(collection) {
       /** @type {Doc[]} */
       const docs = [];
-      let page = "";
+      let pageToken = "";
       do {
-        const query = `pageSize=${pageSize}${page && `&pageToken=${encodeURIComponent(page)}`}`;
-        const { answer, refuse } = await request(
-          "GET",
-          `${url(collection)}?${query}`,
-          collection,
-        );
-        if (!answer.ok) throw await refuse();
-        const body = await answer.json();
+        const query = `pageSize=${pageSize}${pageToken && `&pageToken=${encodeURIComponent(pageToken)}`}`;
+        const answer = await request("GET", [collection], { query });
+        const body = await /** @type {Response} */ (answer).json();
         for (const doc of body.documents ?? []) docs.push(toDoc(doc));
-        page = body.nextPageToken ?? "";
-      } while (page);
+        pageToken = body.nextPageToken ?? "";
+      } while (pageToken);
       return docs;
     },
     async put(collection, doc) {
       // A PATCH with no update mask replaces the whole document, or makes it.
-      const { answer, refuse } = await request(
-        "PATCH",
-        url(collection, doc.id),
-        `${collection}/${doc.id}`,
-        { fields: toFields(plain(doc)) },
-      );
-      if (!answer.ok) throw await refuse();
+      await request("PATCH", [collection, doc.id], {
+        body: { fields: toFields(plain(doc)) },
+      });
     },
     async remove(collection, id) {
       // Deleting a missing document succeeds.
-      const { answer, refuse } = await request(
-        "DELETE",
-        url(collection, id),
-        `${collection}/${id}`,
-      );
-      if (!answer.ok) throw await refuse();
+      await request("DELETE", [collection, id]);
     },
   };
 }
-
-/**
- * The base URL is kept as given; every other segment is one path segment.
- * @param {string} segment
- * @param {number} index
- */
-const encodeSegment = (segment, index) =>
-  index === 0 ? segment.replace(/\/+$/, "") : encodeURIComponent(segment);
 
 /**
  * Says what Firestore refused, from its status and error message alone: the
@@ -121,7 +97,7 @@ const encodeSegment = (segment, index) =>
  * @param {Response} answer
  * @param {string} what
  */
-async function refused(answer, what) {
+async function refusal(answer, what) {
   const body = await answer.json().catch(() => ({}));
   const status = [answer.status, body.error?.status].filter(Boolean).join(" ");
   const message = (body.error?.message ?? answer.statusText).trim();
