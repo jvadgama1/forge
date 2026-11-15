@@ -40,6 +40,7 @@ The review is the plugin's two-axis `mattpocock-skills:code-review`, not the bui
 - `npm run check`: everything CI runs (lint, typecheck, unit and emulator tests, format check). Run before pushing.
 - `npm run test:emulator`: tests needing Firebase (store contract against Firestore, security rules) in `tests/**/*.emulator.test.js`; every other `tests/**/*.test.js` runs under `npm test`. Starts the Auth and Firestore emulators under the `demo-forge` project, so nothing touches the real project. The emulators' ports are fixed in `firebase.json`, so run this (and `npm run check`, which includes it) in one session at a time. Needs Java 21 on PATH (`C:\Program Files\Microsoft\jdk-21.*`).
 - `npm run deploy:rules`: deploy `firestore.rules` to the real project (`forge-eb613`). Run after a rules change merges; uses the maintainer's Firebase CLI login.
+- Changing live data (any write to the real Firestore): follow `docs/agents/live-data.md`.
 
 ## Architecture
 
