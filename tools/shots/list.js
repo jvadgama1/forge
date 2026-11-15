@@ -1377,6 +1377,40 @@ export const SHOTS = [
     seed: COACHING,
     scrollTo: '[data-level="strategy"]',
   },
+  // Coach (#176): the earlier coaching sessions below the latest, one of
+  // them opened, and the wide layout with the latest (or the one opened) on
+  // the left and the list on the right, at the narrowest wide screen too.
+  {
+    name: "coach-earlier",
+    as: "owner",
+    route: "/coach",
+    seed: COACHING,
+    scrollTo: ".coach-earlier",
+  },
+  {
+    name: "coach-earlier-360",
+    as: "owner",
+    route: "/coach",
+    seed: COACHING,
+    viewport: SMALL_PHONE,
+    scrollTo: ".coach-earlier",
+  },
+  { name: "coach-open", as: "owner", route: "/coach/cs-2", seed: COACHING },
+  {
+    name: "coach-open-missing",
+    as: "owner",
+    route: "/coach/cs-gone",
+    seed: COACHING,
+  },
+  desktop("desktop-coach", "/coach", COACHING),
+  desktop("desktop-coach-open", "/coach/cs-1", COACHING),
+  {
+    ...desktop("desktop-coach-960", "/coach", COACHING),
+    viewport: { width: 960, height: 800 },
+  },
+  desktop("desktop-coach-first", "/coach", {
+    coachingSessions: [FIRST_COACHING],
+  }),
   { name: "more", as: "owner", route: "/more" },
   { name: "more-360", as: "owner", route: "/more", viewport: SMALL_PHONE },
   // Feedback (#124): empty, and with made-up items, one of them filed.

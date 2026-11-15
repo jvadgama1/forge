@@ -1437,6 +1437,61 @@ select.small-number {
   overflow-wrap: anywhere;
 }
 
+/* How long since the latest coaching session (#176). */
+.last-coached {
+  margin: 0 0 18px;
+  font: 700 15px/1.35 var(--font-mono);
+}
+
+/* The earlier coaching sessions (#176): a row can wrap its verdict. */
+.coaching-link {
+  padding: 10px 0;
+}
+
+.coaching-link .name {
+  overflow-wrap: anywhere;
+}
+
+.coach-earlier {
+  margin-top: 36px;
+}
+
+/* The one open, marked by more than colour, as beside a list (#23). */
+.coaching-link[aria-current="page"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 12px;
+}
+
+/* On a wide screen (#176; spec #170, story 72): the coaching session open
+   on the left, the earlier ones on the right, staying in view while the
+   left scrolls. */
+@media (min-width: 960px) {
+  .view:has(.coach-page) {
+    max-width: none;
+  }
+
+  .coach-page {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 40px;
+    align-items: start;
+  }
+
+  .coach-earlier {
+    position: sticky;
+    top: 0;
+    max-height: 100dvh;
+    overflow-y: auto;
+    margin-top: 0;
+    padding-right: 8px;
+  }
+
+  /* Level with the first line on the left, a label's own top margin. */
+  .coach-earlier > .section {
+    margin-top: 1em;
+  }
+}
+
 /* Workouts (#20) */
 .workout-link {
   display: flex;

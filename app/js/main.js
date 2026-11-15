@@ -89,6 +89,9 @@ const routes = {
     beside: { render: statsView, list: false },
   },
   "/coach": { tab: "coach", render: coachView },
+  // An earlier coaching session opened (#176): on a wide screen the Coach
+  // page lays out its own two columns, the list on the right.
+  "/coach/:id": { tab: "coach", render: coachView },
   "/more": { tab: "more", render: moreView },
   "/feedback": { tab: "more", render: feedbackView },
   "/gyms": { tab: "more", render: gymsView },
