@@ -2,40 +2,15 @@
 // insights/ (#174; spec #170, stories 62-63): what the Coach page shows, in
 // the page's order and words, for reading in a text editor.
 
+import { CHECKED_BY, LEVELS } from "../../app/js/screens/coach.js";
+import {
+  MONTHS,
+  clockTime,
+  localDay,
+  pad2,
+} from "../../app/js/screens/screen.js";
+
 /** @import { CoachingSession } from "../../app/js/core/types.js" */
-
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-/** Each level's heading, in the order the Coach page shows them. */
-const LEVELS = /** @type {const} */ ([
-  ["training", "Training"],
-  ["strategy", "Strategy"],
-]);
-
-/**
- * How a follow-up's result was found, as the Coach page says it, so the
- * user's own account never reads as a measured one (spec #170, story 52).
- */
-const CHECKED_BY = {
-  data: "Checked against logged data",
-  you: "From your own account",
-};
-
-/** @param {number} n */
-const pad2 = (n) => String(n).padStart(2, "0");
 
 /**
  * The day a coaching session was saved, in local time: "Nov 14, 2026".
@@ -51,10 +26,7 @@ export function savedDay(savedAt) {
  * @param {string} savedAt ISO 8601
  */
 export function savedWhen(savedAt) {
-  const time = new Date(savedAt);
-  const hour = time.getHours() % 12 || 12;
-  const half = time.getHours() < 12 ? "am" : "pm";
-  return `${savedDay(savedAt)} · ${hour}:${pad2(time.getMinutes())} ${half}`;
+  return `${savedDay(savedAt)} · ${clockTime(new Date(savedAt))}`;
 }
 
 /**
@@ -75,7 +47,7 @@ export function fileNames(sessions) {
   );
   for (const { id, savedAt } of oldestFirst) {
     const time = new Date(savedAt);
-    const stem = `${time.getFullYear()}-${pad2(time.getMonth() + 1)}-${pad2(time.getDate())}-${pad2(time.getHours())}${pad2(time.getMinutes())}`;
+    const stem = `${localDay(savedAt)}-${pad2(time.getHours())}${pad2(time.getMinutes())}`;
     const count = (taken.get(stem) ?? 0) + 1;
     taken.set(stem, count);
     names.set(id, count === 1 ? `${stem}.md` : `${stem}-${count}.md`);

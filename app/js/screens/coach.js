@@ -4,8 +4,11 @@ import { listDate, localDay, screen } from "./screen.js";
 /** @import { CoachingSession, Insight } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
-/** Each level's heading, in the order the page shows them (spec #170, story 66). */
-const LEVELS = /** @type {const} */ ([
+/**
+ * Each level's heading, in the order the page shows them (spec #170, story
+ * 66). The insight files in the coach notes use them too (#174).
+ */
+export const LEVELS = /** @type {const} */ ([
   ["training", "Training"],
   ["strategy", "Strategy"],
 ]);
@@ -14,7 +17,7 @@ const LEVELS = /** @type {const} */ ([
  * How a follow-up's result was found, in words, so the user's own account
  * never reads as a measured one (spec #170, story 52).
  */
-const CHECKED_BY = {
+export const CHECKED_BY = {
   data: "Checked against logged data",
   you: "From your own account",
 };

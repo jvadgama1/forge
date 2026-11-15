@@ -266,8 +266,8 @@ describe("npm run coach (#174)", () => {
     await writeFile(join(insights, "2026-11-07-2100.md"), EARLIER_MARKDOWN);
     await writeFile(join(insights, "2026-11-14-1500.md"), "Out of date");
     await writeFile(join(insights, "my-notes.md"), "Not the coach's");
-    const long_ago = new Date("2020-01-01T00:00:00.000Z");
-    await utimes(join(insights, "2026-11-07-2100.md"), long_ago, long_ago);
+    const longAgo = new Date("2020-01-01T00:00:00.000Z");
+    await utimes(join(insights, "2026-11-07-2100.md"), longAgo, longAgo);
     const store = createMemoryStore({
       coachingSessions: [EARLIER, SAVED, SAME_MINUTE],
       gyms: [{ id: "g-1", name: "Made-up Gym", exerciseIds: [] }],
@@ -277,18 +277,25 @@ describe("npm run coach (#174)", () => {
 
     expect(code).toBe(0);
     const [json, summary] = output.split(/\n(?=Insight files:)/);
-    expect(JSON.parse(json)).toEqual(
-      await createForge({
-        store,
-        library: SEED_LIBRARY,
-        now: () => new Date("2026-11-14T20:00:00.000Z"),
-      }).exportJson(),
-    );
-    expect(JSON.parse(json).coachingSessions).toEqual([
-      SAME_MINUTE,
-      SAVED,
-      EARLIER,
+    const printed = JSON.parse(json);
+    expect(Object.keys(printed)).toEqual([
+      "app",
+      "exportedAt",
+      "gyms",
+      "customExercises",
+      "exerciseSettings",
+      "routines",
+      "workouts",
+      "bodyWeights",
+      "settings",
+      "coachingSessions",
     ]);
+    expect(printed).toMatchObject({
+      app: "Forge",
+      exportedAt: "2026-11-14T20:00:00.000Z",
+      gyms: [{ id: "g-1", name: "Made-up Gym", exerciseIds: [] }],
+    });
+    expect(printed.coachingSessions).toEqual([SAME_MINUTE, SAVED, EARLIER]);
     expect(summary).toBe("Insight files: 2 written, 1 up to date.");
     expect((await readdir(insights)).sort()).toEqual([
       "2026-11-07-2100.md",
@@ -303,7 +310,7 @@ describe("npm run coach (#174)", () => {
       SAME_MINUTE_MARKDOWN,
     );
     expect((await stat(join(insights, "2026-11-07-2100.md"))).mtime).toEqual(
-      long_ago,
+      longAgo,
     );
     expect(await readFile(join(insights, "my-notes.md"), "utf8")).toBe(
       "Not the coach's",

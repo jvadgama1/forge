@@ -11,6 +11,7 @@ import { SEED_LIBRARY } from "../../app/js/core/seed-library.js";
 import { fileNames, insightMarkdown, savedWhen } from "./insight-file.js";
 
 /** @import { CoachingSession, CoachingSessionDraft, Store } from "../../app/js/core/types.js" */
+/** @import { Forge } from "../../app/js/core/forge.js" */
 
 const USAGE = [
   "Usage: npm run coach -- read            print all Forge data as JSON, then",
@@ -35,8 +36,14 @@ const USAGE = [
  */
 export async function runCoach(args, deps) {
   const [command, draft, ...rest] = args;
-  if (command === "read" && args.length === 1) return read(deps);
-  if (command === "save" && draft && !rest.length) return save(draft, deps);
+  const forge = createForge({
+    store: deps.store,
+    library: SEED_LIBRARY,
+    now: deps.now,
+  });
+  if (command === "read" && args.length === 1) return read(forge, deps);
+  if (command === "save" && draft && !rest.length)
+    return save(draft, forge, deps);
   deps.print(USAGE);
   return 1;
 }
@@ -47,11 +54,11 @@ export async function runCoach(args, deps) {
  * write failed is mended by the next run (spec #170, story 65). Matching
  * files are left untouched, and files that are no coaching session's are
  * left alone. The data itself is only printed, never saved (ADR-0005).
+ * @param {Forge} forge
  * @param {Deps} deps
  */
-async function read({ store, now, folder, print }) {
-  const forge = createForge({ store, library: SEED_LIBRARY, now });
-  /** @type {Awaited<ReturnType<typeof forge.exportJson>>} */
+async function read(forge, { folder, print }) {
+  /** @type {Awaited<ReturnType<Forge["exportJson"]>>} */
   let data;
   try {
     data = await forge.exportJson();
@@ -85,10 +92,10 @@ async function read({ store, now, folder, print }) {
  * Saves one coaching session from a draft, writes its insight file and
  * removes the draft. A relative draft path is in the folder's drafts/.
  * @param {string} draftPath
+ * @param {Forge} forge
  * @param {Deps} deps
  */
-async function save(draftPath, { store, now, folder, print }) {
-  const forge = createForge({ store, library: SEED_LIBRARY, now });
+async function save(draftPath, forge, { folder, print }) {
   const path = resolve(folder, "drafts", draftPath);
   /** @type {string} */
   let text;
@@ -133,7 +140,7 @@ async function save(draftPath, { store, now, folder, print }) {
   } catch (error) {
     return refused(errorText(error));
   }
-  const saved = `Saved the coaching session of ${savedWhen(session.savedAt)}`;
+  const savedLine = `Saved the coaching session of ${savedWhen(session.savedAt)}`;
   // The draft goes before anything else can fail: saving it a second time
   // would add a second coaching session. A missing insight file is mended
   // by the next read.
@@ -141,23 +148,26 @@ async function save(draftPath, { store, now, folder, print }) {
     await rm(path);
   } catch (error) {
     print(
-      `${saved}, but couldn't remove the draft (${errorText(error)}). Delete ${path}: saving it again would add it twice. npm run coach -- read writes its insight file.`,
+      `${savedLine}, but couldn't remove the draft (${errorText(error)}). Delete ${path}: saving it again would add it twice. npm run coach -- read writes its insight file.`,
     );
     return 1;
   }
-  let name = "its insight file";
+  let insightPath = "its insight file";
   try {
     const sessions = await forge.listCoachingSessions();
-    name = `insights/${fileNames(sessions).get(session.id)}`;
+    insightPath = `insights/${fileNames(sessions).get(session.id)}`;
     await mkdir(join(folder, "insights"), { recursive: true });
-    await writeFile(join(folder, name), insightMarkdown(session, sessions));
+    await writeFile(
+      join(folder, insightPath),
+      insightMarkdown(session, sessions),
+    );
   } catch (error) {
     print(
-      `${saved} and removed the draft, but couldn't write ${name} (${errorText(error)}). npm run coach -- read writes it.`,
+      `${savedLine} and removed the draft, but couldn't write ${insightPath} (${errorText(error)}). npm run coach -- read writes it.`,
     );
     return 1;
   }
-  print(`${saved}, wrote ${name} and removed the draft.`);
+  print(`${savedLine}, wrote ${insightPath} and removed the draft.`);
   return 0;
 }
 
