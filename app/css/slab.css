@@ -1351,6 +1351,92 @@ select.small-number {
   overflow-wrap: anywhere;
 }
 
+/* Coach (#172): the latest coaching session, read-only. */
+.verdict {
+  margin: 8px 0 0;
+  font: 900 34px/0.95 var(--font-display);
+  text-transform: uppercase;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.coach-text {
+  margin: 6px 0 0;
+  font: 400 14px/1.45 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.follow-up-commitment {
+  margin: 0;
+  font: 700 14px/1.35 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.checked-by {
+  margin: 8px 0 0;
+}
+
+/* Commitments stand out for the week ahead (spec #170, story 53). */
+.commitments {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 4px 14px;
+  background: var(--surface);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.commitments li {
+  padding: 10px 0;
+  font: 700 15px/1.35 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.commitments li + li {
+  border-top: 1px solid var(--rule-strong);
+}
+
+/* An insight's level: named in its heading, the colour only adds to it
+   (spec #170, story 73). */
+[data-level="training"] {
+  --level: var(--accent);
+}
+[data-level="strategy"] {
+  --level: var(--secondary);
+}
+
+.level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.level::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--level);
+}
+
+.insight {
+  margin-top: 10px;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--level);
+}
+
+.insight + .insight {
+  margin-top: 18px;
+}
+
+.insight-title {
+  margin: 0;
+  font: 800 22px/1.05 var(--font-display);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
 /* Workouts (#20) */
 .workout-link {
   display: flex;

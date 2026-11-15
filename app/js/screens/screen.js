@@ -51,6 +51,16 @@ export function versionDay(date) {
 export const pad2 = (n) => String(n).padStart(2, "0");
 
 /**
+ * A moment's day in local time, YYYY-MM-DD: "2026-11-14T03:00:00Z" is
+ * "2026-11-13" in New York.
+ * @param {string} iso ISO 8601
+ */
+export function localDay(iso) {
+  const time = new Date(iso);
+  return `${time.getFullYear()}-${pad2(time.getMonth() + 1)}-${pad2(time.getDate())}`;
+}
+
+/**
  * A clock time in local time: "7:42 pm", "12:05 am".
  * @param {Date} time
  */

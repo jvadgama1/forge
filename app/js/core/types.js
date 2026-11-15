@@ -231,6 +231,49 @@
  */
 
 /**
+ * One point the coach makes (GLOSSARY: Insight), at the Training or the
+ * Strategy level.
+ * @typedef {{ title: string, body: string, level: "training" | "strategy" }} Insight
+ */
+
+/**
+ * An action the user agrees in a coaching session to take before the next
+ * one (GLOSSARY: Commitment).
+ * @typedef {{ text: string }} Commitment
+ */
+
+/**
+ * An earlier coaching session's insight now known to be wrong, recorded in a
+ * later one rather than editing it (spec #170, story 54).
+ * @typedef {{ sessionId: string, text: string }} Correction
+ */
+
+/**
+ * The result of an earlier coaching session's commitment (GLOSSARY:
+ * Follow-up): checked against logged data, or from the user's own account.
+ * @typedef {{ sessionId: string, commitment: string, result: string, checkedBy: "data" | "you" }} FollowUp
+ */
+
+/**
+ * A saved coaching session (GLOSSARY: Coaching session; spec #170), added
+ * by the coach and never changed afterwards.
+ * @typedef {object} CoachingSession
+ * @property {string} id
+ * @property {string} savedAt ISO 8601 timestamp.
+ * @property {string} verdict One line, in the coach's voice.
+ * @property {Insight[]} insights 1 to 6.
+ * @property {Commitment[]} commitments
+ * @property {FollowUp[]} followUps
+ * @property {Correction[]} [corrections]
+ */
+
+/**
+ * A coaching session as the coach drafts it: the core adds `savedAt`, and
+ * commitments and follow-ups may be left out when there are none.
+ * @typedef {Omit<CoachingSession, "savedAt" | "commitments" | "followUps"> & Partial<Pick<CoachingSession, "commitments" | "followUps">>} CoachingSessionDraft
+ */
+
+/**
  * A deploy of the app (#129): its commit, short ("02c4ce5"), and when it was
  * deployed (ISO 8601); "dev" and "" when unstamped.
  * @typedef {{ commit: string, date: string }} AppVersion

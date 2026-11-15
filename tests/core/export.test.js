@@ -6,7 +6,7 @@ import { library } from "./library-fixture.js";
 /**
  * The core on 25 Oct 2026 with one of everything: a gym, a custom
  * exercise with settings, a routine saved twice, a finished workout with
- * flags, and two body weight entries.
+ * flags, two body weight entries and two coaching sessions.
  */
 async function setup() {
   const store = createMemoryStore();
@@ -49,6 +49,17 @@ async function setup() {
   await f.finishWorkout(w.id);
   await f.addBodyWeight({ date: "2026-10-20", load: 181.6, unit: "lb" });
   await f.addBodyWeight({ date: "2026-10-24", load: 82.5, unit: "kg" });
+  for (const [id, verdict] of [
+    ["cs-1", "Show up."],
+    ["cs-2", "Better. Stay hard."],
+  ]) {
+    await f.saveCoachingSession({
+      id,
+      verdict,
+      insights: [{ title: "Volume", body: "Low.", level: "training" }],
+    });
+    clock = new Date(clock.getTime() + 60_000);
+  }
   clock = new Date(2026, 9, 25, 20, 0);
   return { f, band, routine };
 }
@@ -71,7 +82,7 @@ describe("export (#22)", () => {
     );
   });
 
-  it("as JSON has every gym, custom exercise, setting, routine version, workout and body weight entry", async () => {
+  it("as JSON has every gym, custom exercise, setting, routine version, workout, body weight entry and coaching session", async () => {
     const { f, band } = await setup();
     const data = await f.exportJson();
     expect(data.app).toBe("Forge");
@@ -86,6 +97,11 @@ describe("export (#22)", () => {
     expect(data.workouts[0].entries.flatMap((e) => e.sets)).toHaveLength(3);
     expect(data.bodyWeights.map((b) => b.load)).toEqual([82.5, 181.6]);
     expect(data.settings).toMatchObject({ id: "user" });
+    // Newest first (#172).
+    expect(data.coachingSessions.map((s) => s.verdict)).toEqual([
+      "Better. Stay hard.",
+      "Show up.",
+    ]);
   });
 
   it("as CSV has one row per set, with its date, gym, exercise, measure, RIR and flags", async () => {
