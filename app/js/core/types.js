@@ -155,8 +155,8 @@
  * @property {number} [rir] 0–4; 4 means "4 or more".
  * @property {string} [superset] A planned superset group, shared with the
  *   slots it's paired with (#17), on versions saved before supersets came
- *   out of the app (#167). Nothing reads it, and a version saved now has
- *   none.
+ *   out of the app (#167). Saving a routine only strips it: a version
+ *   saved now has none.
  */
 
 /**

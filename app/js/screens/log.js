@@ -32,7 +32,8 @@ export function logView({ forge, id: asked }) {
       logged?.exerciseId ?? (after && "back" in after ? after.back : id);
     if (to !== undefined && to !== id) {
       id = to;
-      // The address follows without a fresh render (#17).
+      // The address follows, on /log too, without a fresh render, which
+      // would lose the celebration (#17).
       history.replaceState(null, "", `#/log/ex/${encodeURIComponent(id)}`);
     }
     const workout = await forge.currentWorkout();

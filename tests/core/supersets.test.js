@@ -317,7 +317,7 @@ describe("logging in a workout stored with a superset (#167)", () => {
     expect(bench?.sets.at(-1)?.superset).toBeUndefined();
   });
 
-  it("rests each exercise's own rest default after every set", async () => {
+  it("rests each exercise's own rest default, not its old partner's", async () => {
     const { f } = await setup({ inProgress: true });
     await f.saveExerciseSettings("lat-pulldown", { rest: 120 });
     await f.logSet("w-now", "bench-press", { load: 100, reps: 8 });

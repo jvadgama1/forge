@@ -709,13 +709,11 @@ a {
   display: none;
 }
 
-/* The set type's row (#104). */
+/* The set type's row (#104), which the 360 px shots scroll to (#110). */
 .set-type-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  /* The chips' own padding, moved out to the row so the button lines up. */
+  /* The chips' own padding, moved out to the row. */
   padding: 10px 0 4px;
 }
 
