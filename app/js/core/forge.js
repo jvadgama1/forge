@@ -1,5 +1,5 @@
 /** @import { Mark, Range, RangeId } from "./dashboard.js" */
-/** @import { AppVersion, BodyWeightEntry, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, FeedbackItem, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
+/** @import { AppVersion, BodyWeightEntry, CoachingSession, CoachingSessionDraft, Exercise, ExerciseDraft, ExerciseFilter, ExerciseSettings, ExerciseInWorkout, ExerciseType, FeedbackItem, Measure, Gym, Load, RecordKind, Routine, RoutineDay, RoutineDayDraft, RoutineDayRef, RoutineVersion, SetInput, SetRef, Settings, Slot, Store, SuggestedWeight, Workout, WorkoutEntry, WorkoutSet } from "./types.js" */
 
 import { TYPE_RULES, distanceUnit } from "./exercise-types.js";
 import { fromKg, inKg, plusBody } from "./units.js";
@@ -169,6 +169,71 @@ function recordsOf(counted, type) {
       },
     }),
     repsAtLoad,
+  };
+}
+
+// A coaching session's insights: at least one, and few enough to read at
+// the gym (spec #170: the coach aims for 3 to 6).
+const MAX_INSIGHTS = 6;
+
+/**
+ * Text a coaching session needs: a non-blank string, trimmed; or undefined.
+ * @param {unknown} value
+ */
+const filled = (value) =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+/**
+ * A drafted coaching session as it's stored (#172), or an error saying what
+ * its shape is missing: a verdict, 1 to 6 insights each with a title, body
+ * and level, and every commitment, follow-up and correction complete. Text
+ * is trimmed, and fields the shape doesn't have are dropped.
+ * @param {CoachingSessionDraft} draft
+ * @param {string} savedAt
+ * @returns {CoachingSession}
+ */
+function coachingSession(draft, savedAt) {
+  const id = filled(draft.id);
+  if (!id) throw new Error("A coaching session needs an id");
+  const verdict = filled(draft.verdict);
+  if (!verdict) throw new Error("A coaching session needs a verdict");
+  const { insights = [], commitments = [], followUps = [] } = draft;
+  if (insights.length < 1 || insights.length > MAX_INSIGHTS)
+    throw new Error(`A coaching session has 1 to ${MAX_INSIGHTS} insights`);
+  return {
+    id,
+    savedAt,
+    verdict,
+    insights: insights.map(({ title, body, level }) => {
+      const [t, b] = [filled(title), filled(body)];
+      if (!t || !b) throw new Error("An insight needs a title and a body");
+      if (level !== "training" && level !== "strategy")
+        throw new Error("An insight is at the training or the strategy level");
+      return { title: t, body: b, level };
+    }),
+    commitments: commitments.map(({ text }) => {
+      const t = filled(text);
+      if (!t) throw new Error("A commitment needs its text");
+      return { text: t };
+    }),
+    followUps: followUps.map(({ sessionId, commitment, result, checkedBy }) => {
+      const [s, c, r] = [filled(sessionId), filled(commitment), filled(result)];
+      if (!s || !c || !r)
+        throw new Error("A follow-up needs its session, commitment and result");
+      // The user's own account never reads as a measured one (spec #170,
+      // story 52).
+      if (checkedBy !== "data" && checkedBy !== "you")
+        throw new Error("A follow-up was checked against data or by you");
+      return { sessionId: s, commitment: c, result: r, checkedBy };
+    }),
+    ...(draft.corrections?.length && {
+      corrections: draft.corrections.map(({ sessionId, text }) => {
+        const [s, t] = [filled(sessionId), filled(text)];
+        if (!s || !t)
+          throw new Error("A correction needs its session and text");
+        return { sessionId: s, text: t };
+      }),
+    }),
   };
 }
 
@@ -612,6 +677,30 @@ export function createForge({
         await store.put("feedback", { ...item, filed: issue });
       });
     },
+
+    /**
+     * Adds a coaching session the coach drafted (#172), stamped with the
+     * time it's saved, once its shape is checked.
+     * @param {CoachingSessionDraft} draft
+     * @returns {Promise<CoachingSession>}
+     */
+    saveCoachingSession(draft) {
+      return inTurn(async () => {
+        const session = coachingSession(draft, now().toISOString());
+        // Add-only, so what the coach said can't be rewritten (spec #170,
+        // story 46).
+        if (await store.get("coachingSessions", session.id))
+          throw new Error("This coaching session is already saved");
+        await store.put("coachingSessions", session);
+        return session;
+      });
+    },
+
+    /**
+     * Coaching sessions, newest first (#172; spec #170, story 68).
+     * @returns {Promise<CoachingSession[]>}
+     */
+    listCoachingSessions,
 
     /**
      * Every workout, newest first by workout date (spec #3, story 53), the
@@ -1191,8 +1280,8 @@ export function createForge({
     /**
      * All the user's data, as one JSON-ready object (#22; spec #3, story
      * 58): every gym, custom exercise, exercise setting, routine with all
-     * its versions, workout and body weight entry, and the settings, for
-     * their own backup.
+     * its versions, workout and body weight entry, the settings, and every
+     * coaching session (#172; spec #170, story 75), for their own backup.
      */
     async exportJson() {
       const [gyms, customExercises, exerciseSettings, routines] =
@@ -1212,6 +1301,7 @@ export function createForge({
         workouts: await listWorkouts(),
         bodyWeights: await listBodyWeights(),
         settings: await settings(),
+        coachingSessions: await listCoachingSessions(),
       };
     },
 
@@ -1735,6 +1825,14 @@ export function createForge({
   async function listWorkouts() {
     const workouts = /** @type {Workout[]} */ (await store.list("workouts"));
     return workouts.sort(byWorkoutDate);
+  }
+
+  /** @returns {Promise<CoachingSession[]>} */
+  async function listCoachingSessions() {
+    const sessions = /** @type {CoachingSession[]} */ (
+      await store.list("coachingSessions")
+    );
+    return sessions.sort((a, b) => byTime(b.savedAt, a.savedAt));
   }
 
   /**

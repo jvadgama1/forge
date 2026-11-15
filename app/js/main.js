@@ -13,7 +13,7 @@ import { exerciseView } from "./screens/exercise.js";
 import { historyView } from "./screens/history.js";
 import { gymsView } from "./screens/gyms.js";
 import { gymView } from "./screens/gym.js";
-import { placeholderView } from "./screens/placeholder.js";
+import { coachView } from "./screens/coach.js";
 import { routinesView } from "./screens/routines.js";
 import { routineView } from "./screens/routine.js";
 import { bodyWeightView } from "./screens/body-weight.js";
@@ -88,10 +88,7 @@ const routes = {
     render: pointWorkoutView,
     beside: { render: statsView, list: false },
   },
-  "/coach": {
-    tab: "coach",
-    render: () => placeholderView("Coach", "The coach arrives in phase 3."),
-  },
+  "/coach": { tab: "coach", render: coachView },
   "/more": { tab: "more", render: moreView },
   "/feedback": { tab: "more", render: feedbackView },
   "/gyms": { tab: "more", render: gymsView },

@@ -974,6 +974,107 @@ const FEEDBACK = {
   ],
 };
 
+/** A made-up coaching session's insight (#172). */
+const insight = (
+  /** @type {"training" | "strategy"} */ level,
+  /** @type {string} */ title,
+  /** @type {string} */ body,
+) => ({ title, body, level });
+
+/**
+ * The first made-up coaching session (#172): no commitments, follow-ups or
+ * corrections yet.
+ */
+const FIRST_COACHING = {
+  id: "cs-1",
+  savedAt: "2026-10-10T19:05:00.000Z",
+  verdict: "You show up. Now make it count.",
+  insights: [
+    insight(
+      "training",
+      "Rows lag your presses",
+      "Pressing outweighs pulling about two to one. Shoulders pay for that imbalance first.",
+    ),
+  ],
+  commitments: [],
+  followUps: [],
+};
+
+/**
+ * Made-up coaching sessions (#172), the latest with follow-ups of the one
+ * before, a correction, commitments and insights at both levels.
+ */
+const COACHING = {
+  coachingSessions: [
+    FIRST_COACHING,
+    {
+      id: "cs-2",
+      savedAt: "2026-10-17T18:40:00.000Z",
+      verdict: "Legs are on holiday. Cut the excuses.",
+      insights: [
+        insight(
+          "training",
+          "Squat twice a week",
+          "Once a week leaves too long between exposures for the groove to stick.",
+        ),
+      ],
+      commitments: [{ text: "Squat twice a week" }, { text: "Bed by 11 pm" }],
+      followUps: [],
+    },
+    {
+      id: "cs-3",
+      savedAt: "2026-10-24T20:15:00.000Z",
+      verdict: "Two squat days, zero excuses. Stay hard.",
+      followUps: [
+        {
+          sessionId: "cs-2",
+          commitment: "Squat twice a week",
+          result: "Done: squats on Mon and Thu, both weeks.",
+          checkedBy: "data",
+        },
+        {
+          sessionId: "cs-2",
+          commitment: "Bed by 11 pm",
+          result: "Four nights out of seven.",
+          checkedBy: "you",
+        },
+      ],
+      corrections: [
+        {
+          sessionId: "cs-1",
+          text: "Rows weren't lagging: a week of rows was logged under the wrong exercise.",
+        },
+      ],
+      commitments: [
+        { text: "Add a back-off set of squats at 80%" },
+        { text: "Walk 20 minutes on rest days" },
+      ],
+      insights: [
+        insight(
+          "training",
+          "Squat is moving again",
+          "Two exposures a week gave you 10 lb in a fortnight. More frequent practice builds the skill and the strength.",
+        ),
+        insight(
+          "training",
+          "Bench stalled at 185",
+          "Three weeks of 185 for 6. Hold the load, chase 8 reps, then let the app move you up.",
+        ),
+        insight(
+          "strategy",
+          "Sleep is your cheapest gain",
+          "Short nights blunt recovery between hard sessions. Guard the bedtime before adding volume.",
+        ),
+        insight(
+          "strategy",
+          "Conditioning is missing",
+          "No cardio in a month. Easy walking builds an aerobic base without eating into leg recovery.",
+        ),
+      ],
+    },
+  ],
+};
+
 /** @type {Shot[]} */
 export const SHOTS = [
   { name: "workouts", as: "owner", route: "/workouts", seed: WORKOUT },
@@ -1252,7 +1353,30 @@ export const SHOTS = [
   { name: "not-owner", as: "not-owner" },
   { name: "log", as: "owner", route: "/log" },
   { name: "exercises", as: "owner", route: "/exercises" },
+  // Coach (#172): before the first coaching session, after it, and the
+  // latest of several, its top and, scrolled, its insights.
   { name: "coach", as: "owner", route: "/coach" },
+  {
+    name: "coach-first",
+    as: "owner",
+    route: "/coach",
+    seed: { coachingSessions: [FIRST_COACHING] },
+  },
+  { name: "coach-session", as: "owner", route: "/coach", seed: COACHING },
+  {
+    name: "coach-session-360",
+    as: "owner",
+    route: "/coach",
+    seed: COACHING,
+    viewport: SMALL_PHONE,
+  },
+  {
+    name: "coach-session-strategy",
+    as: "owner",
+    route: "/coach",
+    seed: COACHING,
+    scrollTo: '[data-level="strategy"]',
+  },
   { name: "more", as: "owner", route: "/more" },
   { name: "more-360", as: "owner", route: "/more", viewport: SMALL_PHONE },
   // Feedback (#124): empty, and with made-up items, one of them filed.
