@@ -5,8 +5,8 @@ import { library } from "./library-fixture.js";
 
 /**
  * The core on 25 Oct 2026 with one of everything: a gym, a custom
- * exercise with settings, a routine saved twice, a finished workout with a
- * superset and flags, and two body weight entries.
+ * exercise with settings, a routine saved twice, a finished workout with
+ * flags, and two body weight entries.
  */
 async function setup() {
   const store = createMemoryStore();
@@ -43,7 +43,6 @@ async function setup() {
   });
   let w = await f.startWorkout(gym.id);
   for (const id of ["bench-press", band.id]) w = await f.addExercise(w.id, id);
-  w = await f.pairExercises(w.id, "bench-press", band.id);
   w = await f.logSet(w.id, "bench-press", { load: 95, reps: 10, warmUp: true });
   w = await f.logSet(w.id, "bench-press", { load: 135, reps: 8, rir: 2 });
   w = await f.logSet(w.id, band.id, { load: 20, reps: 15 });
@@ -89,7 +88,7 @@ describe("export (#22)", () => {
     expect(data.settings).toMatchObject({ id: "user" });
   });
 
-  it("as CSV has one row per set, with its date, gym, exercise, measure, RIR, flags and superset", async () => {
+  it("as CSV has one row per set, with its date, gym, exercise, measure, RIR and flags", async () => {
     const { f } = await setup();
     const text = await f.exportSetsCsv();
     // A byte-order mark, so Excel reads it as UTF-8.
@@ -100,8 +99,8 @@ describe("export (#22)", () => {
     );
     expect(rows.slice(1)).toEqual([
       '2026-10-25,"Work, upstairs",Bench Press,1,95,lb,10,,,,,yes,,,,,,',
-      '2026-10-25,"Work, upstairs",Bench Press,2,135,lb,8,,,,2,,,1,1,"Band ""Pull"" Apart",,',
-      '2026-10-25,"Work, upstairs","Band ""Pull"" Apart",1,20,lb,15,,,,,,,1,1,Bench Press,,',
+      '2026-10-25,"Work, upstairs",Bench Press,2,135,lb,8,,,,2,,,,,,,',
+      '2026-10-25,"Work, upstairs","Band ""Pull"" Apart",1,20,lb,15,,,,,,,,,,,',
     ]);
   });
 

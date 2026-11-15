@@ -142,14 +142,4 @@ describe("swap offers (#16)", () => {
     w = await f.swapExercise(w.id, "Machine Press", "Close-Grip Press");
     expect(await f.targets(w, "Close-Grip Press")).toMatchObject({ sets: 3 });
   });
-
-  it("keep a swapped superset member in its superset", async () => {
-    const { f, workout } = await setup();
-    let w = await f.pairExercises(workout.id, "Flat Bench", "triceps-pushdown");
-    w = await f.swapExercise(w.id, "Flat Bench", "Machine Press");
-    expect(f.supersetOf(w, "triceps-pushdown")).toEqual([
-      "Machine Press",
-      "triceps-pushdown",
-    ]);
-  });
 });

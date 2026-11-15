@@ -8,17 +8,17 @@ describe("publishing shots to a pull request (#109)", () => {
         repo: "jvadgama1/forge",
         pr: "113",
         label: "after",
-        shots: ["workout", "superset-360"],
+        shots: ["workout", "set-type-360"],
       }),
     ).toEqual({
       files: [
         { shot: "workout", path: "pr/113/after-workout.png" },
-        { shot: "superset-360", path: "pr/113/after-superset-360.png" },
+        { shot: "set-type-360", path: "pr/113/after-set-type-360.png" },
       ],
       message: "chore: screenshots for PR #113",
       tags: [
         '<img src="https://raw.githubusercontent.com/jvadgama1/forge/screenshots/pr/113/after-workout.png" width="200" alt="after: workout">',
-        '<img src="https://raw.githubusercontent.com/jvadgama1/forge/screenshots/pr/113/after-superset-360.png" width="200" alt="after: superset-360">',
+        '<img src="https://raw.githubusercontent.com/jvadgama1/forge/screenshots/pr/113/after-set-type-360.png" width="200" alt="after: set-type-360">',
       ],
     });
   });

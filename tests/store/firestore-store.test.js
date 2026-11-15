@@ -148,9 +148,8 @@ describe("logging a set over a slow server", () => {
       load: 20,
       reps: 12,
     });
-    await forge.restAfterSet(exerciseId, logged);
+    await forge.restAfterSet(exerciseId);
     await forge.recordsSetBy(logged, exerciseId);
-    await forge.nextExercise(logged, exerciseId);
 
     const workout = /** @type {Workout} */ (await forge.currentWorkout());
     const shown = /** @type {string} */ (
@@ -159,7 +158,7 @@ describe("logging a set over a slow server", () => {
     await forge.getGym(workout.gymId);
     await forge.workoutTitle(workout);
     await forge.getExercise(shown);
-    await forge.exerciseType(forge.undoTarget(workout, shown));
+    await forge.exerciseType(shown);
     await forge.exerciseSettings(shown);
     await forge.nextSet(workout, shown);
     await forge.suggestedWeight(workout, shown);
@@ -169,7 +168,7 @@ describe("logging a set over a slow server", () => {
     return workout;
   }
 
-  it("reads nothing from the server for a custom exercise in a superset, once loaded", async () => {
+  it("reads nothing from the server for a custom exercise, once loaded", async () => {
     const forge = createForge({ store: setUp().store, library });
     const { workoutId, exerciseId } = await settled(
       (async () => {
@@ -184,7 +183,6 @@ describe("logging a set over a slow server", () => {
         const workout = await forge.startWorkout(gym.id);
         await forge.addExercise(workout.id, "bench-press");
         await forge.addExercise(workout.id, band.id);
-        await forge.pairExercises(workout.id, "bench-press", band.id);
         await logAndRedraw(forge, workout.id, band.id);
         return { workoutId: workout.id, exerciseId: band.id };
       })(),

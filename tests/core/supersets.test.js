@@ -3,390 +3,346 @@ import { createForge } from "../../app/js/core/forge.js";
 import { createMemoryStore } from "../../app/js/store/memory-store.js";
 import { library } from "./library-fixture.js";
 
-/** @import { Workout } from "../../app/js/core/types.js" */
+/** @import { Routine, Workout } from "../../app/js/core/types.js" */
 
-/** The core on 25 Oct 2026, with a gym. */
-async function setup() {
-  const store = createMemoryStore();
-  const f = createForge({
-    store,
-    library,
-    now: () => new Date(2026, 9, 25, 18, 0),
-  });
-  const gym = await f.createGym("Work");
-  return { f, store, gym };
-}
+// Supersets are out of the app for now (#167; .out-of-scope/supersets.md).
+// Data logged with them (#17) keeps its superset fields, which nothing but
+// the CSV export reads: every exercise follows the single-exercise rules.
 
 /**
- * A freestyle workout with bench press, lat pulldown and leg press added.
- * @param {Awaited<ReturnType<typeof setup>>} env
+ * A workout in progress, as stored before #167, with bench press and lat
+ * pulldown paired and a round of each logged: bench press first, then lat
+ * pulldown, so lat pulldown's set is the latest.
+ * @type {Workout}
  */
-async function freestyle({ f, gym }) {
-  let w = await f.startWorkout(gym.id);
-  for (const id of ["bench-press", "lat-pulldown", "leg-press"])
-    w = await f.addExercise(w.id, id);
-  return w;
-}
-
-/**
- * Logs a set of `exerciseId` and says where to go and how long to rest.
- * @param {Awaited<ReturnType<typeof setup>>["f"]} f
- * @param {Workout} w
- * @param {string} exerciseId
- */
-async function log(f, w, exerciseId) {
-  const logged = await f.logSet(w.id, exerciseId, { load: 100, reps: 8 });
-  return {
-    w: logged,
-    next: await f.nextExercise(logged, exerciseId),
-    rest: await f.restAfterSet(exerciseId, logged),
-  };
-}
-
-/** A routine whose Upper A pairs bench press with lat pulldown. */
-const PAIRED = {
-  name: "Upper",
-  days: [
+const PAIRED_NOW = {
+  id: "w-now",
+  date: "2026-10-25",
+  startedAt: "2026-10-25T17:00:00.000Z",
+  gymId: "gym",
+  supersets: [{ id: "s-now", exerciseIds: ["bench-press", "lat-pulldown"] }],
+  entries: [
     {
-      name: "Upper A",
-      slots: [
+      exerciseId: "bench-press",
+      sets: [
         {
-          exerciseId: "bench-press",
-          sets: 4,
-          repMin: 8,
-          repMax: 12,
-          superset: "s1",
+          load: 100,
+          unit: "lb",
+          reps: 8,
+          loggedAt: "2026-10-25T17:05:00.000Z",
+          superset: { id: "s-now", round: 1 },
         },
+      ],
+    },
+    {
+      exerciseId: "lat-pulldown",
+      sets: [
         {
-          exerciseId: "lat-pulldown",
-          sets: 2,
-          repMin: 8,
-          repMax: 12,
-          superset: "s1",
+          load: 90,
+          unit: "lb",
+          reps: 10,
+          loggedAt: "2026-10-25T17:06:00.000Z",
+          superset: { id: "s-now", round: 1 },
         },
-        { exerciseId: "leg-press", sets: 3, repMin: 10, repMax: 15 },
+      ],
+    },
+    { exerciseId: "leg-press", sets: [] },
+  ],
+};
+
+/**
+ * A finished workout, as stored before #167, that supersetted bench press
+ * with lat pulldown for two rounds.
+ * @type {Workout}
+ */
+const PAIRED_BEFORE = {
+  id: "w-before",
+  date: "2026-10-20",
+  startedAt: "2026-10-20T17:00:00.000Z",
+  finishedAt: "2026-10-20T18:00:00.000Z",
+  gymId: "gym",
+  supersets: [{ id: "s-old", exerciseIds: ["bench-press", "lat-pulldown"] }],
+  entries: ["bench-press", "lat-pulldown"].map((exerciseId, e) => ({
+    exerciseId,
+    sets: [1, 2].map((round) => ({
+      load: 100 - 10 * e,
+      unit: /** @type {const} */ ("lb"),
+      reps: 8 + round,
+      rir: 2,
+      loggedAt: `2026-10-20T17:1${round}:${e}0.000Z`,
+      superset: { id: "s-old", round },
+    })),
+  })),
+};
+
+/**
+ * A routine saved before #167 whose Upper A plans bench press and lat
+ * pulldown as a pair.
+ * @type {Routine}
+ */
+const PAIRED_ROUTINE = {
+  id: "r-upper",
+  name: "Upper",
+  versions: [
+    {
+      number: 1,
+      savedAt: "2026-10-01T12:00:00.000Z",
+      days: [
+        {
+          id: "d-a",
+          name: "Upper A",
+          slots: [
+            {
+              exerciseId: "bench-press",
+              sets: 4,
+              repMin: 8,
+              repMax: 12,
+              superset: "bench-press",
+            },
+            {
+              exerciseId: "lat-pulldown",
+              sets: 2,
+              repMin: 8,
+              repMax: 12,
+              superset: "bench-press",
+            },
+            { exerciseId: "leg-press", sets: 3, repMin: 10, repMax: 15 },
+          ],
+        },
       ],
     },
   ],
 };
 
-describe("pairing exercises in a workout (#17)", () => {
-  it("pairs two exercises, unpairs one, and re-pairs it with another", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    expect(f.supersetOf(w, "bench-press")).toEqual([
-      "bench-press",
-      "lat-pulldown",
-    ]);
-    w = await f.unpairExercise(w.id, "lat-pulldown");
-    expect(f.supersetOf(w, "bench-press")).toBeUndefined();
-    w = await f.pairExercises(w.id, "bench-press", "leg-press");
-    expect(f.supersetOf(w, "leg-press")).toEqual(["bench-press", "leg-press"]);
+/**
+ * The core on 25 Oct 2026 over data stored with supersets.
+ * @param {{ inProgress?: boolean }} [options] whether PAIRED_NOW is the
+ *   workout in progress
+ */
+async function setup({ inProgress = false } = {}) {
+  const store = createMemoryStore({
+    gyms: [{ id: "gym", name: "Work", exerciseIds: [] }],
+    routines: [PAIRED_ROUTINE],
+    workouts: inProgress ? [PAIRED_BEFORE, PAIRED_NOW] : [PAIRED_BEFORE],
+    settings: [
+      {
+        id: "user",
+        lastGymId: "gym",
+        ...(inProgress && { workoutInProgress: PAIRED_NOW.id }),
+      },
+    ],
   });
-
-  it("adds a third to a pair as a tri-set, never blocking it", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    w = await f.pairExercises(w.id, "bench-press", "leg-press");
-    expect(f.supersetOf(w, "leg-press")).toEqual([
-      "bench-press",
-      "lat-pulldown",
-      "leg-press",
-    ]);
+  const f = createForge({
+    store,
+    library,
+    now: () => new Date(2026, 9, 25, 18, 0),
   });
+  return { f, store };
+}
 
-  it("applies a routine day's planned pairs when the workout starts", async () => {
+describe("a routine day stored with planned pairs (#167)", () => {
+  /** Upper A, started from PAIRED_ROUTINE. */
+  async function started() {
     const env = await setup();
-    const { f, gym } = env;
-    const routine = await f.saveRoutine(PAIRED);
-    const w = await f.startWorkout(gym.id, {
-      day: { routineId: routine.id, dayId: routine.versions[0].days[0].id },
+    const w = await env.f.startWorkout("gym", {
+      day: { routineId: "r-upper", dayId: "d-a" },
     });
-    expect(f.supersetOf(w, "bench-press")).toEqual([
-      "bench-press",
-      "lat-pulldown",
-    ]);
-    expect(f.supersetOf(w, "leg-press")).toBeUndefined();
-  });
+    return { ...env, w };
+  }
 
-  it("changes only this workout, unless saved to the routine", async () => {
-    const env = await setup();
-    const { f, gym } = env;
-    const routine = await f.saveRoutine({
-      name: "Upper",
-      days: [
-        {
-          name: "Upper A",
-          slots: [
-            { exerciseId: "bench-press", sets: 3, repMin: 8, repMax: 12 },
-            { exerciseId: "lat-pulldown", sets: 3, repMin: 8, repMax: 12 },
-          ],
-        },
-      ],
-    });
-    const day = {
-      routineId: routine.id,
-      dayId: routine.versions[0].days[0].id,
-    };
-    let w = await f.startWorkout(gym.id, { day });
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    w = await f.logSet(w.id, "bench-press", { load: 100, reps: 8 });
-    expect((await f.getRoutine(routine.id))?.versions).toHaveLength(1);
-    await f.finishWorkout(w.id, { saveToRoutine: true });
-    const saved = await f.getRoutine(routine.id);
-    const slots = saved?.versions.at(-1)?.days[0].slots ?? [];
-    expect(slots[0].superset).toBeDefined();
-    expect(slots[0].superset).toBe(slots[1].superset);
-  });
-});
-
-describe("the next set to log in a superset (#17)", () => {
-  it("alternates through the pair and returns to the first after each round", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    let step = await log(f, w, "bench-press");
-    expect(step.next).toBe("lat-pulldown");
-    step = await log(f, step.w, "lat-pulldown");
-    expect(step.next).toBe("bench-press");
-    step = await log(f, step.w, "bench-press");
-    expect(step.next).toBe("lat-pulldown");
-  });
-
-  it("drops a member with no target sets left, carrying on alone", async () => {
-    // Bench press targets 4 sets, lat pulldown 2.
-    const env = await setup();
-    const { f, gym } = env;
-    const routine = await f.saveRoutine(PAIRED);
-    let w = await f.startWorkout(gym.id, {
-      day: { routineId: routine.id, dayId: routine.versions[0].days[0].id },
-    });
-    const order = [];
-    let at = "bench-press";
-    for (let i = 0; i < 6; i++) {
-      order.push(at);
-      const step = await log(f, w, at);
-      w = step.w;
-      at = step.next;
-    }
-    expect(order).toEqual([
-      "bench-press",
-      "lat-pulldown",
-      "bench-press",
-      "lat-pulldown",
-      "bench-press",
-      "bench-press",
-    ]);
-  });
-
-  it("is the same exercise outside a superset", async () => {
-    const env = await setup();
-    const { f } = env;
-    const w = await freestyle(env);
-    expect((await log(f, w, "leg-press")).next).toBe("leg-press");
-  });
-});
-
-describe("rest in a superset (#17, #52)", () => {
-  it("is none within a round, then the longest member rest default", async () => {
-    const env = await setup();
-    const { f } = env;
-    await f.saveExerciseSettings("lat-pulldown", { rest: 120 });
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    const first = await log(f, w, "bench-press");
-    expect(first.rest).toBeUndefined();
-    const second = await log(f, first.w, "lat-pulldown");
-    expect(second.rest).toBe(120);
-  });
-
-  it("counts an Off member as 0 s, and starts none when every member is Off", async () => {
-    const env = await setup();
-    const { f } = env;
-    await f.saveExerciseSettings("bench-press", { rest: "off" });
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    let step = await log(f, w, "bench-press");
-    step = await log(f, step.w, "lat-pulldown");
-    expect(step.rest).toBe(90);
-    await f.saveExerciseSettings("lat-pulldown", { rest: "off" });
-    step = await log(f, step.w, "bench-press");
-    step = await log(f, step.w, "lat-pulldown");
-    expect(step.rest).toBeUndefined();
-  });
-
-  it("uses a single exercise's own rest default once its partner drops out", async () => {
-    const env = await setup();
-    const { f, gym } = env;
-    await f.saveExerciseSettings("lat-pulldown", { rest: 180 });
-    const routine = await f.saveRoutine(PAIRED);
-    let w = await f.startWorkout(gym.id, {
-      day: { routineId: routine.id, dayId: routine.versions[0].days[0].id },
-    });
-    let rest;
-    for (const id of [
-      "bench-press",
-      "lat-pulldown",
-      "bench-press",
-      "lat-pulldown",
-      "bench-press",
-    ]) {
-      const step = await log(f, w, id);
-      w = step.w;
-      rest = step.rest;
-    }
-    // Lat pulldown's 2 sets are done: bench press rests its own 90 s.
-    expect(rest).toBe(90);
-  });
-});
-
-describe("superset membership on each set (#17)", () => {
-  it("records the superset and round automatically, and stays truthful after an unpair", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    for (const id of ["bench-press", "lat-pulldown", "bench-press"])
-      w = await f.logSet(w.id, id, { load: 100, reps: 8 });
-    w = await f.unpairExercise(w.id, "bench-press");
-    w = await f.logSet(w.id, "bench-press", { load: 100, reps: 8 });
-    const bench = w.entries.find((e) => e.exerciseId === "bench-press")?.sets;
-    const id = bench?.[0].superset?.id;
-    expect(id).toBeDefined();
-    expect(bench?.map((s) => s.superset)).toEqual([
-      { id, round: 1 },
-      { id, round: 2 },
-      undefined,
-    ]);
-    const lat = w.entries.find((e) => e.exerciseId === "lat-pulldown")?.sets;
-    expect(lat?.[0].superset).toEqual({ id, round: 1 });
-  });
-
-  it("names the partner on the last-workout line", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    w = await f.logSet(w.id, "bench-press", { load: 100, reps: 8 });
-    w = await f.logSet(w.id, "lat-pulldown", { load: 90, reps: 10 });
-    w = await f.logSet(w.id, "leg-press", { load: 200, reps: 10 });
-    await f.finishWorkout(w.id);
-    expect((await f.lastWorkoutLine("bench-press"))?.partners).toEqual([
-      "lat-pulldown",
-    ]);
-    expect((await f.lastWorkoutLine("leg-press"))?.partners).toBeUndefined();
-  });
-});
-
-describe("superset edge cases (#17)", () => {
-  it("lets a third join a pair mid-workout, in the round under way", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    for (const id of ["bench-press", "lat-pulldown", "bench-press"])
-      w = await f.logSet(w.id, id, { load: 100, reps: 8 });
-    expect(f.partnersFor(w, "bench-press")).toEqual(["leg-press"]);
-    w = await f.pairExercises(w.id, "bench-press", "leg-press");
-    w = await f.logSet(w.id, "leg-press", { load: 200, reps: 10 });
-    const leg = w.entries.find((e) => e.exerciseId === "leg-press")?.sets;
-    // Bench press has started round 2; leg press joins it.
-    expect(leg?.[0].superset?.round).toBe(2);
-    expect(await f.nextExercise(w, "leg-press")).toBe("lat-pulldown");
-  });
-
-  it("takes a skipped exercise out of its superset, its partner carrying on alone", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    w = await f.skipExercise(w.id, "lat-pulldown");
-    expect(f.supersetOf(w, "bench-press")).toBeUndefined();
-    const step = await log(f, w, "bench-press");
-    expect(step.next).toBe("bench-press");
-    expect(step.rest).toBe(90);
-  });
-
-  it("takes a removed exercise out of its superset, leaving its partner and its sets alone (#122)", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    w = await f.logSet(w.id, "bench-press", { load: 135, reps: 8 });
-    w = await f.logSet(w.id, "lat-pulldown", { load: 120, reps: 10 });
-    const benchSets = w.entries[0].sets;
-    w = await f.removeExercise(w.id, "lat-pulldown");
-    expect(w.supersets).toEqual([]);
+  it("starts as single exercises, with no superset", async () => {
+    const { w } = await started();
+    expect(w.supersets).toBeUndefined();
     expect(w.entries.map((e) => e.exerciseId)).toEqual([
       "bench-press",
+      "lat-pulldown",
       "leg-press",
     ]);
-    expect(w.entries[0].sets).toEqual(benchSets);
-    const step = await log(f, w, "bench-press");
-    expect(step.next).toBe("bench-press");
   });
 
-  it("keeps warm-ups and drop sets out of the rotation", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    w = await f.logSet(w.id, "bench-press", {
-      load: 60,
-      reps: 10,
-      warmUp: true,
+  it("logs every set of an exercise on its own, at its own rest default", async () => {
+    const { f, w } = await started();
+    let logged = w;
+    for (let i = 0; i < 4; i++)
+      logged = await f.logSet(w.id, "bench-press", { load: 100, reps: 8 });
+    expect(logged.entries[0].sets.map((s) => s.superset)).toEqual(
+      Array(4).fill(undefined),
+    );
+    expect(await f.restAfterSet("bench-press")).toBe(90);
+    expect(f.exerciseToShow(logged)).toBe("bench-press");
+  });
+
+  it("has no changes to save when done in the day's order", async () => {
+    const { f, w } = await started();
+    const logged = await f.logSet(w.id, "bench-press", { load: 100, reps: 8 });
+    expect(await f.routineChanges(logged)).toBe(false);
+  });
+
+  it("saves a day done differently as a version with no planned pairs, keeping the earlier version's", async () => {
+    const { f, w } = await started();
+    await f.addExercise(w.id, "incline-db-press");
+    await f.logSet(w.id, "incline-db-press", { load: 50, reps: 10 });
+    await f.finishWorkout(w.id, { saveToRoutine: true });
+    const routine = await f.getRoutine("r-upper");
+    expect(routine?.versions).toHaveLength(2);
+    expect(routine?.versions[0]).toEqual(PAIRED_ROUTINE.versions[0]);
+    expect(routine?.versions[1].days[0].slots.map((s) => s.superset)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it("adds no version when saved from the editor unchanged", async () => {
+    const { f } = await setup();
+    const routine = await f.saveRoutine({
+      id: "r-upper",
+      name: "Upper",
+      days: PAIRED_ROUTINE.versions[0].days,
     });
-    expect(w.entries[0].sets[0].superset).toBeUndefined();
-    expect(await f.nextExercise(w, "bench-press")).toBe("bench-press");
+    expect(routine.versions).toEqual(PAIRED_ROUTINE.versions);
   });
 
-  it("undoes the superset's most recent set from the partner's screen", async () => {
-    const env = await setup();
-    const { f } = env;
-    let w = await freestyle(env);
-    w = await f.pairExercises(w.id, "bench-press", "lat-pulldown");
-    w = await f.logSet(w.id, "lat-pulldown", { load: 90, reps: 10 });
-    w = await f.logSet(w.id, "bench-press", { load: 100, reps: 8 });
-    // The screen has moved on to lat pulldown; undo takes back the bench set.
-    expect(f.undoTarget(w, "lat-pulldown")).toBe("bench-press");
-    expect(f.undoTarget(w, "leg-press")).toBe("leg-press");
+  it("saves a change as a version with no planned pairs", async () => {
+    const { f } = await setup();
+    const [day] = PAIRED_ROUTINE.versions[0].days;
+    const routine = await f.saveRoutine({
+      id: "r-upper",
+      name: "Upper",
+      days: [{ ...day, slots: day.slots.map((s) => ({ ...s, sets: 3 })) }],
+    });
+    expect(routine.versions[0]).toEqual(PAIRED_ROUTINE.versions[0]);
+    expect(routine.versions[1].days[0].slots.map((s) => s.superset)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it("swaps an exercise without touching any stored superset", async () => {
+    const { f, store } = await setup();
+    // An Upper A started before #167, its planned pair applied.
+    await store.put("workouts", {
+      id: "w-paired",
+      date: "2026-10-25",
+      startedAt: "2026-10-25T17:00:00.000Z",
+      gymId: "gym",
+      routine: { routineId: "r-upper", version: 1, dayId: "d-a" },
+      supersets: [{ id: "s-1", exerciseIds: ["bench-press", "lat-pulldown"] }],
+      entries: ["bench-press", "lat-pulldown", "leg-press"].map((id) => ({
+        exerciseId: id,
+        sets: [],
+      })),
+    });
+    const w = await f.swapExercise(
+      "w-paired",
+      "bench-press",
+      "incline-db-press",
+    );
+    expect(w.entries[0]).toMatchObject({
+      exerciseId: "incline-db-press",
+      swappedFor: "bench-press",
+    });
+    expect(w.supersets).toEqual([
+      { id: "s-1", exerciseIds: ["bench-press", "lat-pulldown"] },
+    ]);
+    expect(await f.routineChanges(w)).toBe(false);
   });
 });
 
-describe("planned pairs in the routine editor (#17)", () => {
-  /** @param {string[]} ids @param {(string | undefined)[]} groups */
-  const slots = (ids, groups) =>
-    ids.map((exerciseId, i) => ({
-      exerciseId,
-      sets: 3,
-      repMin: 8,
-      repMax: 12,
-      ...(groups[i] === undefined ? {} : { superset: groups[i] }),
-    }));
-  /** @param {{ superset?: string }[]} list */
-  const groups = (list) => list.map((s) => s.superset);
-
-  it("pairs a slot with the next, and a third joins as a superset of three", async () => {
+describe("a past workout stored with a superset (#167)", () => {
+  it("shows its sets on the last-workout line with no partners", async () => {
     const { f } = await setup();
-    let list = slots(["a", "b", "c"], []);
-    list = f.pairWithNext(list, 0, true);
-    expect(groups(list)).toEqual(["a", "a", undefined]);
-    list = f.pairWithNext(list, 1, true);
-    expect(groups(list)).toEqual(["a", "a", "a"]);
+    expect(await f.lastWorkoutLine("lat-pulldown")).toEqual({
+      date: "2026-10-20",
+      sets: [
+        { load: 90, unit: "lb", reps: 9 },
+        { load: 90, unit: "lb", reps: 10 },
+      ],
+      rir: 2,
+    });
   });
 
-  it("splits a run of three in the middle, leaving the first alone", async () => {
+  it("counts its sets in history and records", async () => {
     const { f } = await setup();
-    const list = f.pairWithNext(
-      slots(["a", "b", "c"], ["a", "a", "a"]),
-      0,
-      false,
+    const history = await f.history("bench-press");
+    expect(history.map((h) => h.sets.length)).toEqual([2]);
+    expect((await f.records("bench-press")).heaviest).toEqual({
+      load: 100,
+      unit: "lb",
+    });
+  });
+
+  it("keeps its superset and round in the CSV export, empty for a new set", async () => {
+    const { f } = await setup({ inProgress: true });
+    await f.logSet("w-now", "leg-press", { load: 200, reps: 10 });
+    const rows = (await f.exportSetsCsv()).slice(1).trim().split("\r\n");
+    expect(rows[0]).toBe(
+      "date,gym,exercise,set,load,unit,reps,seconds,distance,distance_unit,rir,warm_up,drop_set,superset,round,superset_with,swapped_for,in_progress",
     );
-    expect(groups(list)).toEqual([undefined, "b", "b"]);
+    expect(rows.slice(1)).toEqual([
+      "2026-10-20,Work,Bench Press,1,100,lb,9,,,,2,,,1,1,Lat Pulldown,,",
+      "2026-10-20,Work,Bench Press,2,100,lb,10,,,,2,,,1,2,Lat Pulldown,,",
+      "2026-10-20,Work,Lat Pulldown,1,90,lb,9,,,,2,,,1,1,Bench Press,,",
+      "2026-10-20,Work,Lat Pulldown,2,90,lb,10,,,,2,,,1,2,Bench Press,,",
+      "2026-10-25,Work,Bench Press,1,100,lb,8,,,,,,,1,1,Lat Pulldown,,yes",
+      "2026-10-25,Work,Lat Pulldown,1,90,lb,10,,,,,,,1,1,Bench Press,,yes",
+      "2026-10-25,Work,Leg Press,1,200,lb,10,,,,,,,,,,,yes",
+    ]);
+  });
+});
+
+describe("the core (#167)", () => {
+  it("offers no way to pair exercises, in a workout or a routine", async () => {
+    const { f } = await setup();
+    for (const removed of [
+      "pairExercises",
+      "unpairExercise",
+      "partnersFor",
+      "supersetOf",
+      "pairWithNext",
+      "undoTarget",
+      "nextExercise",
+    ])
+      expect(f).not.toHaveProperty(removed);
+  });
+});
+
+describe("logging in a workout stored with a superset (#167)", () => {
+  it("records no superset round on a new set", async () => {
+    const { f } = await setup({ inProgress: true });
+    const w = await f.logSet("w-now", "bench-press", { load: 100, reps: 8 });
+    const bench = w.entries.find((e) => e.exerciseId === "bench-press");
+    expect(bench?.sets.at(-1)?.superset).toBeUndefined();
+  });
+
+  it("rests each exercise's own rest default, not its old partner's", async () => {
+    const { f } = await setup({ inProgress: true });
+    await f.saveExerciseSettings("lat-pulldown", { rest: 120 });
+    await f.logSet("w-now", "bench-press", { load: 100, reps: 8 });
+    expect(await f.restAfterSet("bench-press")).toBe(90);
+    await f.logSet("w-now", "lat-pulldown", { load: 90, reps: 10 });
+    expect(await f.restAfterSet("lat-pulldown")).toBe(120);
+  });
+
+  it("undoes the exercise's own last set, though its old partner's is later", async () => {
+    const { f } = await setup({ inProgress: true });
+    const w = await f.undoLastSet("w-now", "bench-press");
+    expect(w.entries.map((e) => e.sets.length)).toEqual([0, 1, 0]);
+  });
+
+  it("leaves the stored superset fields as they were when exercises are skipped or removed", async () => {
+    const { f, store } = await setup({ inProgress: true });
+    await f.addExercise("w-now", "incline-db-press");
+    await f.skipExercise("w-now", "lat-pulldown");
+    await f.removeExercise("w-now", "incline-db-press");
+    const w = /** @type {Workout} */ (await store.get("workouts", "w-now"));
+    expect(w.supersets).toEqual(PAIRED_NOW.supersets);
+    expect(w.entries.map((e) => e.sets.map((s) => s.superset))).toEqual([
+      [{ id: "s-now", round: 1 }],
+      [{ id: "s-now", round: 1 }],
+      [],
+    ]);
   });
 });

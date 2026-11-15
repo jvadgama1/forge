@@ -42,7 +42,7 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 - New sets prefill from the previous set; the first set from the last workout (or the suggestion), or a dash when there's neither. Big +/− steppers, tap a number to type, one tap on `LOG SET n →` to log.
 - While logging, the header names the gym as a plain label (`AT WORK`), and each exercise shows its region tag (`■ PUSH · CHEST`), as in the exercise list.
 - Rest timer starts when a set is logged (optional, vibrates). New records get a small celebration.
-- **Supersets** (most exercises are done this way when the gym allows): pair exercises in one or two taps, or start from a routine day's planned pairs; pair, unpair and re-pair at any point. Logging a set jumps to the partner's next set with no rest; rest comes once per round, using the longer of the two rest defaults. Each set records its superset membership, so history stays truthful when a pair is broken. Screens are designed for single exercises and pairs; three or more is allowed.
+- **Supersets**: the app doesn't record supersets for now (#167). The user still does them at the gym, logging each exercise's sets as single exercises and moving between them with ← / →. The design built in #17 didn't fit how they superset, so any return starts with a new design (`.out-of-scope/supersets.md`). Workouts logged with supersets keep them in their stored data, which only the CSV export reads.
 
 ## Suggested weights (no AI)
 
