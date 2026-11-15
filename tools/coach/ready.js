@@ -1,4 +1,4 @@
-// `npm run coach:ready` (#175): the first step of every /coach session.
+// `npm run coach:ready` (#175): the first step of every coaching session.
 // Brings the deployed checkout beside the repo to origin/main, so the
 // coach command runs only reviewed code (ADR-0008). What it does is in
 // deployed-checkout.js.

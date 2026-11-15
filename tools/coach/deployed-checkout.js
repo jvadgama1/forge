@@ -37,20 +37,7 @@ export async function getReady({ repo, checkout, git, npmCi, print }) {
       "origin/main",
     ]);
   } else {
-    const commonDir = (/** @type {string} */ cwd) =>
-      resolve(cwd, git(cwd, ["rev-parse", "--git-common-dir"]));
-    /** @type {string | undefined} */
-    let own;
-    try {
-      own = git(checkout, ["rev-parse", "--show-toplevel"]);
-    } catch {
-      own = undefined;
-    }
-    if (
-      !own ||
-      resolve(own) !== resolve(checkout) ||
-      commonDir(checkout) !== commonDir(repo)
-    ) {
+    if (!isWorktreeOf(repo, checkout, git)) {
       print(
         `${checkout} isn't a checkout of this repo. Move it away and run this again.`,
       );
@@ -69,18 +56,39 @@ export async function getReady({ repo, checkout, git, npmCi, print }) {
   }
   // npm ci empties node_modules first, so a failed install leaves no
   // marker and the next run installs again.
-  const lockfile = git(checkout, ["rev-parse", "HEAD:package-lock.json"]);
+  const lockfileId = git(checkout, ["rev-parse", "HEAD:package-lock.json"]);
   const marker = join(checkout, "node_modules", ".forge-lockfile");
-  const installed = await readFile(marker, "utf8").catch(() => undefined);
-  const install = installed !== lockfile;
+  const installedId = await readFile(marker, "utf8").catch(() => undefined);
+  const install = installedId !== lockfileId;
   if (install) {
     await npmCi(checkout);
     await mkdir(join(checkout, "node_modules"), { recursive: true });
-    await writeFile(marker, lockfile);
+    await writeFile(marker, lockfileId);
   }
-  const at = git(checkout, ["log", "-1", "--format=%h %s"]);
+  const commit = git(checkout, ["log", "-1", "--format=%h %s"]);
   print(
-    `Deployed checkout ready at ${at} in ${checkout} (npm ci ${install ? "ran" : "not needed: the lockfile is unchanged"}).`,
+    `Deployed checkout ready at ${commit} in ${checkout} (npm ci ${install ? "ran" : "not needed: the lockfile is unchanged"}).`,
   );
   return 0;
+}
+
+/**
+ * Whether `folder` is the top of a worktree of the same repo as `repo`, so
+ * a folder that only happens to have the name is never moved.
+ * @param {string} repo
+ * @param {string} folder
+ * @param {Deps["git"]} git
+ */
+function isWorktreeOf(repo, folder, git) {
+  /** @param {string} cwd */
+  const commonDir = (cwd) =>
+    resolve(cwd, git(cwd, ["rev-parse", "--git-common-dir"]));
+  try {
+    const top = git(folder, ["rev-parse", "--show-toplevel"]);
+    return (
+      resolve(top) === resolve(folder) && commonDir(folder) === commonDir(repo)
+    );
+  } catch {
+    return false;
+  }
 }

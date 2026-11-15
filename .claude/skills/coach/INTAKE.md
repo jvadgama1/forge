@@ -1,10 +1,10 @@
 # The intake
 
-The first coaching session starts here, when the coach notes have no `profile.md`. The intake builds the coach profile (`GLOSSARY.md`: _Coach profile_), then the session goes straight on to a review of the whole history.
+The first coaching session starts here, when the coach notes have no `profile.md`. The intake builds the coach profile (`GLOSSARY.md`: _Coach profile_); then the coaching session goes straight on to an opening read of the whole history.
 
 ## Ask
 
-Keep it short: three rounds of questions at most, a few questions per round, in the persona's voice. Before asking, skim the data, so you ask about what it can't tell you and can say what it already shows (how long they've logged, how often, which gyms).
+Three rounds of questions at most, a few questions per round, in the persona's voice. Before asking, skim the data, so you ask about what it can't tell you and can say what it already shows (how long they've logged, how often, which gyms).
 
 Cover each of these:
 
@@ -44,4 +44,6 @@ Target days per week; how long a workout can be.
 ## How to push them
 ```
 
-Write their answers in their own terms; leave out what they skipped. Then go to step 4 of the skill: your opening read covers the whole history, and your challenges can start with whether their goals are the right ones.
+Write their answers in their own terms; leave out what they skipped.
+
+Done when `profile.md` holds the profile as the user approved it. Then go back to the skill's step 4: your opening read covers the whole history, and your challenges can start with whether their goals are the right ones.
