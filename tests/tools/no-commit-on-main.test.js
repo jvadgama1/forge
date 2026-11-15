@@ -3,11 +3,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { SH, gitFreeEnv } from "./git-sandbox.js";
 
 const guard = resolve("tools/hooks/no-commit-on-main.sh");
 
-// The pre-commit hook's first step (#152): branch protection stops a push
-// to main, and this stops the commit before it, on any machine.
+// Branch protection stops a push to main; the guard stops the commit
+// before it (#152).
 describe("the guard against committing on main", () => {
   /** @type {string} */
   let dir;
@@ -23,9 +24,17 @@ describe("the guard against committing on main", () => {
     execFileSync(
       "git",
       ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args],
-      { cwd: dir, encoding: "utf8" },
+      { cwd: dir, encoding: "utf8", env: gitFreeEnv() },
     );
-  const run = () => spawnSync("sh", [guard], { cwd: dir, encoding: "utf8" });
+  const run = () => {
+    const result = spawnSync(SH, [guard], {
+      cwd: dir,
+      encoding: "utf8",
+      env: gitFreeEnv(),
+    });
+    expect(result.error).toBeUndefined();
+    return result;
+  };
 
   it("refuses a commit on main and says where to commit", () => {
     const result = run();

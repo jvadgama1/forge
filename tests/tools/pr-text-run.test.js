@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { gitFreeEnv } from "./git-sandbox.js";
 
 const script = resolve("tools/pr-text/pr-text.js");
 
@@ -22,7 +23,7 @@ describe("the PR text check in CI (#153)", () => {
     execFileSync(
       "git",
       ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args],
-      { cwd: dir, encoding: "utf8" },
+      { cwd: dir, encoding: "utf8", env: gitFreeEnv() },
     ).trim();
 
   /**
@@ -55,7 +56,7 @@ describe("the PR text check in CI (#153)", () => {
     return spawnSync(process.execPath, [script], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, GITHUB_EVENT_PATH: event },
+      env: { ...gitFreeEnv(), GITHUB_EVENT_PATH: event },
     });
   };
 
