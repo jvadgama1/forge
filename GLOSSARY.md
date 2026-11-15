@@ -135,10 +135,10 @@ _Avoid_: Bug report, comment (a comment belongs to an issue or pull request)
 ## Coaching
 
 **Coach**:
-The AI persona (Goggins intensity, mechanism-first explanations) that leads coaching sessions on the laptop. The only AI feature.
+The AI persona (Goggins intensity, mechanism-first explanations) that leads coaching sessions. The only AI feature.
 
 **Coaching session**:
-One conversation with the coach and, once the user approves it, its saved entry: a date, a one-line verdict, insights, commitments, follow-ups and any corrections to earlier insights. A saved coaching session is never changed afterwards.
+One conversation with the coach and, once the user approves it, its saved entry: a date, a one-line verdict, insights, commitments, follow-ups and any corrections to earlier insights.
 _Avoid_: Weekly review, debrief, review, report, session (a session alone is ambiguous with a workout)
 
 **Insight**:
@@ -154,11 +154,11 @@ The result of an earlier commitment, recorded in the next coaching session, sayi
 _Avoid_: Check-in
 
 **Coach notes**:
-The coach's private memory, kept on the laptop outside the repo and never uploaded: the coach profile, a running notebook and a summary of each conversation. Never shown in the app.
+The coach's private files outside the repo: the coach profile, the notebook (its running memory), a summary of each conversation, and a Markdown copy of each saved coaching session.
 _Avoid_: Memory, coach log
 
 **Coach profile**:
 What the coach always knows about the user (goals, age, experience, injuries and movements to avoid, target days per week, life constraints), kept as a private file in the coach notes.
 
 **Proposal**:
-A routine change written by the coach, with a change list and reasons, that does nothing until the user accepts it.
+A routine change written by the coach, with a change list and reasons, that does nothing until the user accepts it. Not part of phase 3: routine changes stay the user's.
