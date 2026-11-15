@@ -14,6 +14,11 @@ const ONE_OFF_READS = [
 const LIVE_COPY =
   "Read from the store's live copy, not with a one-off read (ADR-0007).";
 
+// Inside the pre-commit hook, a test's git inherits GIT_DIR and friends and
+// works on the real repository (#163).
+const GIT_SANDBOX =
+  "Run git and other processes with the helpers in tests/tools/git-sandbox.js, which strip the hook's GIT_* variables (#163).";
+
 export default [
   { ignores: ["coverage/"] },
   js.configs.recommended,
@@ -54,6 +59,25 @@ export default [
     files: ["*.config.js", "tests/**/*.js", "tools/**/*.js"],
     ignores: ["tools/shots/stubs/**"],
     languageOptions: { globals: globals.node },
+  },
+  {
+    files: ["tests/**/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["child_process", "node:child_process"].map((name) => ({
+            name,
+            message: GIT_SANDBOX,
+          })),
+        },
+      ],
+    },
+  },
+  {
+    // The one door: every process a test runs goes through here.
+    files: ["tests/tools/git-sandbox.js"],
+    rules: { "no-restricted-imports": "off" },
   },
   {
     files: ["tools/shots/stubs/**/*.js"],

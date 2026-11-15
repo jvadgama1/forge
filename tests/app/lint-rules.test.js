@@ -74,3 +74,41 @@ describe("ADR-0007: reads come from a live copy", () => {
     expect(messages).toEqual([]);
   });
 });
+
+// A test's git, run inside the pre-commit hook, inherits GIT_DIR and
+// friends unless the git sandbox strips them (#163, #166).
+describe("#166: tests run processes only through the git sandbox", () => {
+  /** @param {string} from */
+  const importsChildProcess = (from) =>
+    `import { spawnSync } from "${from}";\nexport const run = spawnSync;\n`;
+
+  it.each([
+    ["node:child_process", "tests/tools/pr-text-run.test.js"],
+    ["child_process", "tests/tools/pr-text-run.test.js"],
+    ["node:child_process", "tests/rules/firestore.rules.emulator.test.js"],
+  ])("fails a test that imports %s itself (%s)", async (from, path) => {
+    const messages = await lint(importsChildProcess(from), path);
+    expect(messages).toEqual([
+      {
+        ruleId: "no-restricted-imports",
+        message: expect.stringMatching(/git-sandbox\.js.*#163/),
+      },
+    ]);
+  });
+
+  it("lets the sandbox itself import child_process", async () => {
+    const messages = await lint(
+      importsChildProcess("node:child_process"),
+      "tests/tools/git-sandbox.js",
+    );
+    expect(messages).toEqual([]);
+  });
+
+  it("leaves tools free to run git in the real repo", async () => {
+    const messages = await lint(
+      importsChildProcess("node:child_process"),
+      "tools/pr-text/pr-text.js",
+    );
+    expect(messages).toEqual([]);
+  });
+});

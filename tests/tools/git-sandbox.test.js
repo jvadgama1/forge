@@ -1,9 +1,8 @@
-import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SH, gitFreeEnv } from "./git-sandbox.js";
+import { SH, git, run } from "./git-sandbox.js";
 
 // Inside a hook, git exports GIT_DIR, GIT_INDEX_FILE and others to the
 // tests the hook runs. A test's git must ignore them (#163).
@@ -23,19 +22,16 @@ describe("running git in a throwaway repo", () => {
     rmSync(sandbox, { recursive: true, force: true });
   });
 
-  /** @param {string} cwd @param {string[]} args */
-  const git = (cwd, args) =>
-    execFileSync(
-      "git",
-      ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args],
-      { cwd, encoding: "utf8", env: gitFreeEnv() },
-    ).trim();
+  /** Points this process's git at the decoy, as a hook would. */
+  const hookPointsAtDecoy = () => {
+    process.env.GIT_DIR = join(decoy, ".git");
+    process.env.GIT_INDEX_FILE = join(decoy, ".git", "index");
+  };
 
   it("leaves the repo a hook's GIT_DIR points at alone", () => {
     git(decoy, ["init", "-q"]);
     git(decoy, ["commit", "-q", "--allow-empty", "-m", "decoy"]);
-    process.env.GIT_DIR = join(decoy, ".git");
-    process.env.GIT_INDEX_FILE = join(decoy, ".git", "index");
+    hookPointsAtDecoy();
 
     git(sandbox, ["init", "-q"]);
     git(sandbox, ["commit", "-q", "--allow-empty", "-m", "sandbox"]);
@@ -47,11 +43,19 @@ describe("running git in a throwaway repo", () => {
     expect(git(sandbox, ["log", "--format=%s"])).toBe("sandbox");
   });
 
-  it("finds a POSIX sh even where it isn't on PATH, as in PowerShell", () => {
-    const result = spawnSync(SH, ["-c", "echo ok"], {
-      encoding: "utf8",
-      env: { ...gitFreeEnv(), PATH: "" },
+  it("keeps a hook's GIT_DIR from the processes it runs, beside their own env", () => {
+    git(decoy, ["init", "-q"]);
+    hookPointsAtDecoy();
+
+    const result = run(SH, ["-c", 'echo "${GIT_DIR-none} $FORGE_TEST"'], {
+      cwd: sandbox,
+      env: { FORGE_TEST: "own" },
     });
+    expect(result.stdout.trim()).toBe("none own");
+  });
+
+  it("finds a POSIX sh even where it isn't on PATH, as in PowerShell", () => {
+    const result = run(SH, ["-c", "echo ok"], { env: { PATH: "" } });
     expect(result.error).toBeUndefined();
     expect(result.stdout.trim()).toBe("ok");
   });
