@@ -15,16 +15,19 @@ import {
   shortText,
 } from "./measure.js";
 import { endRest, restBar, startRest } from "./rest-timer.js";
-import { monthDay, pad2, typedNumber as typed } from "./screen.js";
+import {
+  monthDay,
+  pad2,
+  rirLabel,
+  rirText,
+  typedNumber as typed,
+} from "./screen.js";
 
 /** @import { ExerciseType, RecordKind, SuggestedWeight, Workout, WorkoutSet } from "../core/types.js" */
 /** @import { Forge } from "../core/forge.js" */
 
 /** @param {number} n to 0.01 */
 const round = (n) => Math.round(n * 100) / 100;
-
-/** @param {number} rir 0–4, where 4 means "4 or more" */
-const rirLabel = (rir) => (rir === 4 ? "4+" : String(rir));
 
 /**
  * Minutes and seconds since `startedAt`, as 32:14 (or 1:05:09 past an hour).
@@ -126,7 +129,7 @@ export function setRow(set, index, type) {
     h(
       "span",
       { class: "label" },
-      set.rir === undefined ? "" : `RIR ${rirLabel(set.rir)}`,
+      set.rir === undefined ? "" : rirText(set.rir),
     ),
     h("span", { class: "set-done", "aria-label": "logged" }, "✓"),
   );
@@ -228,7 +231,7 @@ function lastWorkoutLine(exerciseId, type, { date, sets, rir }, partners) {
         : "Warm-ups only",
       rir === undefined
         ? null
-        : h("span", { class: "label" }, ` · RIR ${rirLabel(rir)}`),
+        : h("span", { class: "label" }, ` ·\u00a0${rirText(rir)}`),
     ),
     h("span", { class: "last-link" }, "History →"),
   );
@@ -662,7 +665,7 @@ export async function workoutScreen({
           "p",
           { class: "label targets" },
           `Target ${targets.sets} × ${targets.repMin}–${targets.repMax}`,
-          targets.rir === undefined ? "" : ` · RIR ${rirLabel(targets.rir)}`,
+          targets.rir === undefined ? "" : ` ·\u00a0${rirText(targets.rir)}`,
         )
       : null,
     superset.top,
