@@ -31,7 +31,7 @@ The review is the plugin's two-axis `mattpocock-skills:code-review`, not the bui
 - **Agent-decided choices**: test each choice with two questions: would the user notice it while using the app, and is it cheap to undo? Both yes: decide; the user will catch it in use. Either no: ask first.
   - Ask first: **security and privacy** (security rules, sign-in, what's stored, anything that leaves the device, anything committed to the public repo); **data** (stored-shape changes that need a migration, deleting or rewriting data, any write to the live Firestore); **how the app works** (a new screen or feature, moving or removing a control already in use, changes to the logging flow, scope beyond the ticket); **training advice** (anything that changes suggested weights or sets); **architecture** (contradicting an ADR, a new dependency, service or cost).
   - Decide: secondary wording, spacing and detail within Slab (still shown in shots), changeable defaults, edge cases with a safe answer, code structure, tests.
-  - List each decided choice under **Decided without you** in the PR body and label the PR `agent-decided`, rather than filing a "confirm N choices" issue. A choice the user disagrees with in use is feedback: a normal issue linking the PR. Each hand-check (on the phone, at the gym) is its own `ready-for-human` issue, linked from the PR.
+  - List each decided choice under **Decided without you** in the PR body and label the PR `agent-decided`, rather than filing a "confirm N choices" issue. A choice the user disagrees with in use is feedback: a `user-feedback` issue linking the PR. Each hand-check (on the phone, at the gym) is its own `ready-for-human` issue, linked from the PR.
 - **Checks**: the pre-commit hook formats staged files, then runs lint, typecheck and tests; GitHub Actions runs the full `npm run check` (job `check`, required on `main`) on every PR. Never bypass hooks (`--no-verify`).
 - **Releases**: `main` deploys to GitHub Pages. Only merge what is ready to ship.
 
@@ -67,7 +67,7 @@ Issues and specs are GitHub issues on this repo, managed with `gh`. See `docs/ag
 
 ### Triage labels
 
-The five default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+The five default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Beside them, `user-feedback` marks an issue from the maintainer's own use of Forge and means high priority. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
