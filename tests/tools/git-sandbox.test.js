@@ -43,7 +43,7 @@ describe("running git in a throwaway repo", () => {
     expect(git(sandbox, ["log", "--format=%s"])).toBe("sandbox");
   });
 
-  it("keeps a hook's GIT_DIR from the processes it runs, beside their own env", () => {
+  it("strips a hook's GIT_DIR from a process and keeps the env it's given", () => {
     git(decoy, ["init", "-q"]);
     hookPointsAtDecoy();
 

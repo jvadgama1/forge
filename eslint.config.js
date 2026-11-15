@@ -15,9 +15,10 @@ const LIVE_COPY =
   "Read from the store's live copy, not with a one-off read (ADR-0007).";
 
 // Inside the pre-commit hook, a test's git inherits GIT_DIR and friends and
-// works on the real repository (#163).
+// works on the real repository (#163). The sandbox is the one way round it
+// (#166).
 const GIT_SANDBOX =
-  "Run git and other processes with the helpers in tests/tools/git-sandbox.js, which strip the hook's GIT_* variables (#163).";
+  "Run git and other processes with the helpers in tests/tools/git-sandbox.js, which strip the hook's GIT_* variables (#163, #166).";
 
 export default [
   { ignores: ["coverage/"] },
