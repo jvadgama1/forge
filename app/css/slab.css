@@ -23,7 +23,8 @@
   /* Body heat map: cold to hot, blue (fewest hard sets), cyan, orange-yellow,
      red (most), the maintainer's rainbow scale (#156). Hue carries the order,
      not lightness: the orange-yellow is brighter than the red. Validated on
-     the ground, all pairs: CVD ΔE ≥ 16.6, normal vision ≥ 24.6, each ≥ 3:1.
+     the ground, all pairs with none: CVD ΔE ≥ 16.6, normal vision ≥ 24.6;
+     each shaded level ≥ 3:1.
      Level 0, none, is a grey that stands off the body's silhouette. */
   --body-0: #333333;
   --body-1: #2a4bff;
