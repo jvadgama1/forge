@@ -67,7 +67,7 @@ Issues and specs are GitHub issues on this repo, managed with `gh`. See `docs/ag
 
 ### Triage labels
 
-The five default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+The five default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Beside them, `user-feedback` marks an issue from the maintainer's own use of Forge and means high priority. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
