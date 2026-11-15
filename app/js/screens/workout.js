@@ -19,6 +19,7 @@ import {
   monthDay,
   pad2,
   rirLabel,
+  rirSuffix,
   rirText,
   typedNumber as typed,
 } from "./screen.js";
@@ -229,9 +230,7 @@ function lastWorkoutLine(exerciseId, type, { date, sets, rir }, partners) {
       sets.length
         ? sets.map((s) => shortText(s, type)).join(", ")
         : "Warm-ups only",
-      rir === undefined
-        ? null
-        : h("span", { class: "label" }, ` ·\u00a0${rirText(rir)}`),
+      rir === undefined ? null : h("span", { class: "label" }, rirSuffix(rir)),
     ),
     h("span", { class: "last-link" }, "History →"),
   );
@@ -665,7 +664,7 @@ export async function workoutScreen({
           "p",
           { class: "label targets" },
           `Target ${targets.sets} × ${targets.repMin}–${targets.repMax}`,
-          targets.rir === undefined ? "" : ` ·\u00a0${rirText(targets.rir)}`,
+          targets.rir === undefined ? "" : rirSuffix(targets.rir),
         )
       : null,
     superset.top,
