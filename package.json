@@ -16,6 +16,7 @@
     "check": "npm run lint && npm run typecheck && npm test && npm run test:emulator && npm run format:check",
     "deploy:rules": "firebase deploy --only firestore:rules --project forge-eb613",
     "coach": "node tools/coach/coach.js",
+    "coach:ready": "node tools/coach/ready.js",
     "feedback": "node tools/feedback/feedback.js",
     "shots": "node tools/shots/shots.js",
     "shots:compare": "node tools/shots/compare.js",
