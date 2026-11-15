@@ -1,5 +1,7 @@
 # Public repo; personal data never enters it
 
+**Narrowed by [ADR-0008](0008-coach-runs-on-the-laptop-only.md):** the coach profile and the coach's notes are private files on the laptop, outside the repo, not in Firestore.
+
 The repo is public on GitHub because free GitHub Pages hosting requires it, and the code contains nothing sensitive. Workout data, the coach profile and coach output live only in Firestore behind security rules that allow the user's account alone.
 
 ## Consequences

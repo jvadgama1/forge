@@ -16,7 +16,7 @@ A workout tracker I built to log my own workouts: log sets on the phone at the g
 - **Dashboard.** Estimated one-rep-max trends, hard sets per muscle group against a target band, a body heat map, a calendar of workouts, tonnage and a record timeline. Phone and wide-screen layouts.
 - **Library and routines.** About 150 exercises tagged across 17 muscle groups, custom exercises, versioned routines, and gyms defined by the exercises they have.
 - **Your data is yours.** Export everything as JSON or CSV.
-- **AI coach (next).** A weekly review that proposes routine changes. Everything else works without AI.
+- **AI coach (next).** A coaching session I run on the laptop that reviews my training and leaves its insights and commitments on the Coach page. Everything else works without AI.
 
 ## How it's built
 

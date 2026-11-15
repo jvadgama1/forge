@@ -31,7 +31,7 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 - **Workout**: a date, gym, optional routine day, optional note, and ordered exercises each with sets. Editable and deletable after the fact; can be back-dated.
 - **Set**: weight (or added/assist load), reps (or seconds, or time + distance), optional RIR, flags: warm-up, drop set.
 - **Body weight log**: date + weight. Used for bodyweight-exercise volume and e1RM, and by the coach.
-- **Coach profile**: goals, age, body weight, experience, injuries / movements to avoid, target days per week.
+- **Coach profile**: goals, age, experience, injuries / movements to avoid, target days per week, life constraints. A private file in the coach notes on the laptop, never in the app or the repo.
 
 ## Logging
 
@@ -63,12 +63,18 @@ A personal workout tracker: phone-first logging, a desktop dashboard over the sa
 
 ## Coach
 
-- Runs on the user's Claude subscription through **Claude Code**, not an API key.
-- **Weekly review**: a scheduled Claude Code cloud routine (Sunday evening) reads Firestore and writes a review to the Coach tab: neglected muscle groups, progressive overload, frequency and recovery, concrete changes. Skipped when the week had no workouts; the first review after a break covers the gap and the rebuild.
-- **On demand**: `/coach` in Claude Code, from the computer or from the phone via claude.ai/code. Debriefs are also written to the Coach tab.
-- **Proposals**: the coach may write or change routines, but changes arrive as proposals with a change list and reasons; nothing changes until accepted. Accepting creates a new routine version.
-- **Persona**: David Goggins' intensity (blunt, mild profanity, "stay hard") with Andrew Huberman's mechanism-and-protocol explanations behind every recommendation.
-- Reads exercise and workout notes, the profile and body weight.
+Specified in #170; the architecture is ADR-0008.
+
+- **`/coach` in Claude Code on the laptop**, on the user's Claude subscription, not an API key. It runs only when invoked: nothing scheduled, no cloud routine, no service account, no coaching from the phone. It signs in with the maintainer's Firebase CLI login and runs against the deployed code (a checkout of `origin/main` beside the repo), reading and saving through the Forge core.
+- **What it reads, every coaching session**: all Forge data (gyms, the exercise library, exercise settings, routines with every version, every workout with its sets and notes, body weight, settings), every coaching session saved so far, the coach profile, the notebook and the summaries of the last few conversations.
+- **A coaching session**: the coach opens with its own fresh-eyes read (what changed since last time, how each open commitment went, its top challenges at both levels), then the conversation follows. `/coach <topic>` lets the user lead on a topic; the coach still raises anything urgent. A coaching session runs even with nothing logged since the last one, and several can run on one day. The first one starts with a short intake that writes the coach profile, then goes straight on to a look at the whole history.
+- **What it looks at**: the training level (workouts, sets, reps, loads, RIR, exercise choice, e1RM trends and records, hard sets by muscle group and region, frequency and breaks, body weight, notes) and the strategy level (the goals themselves, the plan's structure, recovery and sleep, general well-supported nutrition, cardio, conditioning and mobility, lifestyle). It knows supersets are done but not recorded, and how double progression sets suggested weights; it may tell the user to ignore a suggestion, always saying why and that the app will keep suggesting as before.
+- **Its boundary**: it stops at diagnosis (pain or an injury: what to avoid, and see a professional), and gives no specific diet plans or supplement doses beyond general, well-supported guidance.
+- **Persona**: David Goggins' intensity (blunt, mild profanity, "stay hard"), a mechanism-first explanation behind every recommendation, and honesty in conversation about how strong the evidence is (strong, mixed, or a guess). No fringe protocols.
+- **Saving**: at the end the coach drafts the coaching session entry: a one-line verdict in its voice, 1 to 6 insights, aiming for 3 to 6 (each Training or Strategy, with a title and a body giving the reasoning, no evidence grades), any commitments agreed (none if none were), follow-ups of the previous commitments (checked against logged data, or from the user's own account), and any corrections to earlier insights. "Save that as an insight" adds to the draft mid-conversation. The user sees and can change the whole draft; nothing reaches Firestore until they approve it by running the save themselves, and turning it down saves nothing there. A save only adds a new coaching session; none is ever changed or deleted.
+- **Coach notes**, in a private folder on the laptop outside the repo (ADR-0008), never committed or uploaded: the coach profile (changes suggested by the coach, made only once approved), the notebook, which the coach rewrites at the end of each coaching session and keeps short (long-running threads, patterns, how the user responds to being pushed), a private summary of each conversation (written even when the entry isn't saved), and a Markdown copy of each saved coaching session, which every run rewrites when missing or out of date. "Off the record" means nothing about that conversation is written anywhere. At the end the coach says what it changed in its notes. No backup yet (#169).
+- **The Coach page**: read-only. The latest coaching session in full at the top (verdict, commitments, then insights grouped by Training and Strategy, labelled in text as well as colour), "Last coached N days ago", and earlier coaching sessions below by date and verdict, newest first, each opening in full. Before the first coaching session it says to run `/coach` on the laptop. On a wide screen, the latest coaching session is on the left and the earlier ones on the right. Works offline once loaded; coaching sessions are part of the data export.
+- **Not in phase 3**: proposals (the coach writing or changing routines; routine changes stay the user's, made in the app), and coaching changing suggested weights or double progression (ADR-0004).
 
 ## Look: "Slab" (chosen 2026-10-21)
 
@@ -86,8 +92,8 @@ Bold editorial, from the style prototype (direction C): https://claude.ai/artifa
 0. Style prototype: 2–3 visual directions, picked on the phone.
 1. Logging: gyms, library, routines, logging, last workout + history, suggested weights, body weight, rest timer.
 2. Dashboard: all charts, phone and desktop layouts.
-3. Coach: `/coach`, the weekly routine, the Coach tab, proposals.
-4. Later: in-app "Ask coach" button (Firestore → server function → GitHub event → routine), history import, per-gym equipment.
+3. Coach (#170): coaching sessions in the core, a REST store for Node tools, the coach command (`npm run coach`), the `/coach` skill and its coach notes, and the Coach page.
+4. Later: in-app "Ask coach" button (Firestore → server function → GitHub event → routine), which depends on revisiting ADR-0008 since the coach now runs only on the laptop; history import; per-gym equipment.
 
 ## To verify before building
 
