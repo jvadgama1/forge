@@ -1,5 +1,6 @@
-// The CI step for #153: fails a pull request whose title, body or commits
-// would close an issue its body says it is only part of.
+// The CI step for #153 (workflow `PR text`): fails a pull request whose
+// title, body or commits would close an issue its body says it is only part
+// of. What counts as that is in conflicts.js.
 //
 // The PR's text is written by whoever opens it, so it is read as data only:
 // the title and body from the event file GitHub Actions writes
@@ -9,9 +10,20 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { findClosingConflicts } from "./conflicts.js";
 
-const { pull_request: pr } = JSON.parse(
-  readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8"),
-);
+const eventPath = process.env.GITHUB_EVENT_PATH;
+if (!eventPath)
+  throw new Error("GITHUB_EVENT_PATH is unset: run this in a pull_request job");
+
+/**
+ * The parts of GitHub's pull_request event this reads.
+ * @type {{ pull_request: {
+ *   title: string,
+ *   body: string | null,
+ *   base: { sha: string },
+ *   head: { sha: string },
+ * } }}
+ */
+const { pull_request: pr } = JSON.parse(readFileSync(eventPath, "utf8"));
 
 // Each commit as "<sha>\0<message>", records split by \x1e.
 const log = execFileSync(
@@ -29,7 +41,7 @@ const commits = log
   });
 
 const conflicts = findClosingConflicts({
-  title: pr.title ?? "",
+  title: pr.title,
   body: pr.body ?? "",
   commits,
 });

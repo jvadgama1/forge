@@ -51,16 +51,17 @@ describe("Part of #N against closing keywords (#153)", () => {
     ]);
   });
 
-  it("matches any case, and a colon after the keyword", () => {
+  it("matches any case, and a colon after the keyword, spaced or not", () => {
     expect(
       findClosingConflicts({
         title: "",
-        body: "part of #142\n\nFIXES: #142\nClosed #142",
+        body: "part of #142\n\nFIXES: #142\nClosed #142\nresolve:#142",
         commits: [],
       }),
     ).toEqual([
       { issue: 142, keyword: "fixes", where: "body" },
       { issue: 142, keyword: "closed", where: "body" },
+      { issue: 142, keyword: "resolve", where: "body" },
     ]);
   });
 
@@ -74,7 +75,7 @@ describe("Part of #N against closing keywords (#153)", () => {
     ).toEqual([]);
   });
 
-  it("treats hostile text as text: it is matched, never run", () => {
+  it("matches hostile text like any other text", () => {
     const hostile = '$(touch pwned) `rm -rf ~` "; exit 0; " closes #7';
     expect(
       findClosingConflicts({

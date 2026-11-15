@@ -20,7 +20,7 @@
 
 const PART_OF = /\bpart of #(\d+)/gi;
 const CLOSING =
-  /\b(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):?\s+#(\d+)/gi;
+  /\b(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):?\s*#(\d+)/gi;
 
 /**
  * Every closing keyword aimed at an issue the body says the PR is only part

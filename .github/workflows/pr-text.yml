@@ -2,12 +2,9 @@ name: PR text
 
 # Fails a pull request whose title, body or commits would close an issue its
 # body says it is only part of (#153). A workflow of its own, so editing the
-# body re-runs this check alone, not `check` and its emulators.
-#
-# The PR's text is untrusted: the script reads it from the event file and
-# git, and no `${{ }}` expression puts it in a `run:` line. `pull_request`
-# (never `pull_request_target`) gives a fork's PR a read-only token and no
-# secrets.
+# body re-runs this check alone, not `check` and its emulators. The PR's text
+# is untrusted: see tools/pr-text/pr-text.js. Keep it out of `${{ }}` in any
+# `run:` line, and keep `pull_request` (never `pull_request_target`).
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
@@ -28,4 +25,4 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - run: node tools/pr-text/run.js
+      - run: node tools/pr-text/pr-text.js
