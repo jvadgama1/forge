@@ -1,3 +1,4 @@
+sh tools/hooks/no-commit-on-main.sh
 npx lint-staged
 npm run lint
 npm run typecheck
