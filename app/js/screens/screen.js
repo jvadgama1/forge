@@ -93,6 +93,23 @@ export const rangeWords = (weeks) => (weeks === 52 ? "year" : `${weeks} weeks`);
  */
 export const setCount = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
+/** @param {number} rir 0–4, where 4 means "4 or more" */
+export const rirLabel = (rir) => (rir === 4 ? "4+" : String(rir));
+
+/**
+ * "RIR 1", joined by a no-break space so a wrapping line never splits the
+ * label from its number (#151).
+ * @param {number} rir
+ */
+export const rirText = (rir) => `RIR\u00a0${rirLabel(rir)}`;
+
+/**
+ * " · RIR 1" after other text, for one line: the dot is held to it as well,
+ * so a wrap breaks only before the dot and moves the piece whole (#151).
+ * @param {number} rir
+ */
+export const rirSuffix = (rir) => ` ·\u00a0${rirText(rir)}`;
+
 /**
  * A typed number, forgiving a decimal comma ("2,5"); blank is no number, so
  * the core refuses it with a message.
