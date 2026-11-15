@@ -710,6 +710,17 @@ export function createForge({
     listCoachingSessions,
 
     /**
+     * Calendar days since a coaching session was saved, where the user is,
+     * for "Last coached N days ago" (#176; spec #170, story 67). One saved
+     * after today, as a clock set behind may give, counts as today.
+     * @param {CoachingSession} session
+     */
+    daysSinceSaved(session) {
+      const saved = localDate(new Date(session.savedAt));
+      return Math.max(0, daysBetween(saved, localDate(now())));
+    },
+
+    /**
      * Every workout, newest first by workout date (spec #3, story 53), the
      * one in progress included.
      * @returns {Promise<Workout[]>}

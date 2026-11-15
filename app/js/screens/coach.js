@@ -31,34 +31,122 @@ export const CHECKED_BY = {
 const savedDay = (savedAt, today) => listDate(localDay(savedAt), today);
 
 /**
- * The Coach page (#172): the latest coaching session in full, or, before
- * the first, how to start one. Read-only: only the coach adds coaching
- * sessions (spec #170, story 71).
- * @param {Pick<ScreenContext, "forge">} context
+ * The line under the Coach heading (#176; spec #170, story 67), so the
+ * user can tell when it's time for another coaching session; reads
+ * naturally for today and yesterday.
+ * @param {number} days since the latest coaching session, from the core
  */
-export function coachView({ forge }) {
+export function lastCoached(days) {
+  if (days === 0) return "Last coached today";
+  if (days === 1) return "Last coached yesterday";
+  return `Last coached ${days} days ago`;
+}
+
+/**
+ * The Coach page (#172, #176): the latest coaching session in full, or one
+ * opened from the list of earlier ones below it (beside it on a wide
+ * screen), under how long since the latest; before the first, how to
+ * start one. Read-only: only the coach adds coaching sessions (spec #170,
+ * story 71).
+ * @param {Pick<ScreenContext, "forge" | "id">} context `id` is the earlier
+ *   coaching session opened, if any
+ */
+export function coachView({ forge, id }) {
   const root = h("div");
   show();
   return root;
 
   async function show() {
     const sessions = await forge.listCoachingSessions();
-    const [latest] = sessions;
+    const [latest, ...earlier] = sessions;
+    if (!latest) {
+      root.replaceChildren(
+        screen(
+          "Coach",
+          h(
+            "p",
+            { class: "lede" },
+            "No coaching sessions yet. Run ",
+            h("code", {}, "/coach"),
+            " in Claude Code on the laptop: once you save your first coaching session, it shows here.",
+          ),
+        ),
+      );
+      return;
+    }
+    const today = forge.today();
+    const openId = id === latest.id ? undefined : id;
+    const open =
+      openId === undefined ? latest : sessions.find((s) => s.id === openId);
     root.replaceChildren(
       screen(
         "Coach",
-        latest
-          ? coachingSessionView(latest, sessions, forge.today())
-          : h(
-              "p",
-              { class: "lede" },
-              "No coaching sessions yet. Run ",
-              h("code", {}, "/coach"),
-              " in Claude Code on the laptop: once you save your first coaching session, it shows here.",
-            ),
+        h(
+          "p",
+          { class: "last-coached" },
+          lastCoached(forge.daysSinceSaved(latest)),
+        ),
+        h(
+          "div",
+          { class: "coach-page" },
+          h(
+            "div",
+            {},
+            openId !== undefined &&
+              h("a", { class: "chip back", href: "#/coach" }, "← Latest"),
+            open
+              ? coachingSessionView(open, sessions, today)
+              : h(
+                  "p",
+                  { class: "lede" },
+                  "That coaching session isn't here. Pick one from the list.",
+                ),
+          ),
+          earlierView(earlier, openId, today),
+        ),
       ),
     );
   }
+}
+
+/**
+ * The earlier coaching sessions, newest first, by date and verdict, each
+ * opening in full (#176; spec #170, stories 68–69). The one open is marked
+ * by more than colour, as a list beside its item is (#23).
+ * @param {CoachingSession[]} earlier
+ * @param {string | undefined} openId
+ * @param {string} today YYYY-MM-DD
+ */
+function earlierView(earlier, openId, today) {
+  const name = "Earlier coaching sessions";
+  return h(
+    "section",
+    { class: "coach-earlier" },
+    h("h2", { class: "label section" }, name),
+    earlier.length
+      ? h(
+          "nav",
+          { class: "menu", "aria-label": name },
+          ...earlier.map(({ id, savedAt, verdict }) =>
+            h(
+              "a",
+              {
+                class: "workout-link coaching-link",
+                href: `#/coach/${encodeURIComponent(id)}`,
+                "aria-current": id === openId && "page",
+              },
+              h(
+                "span",
+                { class: "workout-link-main" },
+                h("span", { class: "label" }, savedDay(savedAt, today)),
+                h("span", { class: "name" }, verdict),
+              ),
+              h("span", { "aria-hidden": "true" }, "→"),
+            ),
+          ),
+        )
+      : h("p", { class: "lede" }, "None yet."),
+  );
 }
 
 /**
