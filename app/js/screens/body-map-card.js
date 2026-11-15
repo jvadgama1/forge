@@ -1,10 +1,10 @@
 // The Stats board's body heat map (#85; spec #80, stories 26–30): front
 // and back figures, each muscle group shaded by its hard sets per week, the
-// same numbers as the hard-sets card. Its colours climb from dim blue (fewer)
-// to bright red (more), the scale the maintainer chose on PR #100, their
-// lightness rising at every step, so brighter always means more. A legend gives each shade's numbers and a
-// muscle group's reading names it with its own, so the shade is never the
-// only signal.
+// same numbers as the hard-sets card. Its colours run cold to hot, blue
+// (fewer) through cyan and orange-yellow to red (more), the scale the
+// maintainer chose in #156. A legend gives each shade's numbers and a muscle
+// group's reading names it with its own, so the shade is never the only
+// signal.
 import { h } from "../dom.js";
 import { BODY_MAP_EDGES } from "../core/dashboard.js";
 import { BOX, FIGURES, MIRROR, SILHOUETTE, unmirror } from "./body-figures.js";

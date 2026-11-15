@@ -108,8 +108,8 @@ const BY_REGION = REGIONS.flatMap((region) =>
 export const BODY_MAP_EDGES = { low: 5, ...TARGET };
 
 /**
- * A muscle group's shade on the body heat map, 0 to 4, ordinal so more
- * volume is always brighter.
+ * A muscle group's level on the body heat map, 0 to 4, ordinal: more hard
+ * sets, a higher level.
  * @param {number} perWeek
  */
 function bodyLevelOf(perWeek) {

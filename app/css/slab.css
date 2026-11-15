@@ -20,16 +20,17 @@
   --heat-2: #8aa114;
   --heat-3: #bcd923;
   --heat-4: #e6ff3a;
-  /* Body heat map: dim blue (fewer hard sets) to bright red (more), its
-     lightness climbing at every step (CIE L* 32, 53, 62, 79), so brighter
-     always means more (#85; validated on the ground: adjacent CVD ΔE ≥ 13.9,
-     normal vision ≥ 16.1). Level 0, none, is a grey that stands off the
-     body's silhouette. */
+  /* Body heat map: cold to hot, blue (fewest hard sets), cyan, orange-yellow,
+     red (most), the maintainer's rainbow scale (#156). Hue carries the order,
+     not lightness: the orange-yellow is brighter than the red. Validated on
+     the ground, all pairs with none: CVD ΔE ≥ 16.6, normal vision ≥ 24.6;
+     each shaded level ≥ 3:1.
+     Level 0, none, is a grey that stands off the body's silhouette. */
   --body-0: #333333;
-  --body-1: #174a92;
-  --body-2: #3d7ede;
-  --body-3: #ee6e67;
-  --body-4: #f7b4ad;
+  --body-1: #2a4bff;
+  --body-2: #19c8e6;
+  --body-3: #ffb000;
+  --body-4: #ff2a1a;
   --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 4px;
