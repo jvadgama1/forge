@@ -1,0 +1,28 @@
+name: PR text
+
+# Fails a pull request whose title, body or commits would close an issue its
+# body says it is only part of (#153). A workflow of its own, so editing the
+# body re-runs this check alone, not `check` and its emulators. The PR's text
+# is untrusted: see tools/pr-text/pr-text.js. Keep it out of `${{ }}` in any
+# `run:` line, and keep `pull_request` (never `pull_request_target`).
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-text:
+    name: pr-text
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Every commit in the PR, for their messages.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node tools/pr-text/pr-text.js
