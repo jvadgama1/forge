@@ -692,9 +692,9 @@ a {
 }
 
 /* Undo the last set (#42): small, out of the thumb's way, at the right end
-   of the Now row, where there's room (#104). "Tap again to undo" can name a
-   superset partner (#17): it wraps inside its column, leaving the set
-   number and Now in line, and never pushes the screen sideways. */
+   of the Now row, where there's room (#104). "Tap again to undo" wraps
+   inside its column, leaving the set number and Now in line, and never
+   pushes the screen sideways. */
 .undo {
   grid-column: 3 / -1;
   justify-self: end;
@@ -709,7 +709,7 @@ a {
   display: none;
 }
 
-/* The set type, and the superset button at the end of its row (#104). */
+/* The set type's row (#104). */
 .set-type-row {
   display: flex;
   justify-content: space-between;
@@ -1597,35 +1597,6 @@ a.pick {
   .full-width .board {
     columns: 3;
   }
-}
-
-/* The superset line on the logging screen (#17): who it's paired with and
-   Unpair. */
-.superset {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  margin-top: 6px;
-}
-
-.superset .label {
-  color: var(--text);
-}
-
-/* The chips to pair with, opened from the set-type row (#104). */
-.superset-choices {
-  flex-wrap: wrap;
-  padding-top: 0;
-}
-
-.superset-choices[hidden] {
-  display: none;
-}
-
-/* A routine slot's planned pair with the next one (#17). */
-.pair-next {
-  margin-top: 8px;
 }
 
 /* An exercise this gym doesn't have, with swaps (#16). */

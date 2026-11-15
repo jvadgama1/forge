@@ -203,27 +203,18 @@ export function setChoices(type, set = {}) {
  * The exercise's last workout on one line (spec #3, story 25), in DESIGN.md's
  * order (date, each working set, RIR) and the Slab prototype's coral-edged
  * card. Tapping it opens the full history (#13).
- * Supersetted then, it names the partners (#17).
  * @param {string} exerciseId
  * @param {ExerciseType} type
  * @param {NonNullable<Awaited<ReturnType<Forge["lastWorkoutLine"]>>>} last
- * @param {string[]} partners their names
  */
-function lastWorkoutLine(exerciseId, type, { date, sets, rir }, partners) {
+function lastWorkoutLine(exerciseId, type, { date, sets, rir }) {
   return h(
     "a",
     {
       class: "last-workout",
       href: `#/log/history/${encodeURIComponent(exerciseId)}`,
     },
-    h(
-      "span",
-      { class: "label last-head" },
-      [
-        `Last · ${monthDay(date)}`,
-        ...(partners.length ? [`superset w/ ${partners.join(", ")}`] : []),
-      ].join(" · "),
-    ),
+    h("span", { class: "label last-head" }, `Last · ${monthDay(date)}`),
     h(
       "span",
       { class: "last-sets" },
@@ -269,116 +260,25 @@ const exerciseNamer = (forge) => async (/** @type {string} */ id) =>
 
 /**
  * A set just logged, for the screen that follows it: the records it beat
- * (#13), and the exercise to log next (#17).
- * @typedef {{ exerciseId: string, set: WorkoutSet, records: RecordKind[], next: string }} Logged
+ * (#13).
+ * @typedef {{ exerciseId: string, set: WorkoutSet, records: RecordKind[] }} Logged
  */
 
 /**
  * A small celebration for a set that beat a record (spec #3, story 40):
- * a star and the record's name, so it isn't colour alone. When the screen
- * has moved on to a superset partner (#17), it names the exercise.
+ * a star and the record's name, so it isn't colour alone.
  * @param {Forge} forge
  * @param {Logged} logged
- * @param {string} onScreen the exercise now shown
  */
-async function celebration(forge, { exerciseId, set, records }, onScreen) {
+async function celebration(forge, { exerciseId, set, records }) {
   const type = await forge.exerciseType(exerciseId);
   const names = records.map((r) => recordName(r, set, type)).join(", ");
-  const which =
-    exerciseId === onScreen
-      ? ""
-      : ` on ${await exerciseNamer(forge)(exerciseId)}`;
   return h(
     "p",
     { class: "record", role: "status" },
     h("span", { "aria-hidden": "true" }, "★ "),
-    `New record${which}: ${names}`,
+    `New record: ${names}`,
   );
-}
-
-/**
- * The superset controls (#17): the partners and Unpair at the top when
- * paired; and `Superset with…`, or `Add to superset…` once paired, which opens a
- * chip per exercise it can take: two taps to pair. The button sits at the
- * end of the set-type row, where there's room (#104), and its chips open
- * below that row (pairing is once per exercise, so the top stays short:
- * #63).
- * @param {Forge} forge
- * @param {Workout} workout
- * @param {string} exerciseId
- * @param {() => void} changed
- */
-async function supersetControls(forge, workout, exerciseId, changed) {
-  const nameOf = exerciseNamer(forge);
-  const members = forge.supersetOf(workout, exerciseId);
-  const top = members
-    ? h(
-        "div",
-        { class: "superset" },
-        h(
-          "span",
-          { class: "label" },
-          `Superset with ${(
-            await Promise.all(
-              members.filter((id) => id !== exerciseId).map(nameOf),
-            )
-          ).join(", ")}`,
-        ),
-        h(
-          "button",
-          {
-            class: "chip",
-            type: "button",
-            onclick: async () => {
-              await forge.unpairExercise(workout.id, exerciseId);
-              changed();
-            },
-          },
-          "Unpair",
-        ),
-      )
-    : null;
-  const candidates = forge.partnersFor(workout, exerciseId);
-  if (!candidates.length) return { top, open: null, choices: null };
-  const choices = h(
-    "div",
-    {
-      class: "chips superset-choices",
-      role: "group",
-      "aria-label": "Superset with",
-    },
-    ...(await Promise.all(
-      candidates.map(async (id) =>
-        h(
-          "button",
-          {
-            class: "chip",
-            type: "button",
-            onclick: async () => {
-              await forge.pairExercises(workout.id, exerciseId, id);
-              changed();
-            },
-          },
-          await nameOf(id),
-        ),
-      ),
-    )),
-  );
-  choices.hidden = true;
-  const open = h(
-    "button",
-    {
-      class: "chip",
-      type: "button",
-      "aria-expanded": "false",
-      onclick: () => {
-        choices.hidden = !choices.hidden;
-        open.setAttribute("aria-expanded", String(!choices.hidden));
-      },
-    },
-    members ? "Add to superset…" : "Superset with…",
-  );
-  return { top, open, choices };
 }
 
 /**
@@ -538,9 +438,9 @@ export async function workoutScreen({
             ...readFields(fields, inputs.map(typed)),
             ...choices.read(),
           });
-          // A rest default of Off, or a set within a superset's round,
-          // starts no rest (#52, #17), and clears any still running.
-          const rest = await forge.restAfterSet(exerciseId, logged);
+          // A rest default of Off starts no rest (#52), and clears any
+          // still running.
+          const rest = await forge.restAfterSet(exerciseId);
           if (rest === undefined) endRest();
           else startRest(rest);
           const set = /** @type {WorkoutSet} */ (
@@ -550,7 +450,6 @@ export async function workoutScreen({
             exerciseId,
             set,
             records: await forge.recordsSetBy(logged, exerciseId),
-            next: await forge.nextExercise(logged, exerciseId),
           });
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
@@ -564,13 +463,7 @@ export async function workoutScreen({
 
   // Undo the last set (#42): two taps, since the set is gone afterwards.
   const nameOf = exerciseNamer(forge);
-  // In a superset, undo takes back the members' latest set, which may be
-  // the partner's just logged (#17), and goes back to it.
-  const undoFrom = forge.undoTarget(workout, exerciseId);
-  const undoing = workout.entries
-    .find((e) => e.exerciseId === undoFrom)
-    ?.sets.at(-1);
-  const undoType = await forge.exerciseType(undoFrom);
+  const undoing = sets.at(-1);
   let armed = false;
   const undo = h(
     "button",
@@ -582,19 +475,16 @@ export async function workoutScreen({
         if (!undoing || undo.disabled) return;
         if (!armed) {
           armed = true;
-          // Name it when it's the partner's (#17).
-          const whose =
-            undoFrom === exerciseId ? "" : `${await nameOf(undoFrom)} `;
-          undo.textContent = `Tap again to undo ${whose}${setText(undoing, undoType)}`;
+          undo.textContent = `Tap again to undo ${setText(undoing, type)}`;
           return;
         }
         undo.disabled = true;
         status.textContent = "";
         try {
-          await forge.undoLastSet(workout.id, undoFrom);
+          await forge.undoLastSet(workout.id, exerciseId);
           // The rest was for that set: it goes with it.
           endRest();
-          onLogged(undoFrom === exerciseId ? undefined : { back: undoFrom });
+          onLogged();
         } catch (error) {
           status.textContent = /** @type {Error} */ (error).message;
           armed = false;
@@ -608,9 +498,6 @@ export async function workoutScreen({
 
   const before = live[index - 1];
   const after = live[index + 1];
-  const superset = await supersetControls(forge, workout, exerciseId, () =>
-    onLogged(),
-  );
   const nav = h(
     "div",
     { class: "workout-nav" },
@@ -631,7 +518,6 @@ export async function workoutScreen({
   );
 
   const lastWorkout = await forge.lastWorkoutLine(exerciseId, workout.id);
-  const partners = await Promise.all((lastWorkout?.partners ?? []).map(nameOf));
   const targets = await forge.targets(workout, exerciseId);
   const suggested = await forge.suggestedWeight(workout, exerciseId);
   const primary = exercise && muscleGroup(exercise.primary[0]);
@@ -667,7 +553,6 @@ export async function workoutScreen({
           targets.rir === undefined ? "" : rirSuffix(targets.rir),
         )
       : null,
-    superset.top,
     await swapLine(forge, workout, exerciseId, gymName, (id) =>
       onLogged({ back: id }),
     ),
@@ -681,9 +566,7 @@ export async function workoutScreen({
           settings.note,
         )
       : null,
-    lastWorkout
-      ? lastWorkoutLine(exerciseId, type, lastWorkout, partners)
-      : null,
+    lastWorkout ? lastWorkoutLine(exerciseId, type, lastWorkout) : null,
     h(
       "ol",
       { class: "sets", "aria-label": "Sets logged" },
@@ -697,9 +580,7 @@ export async function workoutScreen({
         undo,
       ),
     ),
-    justLogged?.records.length
-      ? await celebration(forge, justLogged, exerciseId)
-      : null,
+    justLogged?.records.length ? await celebration(forge, justLogged) : null,
     h(
       "div",
       { class: "entry" },
@@ -714,9 +595,7 @@ export async function workoutScreen({
       ),
     ),
     choices.rir,
-    // The set type, with the superset button at the end of its row (#104).
-    h("div", { class: "set-type-row" }, choices.setType, superset.open),
-    superset.choices,
+    h("div", { class: "set-type-row" }, choices.setType),
     nav,
   );
   return h(

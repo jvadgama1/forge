@@ -834,30 +834,12 @@ const NARROWEST_PHONE = { width: 320, height: 740 };
 export const PHONE = { width: 390, height: 844 };
 
 /**
- * Logs bench press set 02 in the PAIRED superset, which moves to its
- * partner, Lat Pulldown, with no rest (#17).
- * @param {Page} page
+ * Push A in progress, stored with bench press and lat pulldown paired and a
+ * round of each logged (#17), after an Oct 20 workout that paired them too:
+ * data from before supersets came out of the app (#167), which no screen
+ * shows a superset for now.
  */
-const logOnPartner = async (page) => {
-  await page.getByRole("button", { name: /Log set 02/ }).click();
-  await page.getByRole("heading", { name: "Lat Pulldown" }).waitFor();
-};
-
-/**
- * Then taps Undo once on the partner's screen, arming it to take back the
- * set just logged (#17).
- * @param {Page} page
- */
-const undoArmedOnPartner = async (page) => {
-  await logOnPartner(page);
-  await page.getByRole("button", { name: "Undo last set" }).click();
-};
-
-/**
- * Push A in progress with bench press and lat pulldown paired, a round of
- * each logged (#17), after an Oct 20 workout that paired them too.
- */
-const PAIRED = {
+const STORED_PAIR = {
   ...pushAfter("2026-10-20"),
   workouts: [
     {
@@ -1115,47 +1097,43 @@ export const SHOTS = [
     seed: WORKOUT,
     viewport: SMALL_PHONE,
   },
-  // Supersets (#17): paired, logging a set moves to the partner with no
-  // rest, pairing in two taps, and the routine editor's planned pairs.
+  // A workout stored with a superset (#167): no superset line or partner
+  // on the last-workout line, and logging a set stays on the exercise and
+  // starts the rest timer, as for any exercise.
   inReach({
-    name: "superset",
+    name: "stored-pair",
     as: "owner",
     route: "/log/ex/barbell-bench-press",
-    seed: PAIRED,
+    seed: STORED_PAIR,
   }),
   {
-    name: "superset-logged",
+    name: "stored-pair-logged",
     as: "owner",
     route: "/log/ex/barbell-bench-press",
-    seed: PAIRED,
-    steps: logOnPartner,
+    seed: STORED_PAIR,
+    steps: async (page) => {
+      await page.getByRole("button", { name: /Log set 02/ }).click();
+      await page.getByRole("button", { name: /Log set 03/ }).waitFor();
+    },
   },
-  {
-    // Undo, armed on the partner's screen, takes back the set just logged
-    // (#17).
-    name: "superset-undo",
-    as: "owner",
-    route: "/log/ex/barbell-bench-press",
-    seed: PAIRED,
-    steps: undoArmedOnPartner,
-  },
-  // The set-type row at 360 px, its longest (#110): Warm-up, Drop set and
-  // Add to superset… on one line, here and with Undo armed above it.
+  // The set-type row at 360 px (#110), here and with Undo armed above it.
   inReach({
-    name: "superset-360",
+    name: "set-type-360",
     as: "owner",
     route: "/log/ex/barbell-bench-press",
-    seed: PAIRED,
+    seed: STORED_PAIR,
     viewport: SMALL_PHONE,
     scrollTo: ".set-type-row",
   }),
   {
-    name: "superset-undo-360",
+    name: "set-type-undo-360",
     as: "owner",
     route: "/log/ex/barbell-bench-press",
-    seed: PAIRED,
+    seed: STORED_PAIR,
     viewport: SMALL_PHONE,
-    steps: undoArmedOnPartner,
+    steps: async (page) => {
+      await page.getByRole("button", { name: "Undo last set" }).click();
+    },
     scrollTo: ".set-type-row",
   },
   // The links to the previous and next exercise, both names long, keep to
@@ -1165,10 +1143,10 @@ export const SHOTS = [
   ...[PHONE, SMALL_PHONE].map((viewport) => {
     const size = viewport === SMALL_PHONE ? "-360" : "";
     return {
-      name: `superset-nav${size}`,
+      name: `nav-long${size}`,
       as: /** @type {const} */ ("owner"),
       route: "/log/ex/lat-pulldown",
-      seed: PAIRED,
+      seed: STORED_PAIR,
       viewport,
       /** @param {Page} page */
       steps: async (page) => {
@@ -1188,27 +1166,6 @@ export const SHOTS = [
       scrollTo: ".workout-nav",
     };
   }),
-  {
-    name: "superset-pick",
-    as: "owner",
-    route: "/log/ex/triceps-pushdown",
-    seed: PAIRED,
-    steps: async (page) => {
-      await page.getByRole("button", { name: "Superset with…" }).click();
-    },
-  },
-  {
-    name: "routine-pairs",
-    as: "owner",
-    route: "/routines/r-ppl",
-    seed: ROUTINE,
-    steps: async (page) => {
-      await page
-        .getByRole("button", { name: "Superset with next" })
-        .first()
-        .click();
-    },
-  },
   // Swaps (#16): Push A at Home, which has no barbell bench press.
   {
     name: "swap",

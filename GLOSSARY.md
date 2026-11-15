@@ -65,11 +65,11 @@ The most recent workout containing that exercise; its sets are shown while loggi
 _Avoid_: Last session, previous
 
 **Superset**:
-Two or more exercises in a workout done alternately, one set of each per round, with rest only after each round. Usually a pair.
+Two or more exercises in a workout done alternately, one set of each per round, with rest only after each round. Usually a pair. The app doesn't record supersets for now (#167): the user still does them, and workouts logged before then keep theirs.
 _Avoid_: Circuit, paired set, giant set
 
 **Round**:
-One set of each exercise in a superset, done back to back.
+One set of each exercise in a superset, done back to back. Not recorded by the app for now (#167), like supersets.
 
 **Rest default**:
 How long to rest after a set of an exercise, which the rest timer counts down: 90 s unless set for the exercise. It can be Off: no rest timer for that exercise.

@@ -22,18 +22,17 @@ export function logView({ forge, id: asked }) {
   return root;
 
   /**
-   * @param {Logged | { back: string }} [after] the set just logged: its
-   *   records to celebrate once (#13), and the exercise to move to, a
-   *   superset partner (#17); or the exercise to go back to: an undo's
-   *   (#17) or one just swapped in (#16)
+   * @param {Logged | { back: string }} [after] the set just logged, its
+   *   records to celebrate once (#13), staying on its exercise; or the
+   *   exercise to go to, one just swapped in (#16)
    */
   async function show(after) {
-    const logged = after && "next" in after ? after : undefined;
-    const to = logged?.next ?? (after && "back" in after ? after.back : id);
+    const logged = after && "records" in after ? after : undefined;
+    const to =
+      logged?.exerciseId ?? (after && "back" in after ? after.back : id);
     if (to !== undefined && to !== id) {
       id = to;
-      // The address follows without a fresh render, which would lose the
-      // celebration (#17).
+      // The address follows without a fresh render (#17).
       history.replaceState(null, "", `#/log/ex/${encodeURIComponent(id)}`);
     }
     const workout = await forge.currentWorkout();

@@ -12,7 +12,7 @@ A workout tracker I built to log my own workouts: log sets on the phone at the g
 
 ## What it does
 
-- **Logging, phone first.** A set takes one tap: each set fills in from the last one, with steppers to adjust. The screen shows the last workout's sets and a suggested weight from double progression. It also has a rest timer, supersets, swapping an exercise for one this gym has, records, undo, and logging with no signal.
+- **Logging, phone first.** A set takes one tap: each set fills in from the last one, with steppers to adjust. The screen shows the last workout's sets and a suggested weight from double progression. It also has a rest timer, swapping an exercise for one this gym has, records, undo, and logging with no signal.
 - **Dashboard.** Estimated one-rep-max trends, hard sets per muscle group against a target band, a body heat map, a calendar of workouts, tonnage and a record timeline. Phone and wide-screen layouts.
 - **Library and routines.** About 150 exercises tagged across 17 muscle groups, custom exercises, versioned routines, and gyms defined by the exercises they have.
 - **Your data is yours.** Export everything as JSON or CSV.
