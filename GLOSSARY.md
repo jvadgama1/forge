@@ -93,7 +93,7 @@ One workout's worth of a routine, such as Push A: an ordered list of slots.
 One exercise in a routine day, with target sets, a rep range and an optional target RIR.
 
 **Routine version**:
-An immutable snapshot of a routine. Saving changes or accepting a proposal creates a new version; past workouts keep pointing at the version they followed.
+An immutable snapshot of a routine. Saving changes or applying a proposal creates a new version; past workouts keep pointing at the version they followed.
 
 **Swap**:
 Replacing a slot's exercise for one workout with another available at the current gym that shares its primary muscle and is the same kind of exercise: strength for strength, timed hold for timed hold, cardio for cardio.
@@ -154,11 +154,16 @@ The result of an earlier commitment, recorded in the next coaching session, sayi
 _Avoid_: Check-in
 
 **Coach notes**:
-The coach's private files outside the repo: the coach profile, the notebook (its running memory), a summary of each conversation, and a Markdown copy of each saved coaching session.
+The coach's private files outside the repo: the coach profile, the notebook (its running memory), a summary of each conversation, a Markdown copy of each saved coaching session, and a record of each applied proposal.
 _Avoid_: Memory, coach log
 
 **Coach profile**:
 What the coach always knows about the user (goals, age, experience, injuries and movements to avoid, target days per week, life constraints), kept as a private file in the coach notes.
 
 **Proposal**:
-A routine change written by the coach, with a change list and reasons, that does nothing until the user accepts it. Not part of phase 3: routine changes stay the user's.
+A set of changes to the user's set-up (routines, gyms, custom exercises, exercise settings), each with a reason, written by the coach, that does nothing until the user approves its dry run. Part of phase 3.
+_Avoid_: Plan, build sheet, change list
+
+**Dry run**:
+What a proposal would change, shown change by change with each one's old and new values, before anything is written.
+_Avoid_: Preview (the coach command's name for it), diff

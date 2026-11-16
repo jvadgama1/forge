@@ -1,5 +1,7 @@
 # The coach runs on the laptop, only when invoked
 
+**Amended by [ADR-0009](0009-coach-writes-after-approval-in-conversation.md):** the coach runs its own writes (applying a proposal, saving a coaching session) once the user approves them in the conversation, instead of the maintainer running each save; proposals let it change the user's set-up.
+
 The coach is a Claude Code skill, `/coach`, that the user runs on the laptop on their Claude subscription, signed in with the maintainer's Firebase CLI login, with two layers of memory: coaching sessions in Firestore, shown in the app, and private coach notes in a folder outside the repo. There's no scheduled cloud routine, no service account and no coaching from the phone. This replaces ADR-0003 (a cloud routine writing weekly reviews with a service account, and on-demand coaching from the phone through claude.ai/code) because the user chose laptop-only coaching in the grilling of 2026-11-14 (spec #170).
 
 ## Consequences

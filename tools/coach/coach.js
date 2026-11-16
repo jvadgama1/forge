@@ -4,9 +4,9 @@
 // proposal and `apply <proposal> <fingerprint>` makes its changes (#193,
 // proposal.js). It runs the Forge core over the REST store, signed in with
 // the maintainer's Firebase CLI login, so no service-account key exists
-// anywhere (ADR-0008). Each save and apply is a live write
-// the maintainer runs with the ! prefix (docs/agents/live-data.md). What it
-// does is in run.js.
+// anywhere (ADR-0008). Each save and apply is a live write the coach runs
+// once the user approves it in the conversation (ADR-0009,
+// docs/agents/live-data.md). What it does is in run.js.
 import { FIREBASE_CONFIG, OWNER_UID } from "../../app/js/firebase-config.js";
 import { token } from "../firebase-login.js";
 import { createRestStore } from "../store/rest-store.js";
