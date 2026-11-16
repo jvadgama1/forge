@@ -1,8 +1,10 @@
 // `npm run coach` (#174): what the /coach skill reads and saves with. `read`
 // prints all the data as JSON and refreshes the insight files; `save
-// <draft>` adds one coaching session. It runs the Forge core over the REST
-// store, signed in with the maintainer's Firebase CLI login, so no
-// service-account key exists anywhere (ADR-0008). Each save is a live write
+// <draft>` adds one coaching session; `preview <proposal>` dry-runs a
+// proposal and `apply <proposal> <fingerprint>` makes its changes (#193,
+// proposal.js). It runs the Forge core over the REST store, signed in with
+// the maintainer's Firebase CLI login, so no service-account key exists
+// anywhere (ADR-0008). Each save and apply is a live write
 // the maintainer runs with the ! prefix (docs/agents/live-data.md). What it
 // does is in run.js.
 import { FIREBASE_CONFIG, OWNER_UID } from "../../app/js/firebase-config.js";

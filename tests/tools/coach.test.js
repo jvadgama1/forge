@@ -256,6 +256,14 @@ const USAGE = [
   "                                        refresh the insight files",
   "       npm run coach -- save <draft>    save one coaching session from a",
   "                                        draft in drafts/, then remove it",
+  "       npm run coach -- preview <proposal>",
+  "                                        show what a proposal in drafts/",
+  "                                        would change, and its fingerprint",
+  "       npm run coach -- apply <proposal> <fingerprint>",
+  "                                        make the proposal's changes if",
+  "                                        nothing changed since its preview,",
+  "                                        record it in proposals/, then",
+  "                                        remove it",
 ].join("\n");
 
 describe("npm run coach (#174)", () => {
@@ -475,12 +483,16 @@ describe("npm run coach (#174)", () => {
     },
   );
 
-  it.each([[[]], [["edit"]], [["delete", "cs-1"]], [["read", "extra"]]])(
-    "refuses %j with the usage",
-    async (args) => {
-      const { code, output } = await run(args);
-      expect(code).toBe(1);
-      expect(output).toBe(USAGE);
-    },
-  );
+  it.each([
+    [[]],
+    [["edit"]],
+    [["delete", "cs-1"]],
+    [["read", "extra"]],
+    [["save"]],
+    [["save", "made-up.json", "--force"]],
+  ])("refuses %j with the usage", async (args) => {
+    const { code, output } = await run(args);
+    expect(code).toBe(1);
+    expect(output).toBe(USAGE);
+  });
 });
