@@ -23,7 +23,7 @@ Use the glossary's words exactly: _coaching session_ (never "session" alone), _i
   - `sessions/`: your private summary of each conversation.
   - `insights/`: a Markdown copy of each saved coaching session, written by the coach command. Read it; leave the writing to the command.
   - `drafts/`: the entry being approved.
-  - **Access**: reading and writing here needs no prompt, since this skill's `allowed-tools` grants the folder. Deleting a file here asks the user first, by design. Any other prompt or refusal for the folder means the grant no longer matches the folder in `tools/coach/coach-notes.js`: tell the user, who can approve the prompt and carry on, or stop to fix the grant.
+  - **Access**: reading and writing here need no prompt, since this skill's `allowed-tools` grants the folder. Deleting goes through the shell, which auto mode approves without a prompt. The only files you delete here are drafts: a draft the user declined (step 6), and a draft already written when the user goes off the record (_Guardrails_). A prompt or refusal to read or write here means the grant no longer matches the folder in `tools/coach/coach-notes.js`: tell the user, who can approve the prompt and carry on, or stop to fix the grant.
 - **The scratchpad**: your Claude Code scratchpad directory. Your query scripts go here: code only, never a copy of the data.
 
 Name every file you write in the coach notes by local date and time, `YYYY-MM-DD-HHmm` (`2026-11-14-1500.md`), as `insights/` is.
