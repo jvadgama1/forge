@@ -104,7 +104,7 @@ export async function apply(draft, given, deps) {
       { home: deps.home, name: proposalName(draft) },
     );
     backedUp = where
-      ? [`Backed up ${documentCount(existing)} to ${where}.`]
+      ? [`Backed up ${count(existing, "document")} to ${where}.`]
       : [];
   } catch (error) {
     print(
@@ -161,13 +161,13 @@ export async function apply(draft, given, deps) {
   return 0;
 }
 
-/** @param {unknown[]} changes */
-const count = (changes) =>
-  `${changes.length} change${changes.length === 1 ? "" : "s"}`;
-
-/** @param {unknown[]} documents */
-const documentCount = (documents) =>
-  `${documents.length} document${documents.length === 1 ? "" : "s"}`;
+/**
+ * "1 change", "2 changes".
+ * @param {unknown[]} items
+ * @param {string} [word]
+ */
+const count = (items, word = "change") =>
+  `${items.length} ${word}${items.length === 1 ? "" : "s"}`;
 
 /** @param {{ collection: string, id: string }} ref */
 const key = ({ collection, id }) => `${collection}/${id}`;
@@ -250,21 +250,23 @@ function checked(proposal) {
  * @param {Deps} deps
  */
 async function readState(changes, { store, print }) {
-  const written = new Set(
-    changes.flatMap((c) => CHANGE_KINDS[c.kind].writes(c)).map(key),
-  );
+  /** @type {Map<string, DocRef>} */
+  const unique = new Map();
+  /** @type {Set<string>} */
+  const written = new Set();
+  for (const c of changes) {
+    const kind = CHANGE_KINDS[c.kind];
+    for (const ref of kind.dependsOn(c)) unique.set(key(ref), ref);
+    for (const ref of kind.writes(c)) {
+      unique.set(key(ref), ref);
+      written.add(key(ref));
+    }
+  }
+  const refs = [...unique.values()];
   try {
     const seed = Object.fromEntries(
       await Promise.all(SET_UP.map(async (c) => [c, await store.list(c)])),
     );
-    /** @type {Map<string, DocRef>} */
-    const unique = new Map();
-    for (const c of changes) {
-      const kind = CHANGE_KINDS[c.kind];
-      for (const ref of [...kind.dependsOn(c), ...kind.writes(c)])
-        unique.set(key(ref), ref);
-    }
-    const refs = [...unique.values()];
     const documents = await Promise.all(
       refs.map(async ({ collection, id }) => ({
         collection,

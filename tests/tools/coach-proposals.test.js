@@ -935,7 +935,7 @@ async function everythingIn(store) {
 }
 
 describe("a routine change (#195)", () => {
-  it("previews the new version against the current one, in exercise names, and changes nothing", async () => {
+  it("shows a dry run of the new version against the current one, in exercise names, and changes nothing", async () => {
     const folder = await privateFolder();
     const home = await privateFolder();
     await writeProposal(folder, { changes: [CHANGE_STRENGTH] });
@@ -1146,7 +1146,7 @@ const RENAME_STRENGTH = {
   days: STRENGTH.versions[1].days,
 };
 
-describe("a routine change, further (#195)", () => {
+describe("a routine change: renames, moves, drift, backups and refusals (#195)", () => {
   /**
    * Writes a proposal of the given changes and previews it.
    * @param {unknown[]} changes

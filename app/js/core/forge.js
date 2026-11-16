@@ -2134,29 +2134,28 @@ export function createForge({
 
   /**
    * Whether two lists of routine days hold the same days, whatever order
-   * each slot's fields are in: a store can hand them back in any order, as
+   * their fields are in: a store can hand them back in any order, as
    * Firestore's REST API does (#185), and a rename alone adds no version
    * (#195).
    * @param {RoutineDay[]} a
    * @param {RoutineDay[]} b
    */
   function sameDays(a, b) {
-    /** @param {RoutineDay[]} days */
-    const plain = (days) =>
-      JSON.stringify(
-        days.map(({ id, name, slots }) => ({
-          id,
-          name,
-          slots: slots.map(({ exerciseId, sets, repMin, repMax, rir }) => ({
-            exerciseId,
-            sets,
-            repMin,
-            repMax,
-            rir,
-          })),
-        })),
-      );
-    return plain(a) === plain(b);
+    return keysSorted(a) === keysSorted(b);
+  }
+
+  /**
+   * A value as JSON with every object's keys in sorted order.
+   * @param {unknown} value
+   */
+  function keysSorted(value) {
+    return JSON.stringify(value, (_, field) =>
+      typeof field === "object" && field !== null && !Array.isArray(field)
+        ? Object.fromEntries(
+            Object.entries(field).sort(([x], [y]) => (x < y ? -1 : 1)),
+          )
+        : field,
+    );
   }
 
   /**
