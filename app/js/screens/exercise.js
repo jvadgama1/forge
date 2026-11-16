@@ -10,17 +10,13 @@ import {
   exerciseSummary,
   toggleChips,
 } from "./exercise-list.js";
-import { screen, typedNumber } from "./screen.js";
+import { restText, screen, typedNumber } from "./screen.js";
 
 /** @import { Exercise, ExerciseSettings, ExerciseType } from "../core/types.js" */
 /** @import { ScreenContext } from "./screen.js" */
 
 /** Rest defaults offered as chips; any other saved value is offered too. */
 const RESTS = [60, 90, 120, 180, 300];
-
-/** @param {number | "off"} rest as "Off", "90 s", "2 min" */
-export const restText = (rest) =>
-  rest === "off" ? "Off" : rest < 120 ? `${rest} s` : `${rest / 60} min`;
 
 /**
  * @param {Pick<ScreenContext, "forge" | "id">} context

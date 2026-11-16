@@ -1,14 +1,16 @@
 // The kinds of change a coach proposal can make (spec #191), one entry each.
 // The proposal module runs every change through its kind's entry, so a new
-// kind is a new entry here and nothing else changes shape. Every kind makes
-// its change through the Forge core's own methods, so the core's rules and
-// reasons apply, and none can delete anything.
+// kind is a new entry here. Every kind makes its change through the Forge
+// core's own methods, so the core's rules and reasons apply, and none can
+// delete anything. A change names a custom exercise made earlier in the
+// same proposal by { "custom": "<name>" } (#197), which the run of the
+// proposal resolves to the id the core gave it; a kind that makes several
+// writes says what landed when one fails (LandedPartly).
 import { TYPE_RULES, distanceUnit } from "../../app/js/core/exercise-types.js";
 import { MUSCLE_GROUPS, muscleGroup } from "../../app/js/core/muscle-groups.js";
 import { SEED_LIBRARY } from "../../app/js/core/seed-library.js";
-import { restText } from "../../app/js/screens/exercise.js";
 import { TYPE_LABELS } from "../../app/js/screens/exercise-list.js";
-import { rirLabel } from "../../app/js/screens/screen.js";
+import { restText, rirLabel } from "../../app/js/screens/screen.js";
 
 /** @import { Forge } from "../../app/js/core/forge.js" */
 /** @import { Exercise, ExerciseSettings, ExerciseType, Gym, MuscleGroup, Routine, RoutineDay, RoutineVersion, Slot } from "../../app/js/core/types.js" */
@@ -328,8 +330,8 @@ const newCustomExercise = {
   },
 };
 
-/** The settings an exercise settings change can name, as the app shows them. */
-const SETTINGS = /** @type {const} */ ({
+/** The settings an exercise settings change can name, as the app names them. */
+const SETTING_LABELS = /** @type {const} */ ({
   unit: "unit",
   increment: "increment",
   rest: "rest",
@@ -338,14 +340,14 @@ const SETTINGS = /** @type {const} */ ({
 
 /**
  * An exercise's settings (#197; spec #191): any of its unit, increment,
- * rest default and pinned note, saved by the core's `saveExerciseSettings`
- * as the app's exercise page saves them: every setting at once, the ones
- * the change doesn't name as they stand, and an increment left at its
- * default following a change of unit to the new unit's default. The
- * increment only changes what double progression steps by (ADR-0004).
+ * rest default and pinned note, saved by the core's `saveExerciseSettings`.
+ * Only the settings named are passed: the rest stay as they are, and an
+ * increment at its default follows a change of unit to the new unit's
+ * default by the core's own rule, as on the exercise page. The increment
+ * only changes what double progression steps by (ADR-0004).
  * @type {ChangeKind}
  */
-const exerciseSettingsChange = {
+const exerciseSettings = {
   check(change) {
     checkExercise(
       change.exerciseId,
@@ -354,7 +356,7 @@ const exerciseSettingsChange = {
     const fields = Object.keys(change).filter(
       (k) => !["kind", "reason", "exerciseId"].includes(k),
     );
-    const other = fields.find((k) => !Object.hasOwn(SETTINGS, k));
+    const other = fields.find((k) => !Object.hasOwn(SETTING_LABELS, k));
     if (other)
       throw new Error(
         `An exercise settings change has only unit, increment, rest and note, not ${other}`,
@@ -378,7 +380,7 @@ const exerciseSettingsChange = {
   async make(change, forge, run) {
     const exercise = await exerciseOf(change.exerciseId, forge, run);
     const before = await forge.exerciseSettings(exercise.id);
-    const cardio = TYPE_RULES[exercise.type].measure === "time-distance";
+    const cardio = isCardio(exercise);
     const { unit, increment, rest } = /** @type {Partial<ExerciseSettings>} */ (
       change
     );
@@ -387,9 +389,9 @@ const exerciseSettingsChange = {
       throw new Error(`${exercise.name} is cardio: it has no increment`);
     // Each setting named is a change, so a proposal written against
     // settings that have since changed is refused, not quietly applied.
-    const already = (/** @type {keyof typeof SETTINGS} */ setting) =>
+    const already = (/** @type {keyof typeof SETTING_LABELS} */ setting) =>
       new Error(
-        `${exercise.name}'s ${SETTINGS[setting]} is already ${settingText(setting, before, cardio)}`,
+        `${exercise.name}'s ${SETTING_LABELS[setting]} is already ${settingText(setting, before, cardio)}`,
       );
     const nextUnit = unit ?? before.unit;
     if (unit === before.unit) throw already("unit");
@@ -400,23 +402,11 @@ const exerciseSettingsChange = {
       throw before.note
         ? already("note")
         : new Error(`${exercise.name} has no pinned note to remove`);
-    // As the exercise page's unit chips do: an increment at its default
-    // follows the unit to the new unit's default.
-    const wasDefault =
-      before.increment === forge.defaultIncrement(exercise.body, before.unit);
     await forge.saveExerciseSettings(exercise.id, {
-      unit: nextUnit,
-      ...(cardio
-        ? {}
-        : {
-            increment:
-              increment ??
-              (wasDefault
-                ? forge.defaultIncrement(exercise.body, nextUnit)
-                : before.increment),
-          }),
-      rest: rest ?? before.rest,
-      note: note ?? before.note ?? "",
+      ...(unit === undefined ? {} : { unit }),
+      ...(increment === undefined ? {} : { increment }),
+      ...(rest === undefined ? {} : { rest }),
+      ...(note === undefined ? {} : { note }),
     });
     return { exercise, before };
   },
@@ -428,10 +418,10 @@ const exerciseSettingsChange = {
     forge,
   ) {
     const after = await forge.exerciseSettings(exercise.id);
-    const cardio = TYPE_RULES[exercise.type].measure === "time-distance";
+    const cardio = isCardio(exercise);
     const defaults = await forge.exerciseSettings(undefined);
     /**
-     * @param {keyof typeof SETTINGS} setting
+     * @param {keyof typeof SETTING_LABELS} setting
      * @param {ExerciseSettings} settings
      */
     const shown = (setting, settings) => {
@@ -443,15 +433,15 @@ const exerciseSettingsChange = {
           : setting !== "note" && settings[setting] === defaults[setting];
       return isDefault ? `${text} (default)` : text;
     };
-    const lines = /** @type {(keyof typeof SETTINGS)[]} */ (
-      Object.keys(SETTINGS)
+    const lines = /** @type {(keyof typeof SETTING_LABELS)[]} */ (
+      Object.keys(SETTING_LABELS)
     )
       .filter((s) => !(cardio && s === "increment"))
       .filter(
         (s) => settingText(s, before, cardio) !== settingText(s, after, cardio),
       )
       .map((s) => {
-        const label = SETTINGS[s];
+        const label = SETTING_LABELS[s];
         return `${label[0].toUpperCase()}${label.slice(1)}: ${shown(s, before)} → ${shown(s, after)}`;
       });
     return {
@@ -490,9 +480,13 @@ const gymExercises = {
     const id = /** @type {string} */ (change.id);
     const gym = await forge.getGym(id);
     if (!gym) throw new Error(`There's no gym ${id} in Forge`);
-    const ticks = await namedExercises(ticksOf(change, "tick"), forge, run);
-    const unticks = await namedExercises(ticksOf(change, "untick"), forge, run);
-    twice([...ticks, ...unticks]);
+    const ticks = await namedExercises(exercisesIn(change, "tick"), forge, run);
+    const unticks = await namedExercises(
+      exercisesIn(change, "untick"),
+      forge,
+      run,
+    );
+    refuseNamedTwice([...ticks, ...unticks]);
     // Each tick named is a change, so a rerun after a partial failure, or
     // a proposal written against ticks that have since changed, is refused.
     for (const e of ticks)
@@ -572,11 +566,11 @@ const newGym = {
     const taken = name.trim() && named(await forge.listGyms(), name);
     if (taken) throw new Error(`${taken.name} is already a gym`);
     const exercises = await namedExercises(
-      ticksOf(change, "exercises"),
+      exercisesIn(change, "exercises"),
       forge,
       run,
     );
-    twice(exercises);
+    refuseNamedTwice(exercises);
     const gym = await forge.createGym(name);
     // The gym is made: a failure from here on lands the change partly.
     /** @type {Exercise[]} */
@@ -615,10 +609,15 @@ export const CHANGE_KINDS = {
   "new-routine": newRoutine,
   "change-routine": changeRoutine,
   "new-custom-exercise": newCustomExercise,
-  "exercise-settings": exerciseSettingsChange,
+  "exercise-settings": exerciseSettings,
   "new-gym": newGym,
   "gym-exercises": gymExercises,
 };
+
+/** @typedef {"exercises" | "tick" | "untick"} GymList */
+
+/** @type {GymList[]} */
+const GYM_LISTS = ["exercises", "tick", "untick"];
 
 /**
  * The gym a gym exercises change names, once `check` has passed.
@@ -630,20 +629,20 @@ function gymOf(change) {
 }
 
 /**
- * A gym change's exercises to tick, or to untick, once `check` has passed.
+ * The exercises a gym change names in one of its lists (a new gym's
+ * exercises, or the ticks or unticks at a gym), once `check` has passed.
  * @param {Change} change
- * @param {"tick" | "untick" | "exercises"} list
+ * @param {GymList} list
  */
-const ticksOf = (change, list) => /** @type {unknown[]} */ (change[list] ?? []);
+const exercisesIn = (change, list) =>
+  /** @type {unknown[]} */ (change[list] ?? []);
 
 /**
  * Every exercise a gym change names.
  * @param {Change} change
  */
 const refsIn = (change) =>
-  ["tick", "untick", "exercises"].flatMap((list) =>
-    ticksOf(change, /** @type {"tick"} */ (list)),
-  );
+  GYM_LISTS.flatMap((list) => exercisesIn(change, list));
 
 /**
  * The exercises named, each found in Forge.
@@ -669,7 +668,7 @@ const listed = (title, exercises) =>
  * Throws when an exercise is named twice among `exercises`.
  * @param {Exercise[]} exercises
  */
-function twice(exercises) {
+function refuseNamedTwice(exercises) {
   const seen = new Set();
   for (const e of exercises) {
     if (seen.has(e.id)) throw new Error(`${e.name} is named twice`);
@@ -678,9 +677,17 @@ function twice(exercises) {
 }
 
 /**
+ * Whether an exercise is cardio, whose unit is its distance's and which
+ * has no load to step (#19).
+ * @param {Exercise} exercise
+ */
+const isCardio = (exercise) =>
+  TYPE_RULES[exercise.type].measure === "time-distance";
+
+/**
  * One setting as the exercise page shows it: "kg", "2.5 kg", "2 min",
  * a quoted note or "none". A cardio exercise's unit is its distance's.
- * @param {keyof typeof SETTINGS} setting
+ * @param {keyof typeof SETTING_LABELS} setting
  * @param {ExerciseSettings} settings
  * @param {boolean} cardio
  */

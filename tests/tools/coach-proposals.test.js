@@ -2312,6 +2312,24 @@ describe("a new gym (#197)", () => {
     expect(await readdir(previewed.home)).toEqual([]);
   });
 
+  it("refuses the whole proposal when its gym's name was taken after the preview", async () => {
+    const previewed = await previewOf([YOKE_WALK, RIVERSIDE], SET_UP);
+    const taken = { id: "g-phone", name: "Riverside", exerciseIds: [] };
+    await previewed.store.put("gyms", taken);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(1);
+    expect(applied.output).toBe(
+      "Not applied: Riverside is already a gym (change 2).",
+    );
+    expect(await setUpIn(previewed.store)).toEqual({
+      ...SET_UP,
+      gyms: [...SET_UP.gyms, taken],
+    });
+    expect(await exists(previewed.path)).toBe(true);
+  });
+
   it("can be made with nothing ticked yet", async () => {
     const { code, output } = await previewOf(
       [{ ...RIVERSIDE, exercises: [] }],
@@ -2508,7 +2526,7 @@ describe("a custom exercise made and used in one proposal (#197)", () => {
       id,
     ]);
     expect(await store.list("exerciseSettings")).toEqual([
-      { id, unit: "lb", increment: 20, rest: 90 },
+      { id, increment: 20 },
     ]);
   });
 

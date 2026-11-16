@@ -10,8 +10,9 @@
 // gym-exercises and exercise-settings; each one's fields and rules are in
 // change-kinds.js. Wherever a change names an exercise, it names it by its
 // id, or, for a custom exercise made earlier in the same proposal, by
-// { "custom": "<name>" }: an object, so it can never be taken for an id. `preview` makes every change
-// through the core over an in-memory copy of the set-up, so nothing reaches
+// { "custom": "<name>" }: an object, so it can never be taken for an id.
+//
+// `preview` makes every change through the core over an in-memory copy of the set-up, so nothing reaches
 // the store, and prints what would change and a fingerprint. `apply` makes
 // the changes for real only while that fingerprint still matches, after
 // backing up every existing document they change (backup.js, #195).

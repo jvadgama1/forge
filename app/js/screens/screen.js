@@ -106,6 +106,10 @@ export const setCount = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 /** @param {number} rir 0–4, where 4 means "4 or more" */
 export const rirLabel = (rir) => (rir === 4 ? "4+" : String(rir));
 
+/** @param {number | "off"} rest as "Off", "90 s", "2 min" */
+export const restText = (rest) =>
+  rest === "off" ? "Off" : rest < 120 ? `${rest} s` : `${rest / 60} min`;
+
 /**
  * "RIR 1", joined by a no-break space so a wrapping line never splits the
  * label from its number (#151).
