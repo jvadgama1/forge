@@ -6,8 +6,13 @@
 //                   "days": [{ "name": "…", "slots": [{ "exerciseId": "…",
 //                     "sets": 3, "repMin": 8, "repMax": 12, "rir": 2 }] }] }] }
 //
-// Each kind's rules are in change-kinds.js. `preview` makes every change
-// through the core over an in-memory copy of the set-up, so nothing reaches
+// The kinds are new-routine, change-routine, new-custom-exercise, new-gym,
+// gym-exercises and exercise-settings; each one's fields and rules are in
+// change-kinds.js. Wherever a change names an exercise, it names it by its
+// id, or, for a custom exercise made earlier in the same proposal, by
+// { "custom": "<name>" }: an object, so it can never be taken for an id.
+//
+// `preview` makes every change through the core over an in-memory copy of the set-up, so nothing reaches
 // the store, and prints what would change and a fingerprint. `apply` makes
 // the changes for real only while that fingerprint still matches, after
 // backing up every existing document they change (backup.js, #195).
@@ -18,7 +23,7 @@ import { createForge } from "../../app/js/core/forge.js";
 import { SEED_LIBRARY } from "../../app/js/core/seed-library.js";
 import { createMemoryStore } from "../../app/js/store/memory-store.js";
 import { backUp } from "./backup.js";
-import { CHANGE_KINDS } from "./change-kinds.js";
+import { CHANGE_KINDS, LandedPartly, newRun } from "./change-kinds.js";
 import { savedWhen } from "./insight-file.js";
 
 /** @import { Doc, Store } from "../../app/js/core/types.js" */
@@ -122,7 +127,7 @@ export async function apply(draft, given, deps) {
     print(
       [
         ...backedUp,
-        ...stoppedLines(previewed, stopped.failed, stopped.error),
+        ...stoppedLines(previewed, stopped),
         `The draft is kept, and no record is written to proposals/: ${path}`,
       ].join("\n"),
     );
@@ -302,12 +307,13 @@ async function readState(changes, { store, print }) {
  */
 async function dryRun(changes, copy, { now, print }) {
   const forge = createForge({ store: copy, library: SEED_LIBRARY, now });
+  const run = newRun();
   /** @type {Made[]} */
   const made = [];
   for (const [i, change] of changes.entries()) {
     const kind = CHANGE_KINDS[change.kind];
     try {
-      const result = await kind.make(change, forge);
+      const result = await kind.make(change, forge, run);
       made.push({ change, description: await kind.describe(result, forge) });
     } catch (error) {
       print(`Not applied: ${errorText(error)} (change ${i + 1}).`);
@@ -320,24 +326,27 @@ async function dryRun(changes, copy, { now, print }) {
 /**
  * Makes every change for real, in order, through the core over the store,
  * stopping at the first write that fails: nothing more is written after
- * it. A change has landed once its kind's `make` resolves. Every kind so
- * far makes one write, so a change whose `make` throws wrote nothing; a
- * kind that makes several (#197's new gym) must also say when its change
- * landed partly.
+ * it. A change has landed once its kind's `make` resolves. A change whose
+ * `make` throws wrote nothing, unless it makes several writes (a new gym,
+ * a gym's ticks, #197) and some landed: then it throws `LandedPartly`,
+ * saying which.
  * @param {Change[]} changes
  * @param {Store} store
  * @param {() => Date} now
- * @returns {Promise<{ failed: number, error: unknown } | undefined>}
- *   `failed` numbers the change it stopped at, from 1; nothing when every
- *   change landed
+ * @returns {Promise<{ failed: number, error: unknown, partly?: string[] } | undefined>}
+ *   `failed` numbers the change it stopped at, from 1, and `partly` says
+ *   what of it was written, if anything; nothing when every change landed
  */
 async function writeAll(changes, store, now) {
   const forge = createForge({ store, library: SEED_LIBRARY, now });
+  const run = newRun();
   for (const [i, change] of changes.entries()) {
     try {
-      await CHANGE_KINDS[change.kind].make(change, forge);
+      await CHANGE_KINDS[change.kind].make(change, forge, run);
     } catch (error) {
-      return { failed: i + 1, error };
+      return error instanceof LandedPartly
+        ? { failed: i + 1, error: error.cause, partly: error.lines }
+        : { failed: i + 1, error };
     }
   }
   return undefined;
@@ -353,20 +362,31 @@ const headings = (made) =>
 /**
  * What `apply` says when a write fails partway: the change it stopped at
  * and why, then each change under whether it landed. The changes before
- * it landed; it and every change after it didn't, since nothing more is
- * written once one fails. The headings are the dry run's, as previewed.
+ * it landed; every change after it didn't, since nothing more is written
+ * once one fails; and it didn't land either, unless some of its writes
+ * had (#197), when it landed partly, with what was written. The headings
+ * are the dry run's, as previewed.
  * @param {Made[]} previewed every change, as the dry run made it
- * @param {number} failed the change that stopped it, from 1
- * @param {unknown} error
+ * @param {{ failed: number, error: unknown, partly?: string[] }} stopped
+ *   `failed` numbers the change that stopped it, from 1
  */
-function stoppedLines(previewed, failed, error) {
+function stoppedLines(previewed, { failed, error, partly }) {
   const numbered = headings(previewed);
-  const landed = numbered.slice(0, failed - 1);
+  /** @param {string} title @param {string[]} lines */
+  const group = (title, lines) =>
+    lines.length ? [`${title}:`, ...lines] : [`${title}: nothing.`];
+  const stoppedAt = /** @type {string} */ (numbered[failed - 1]);
   return [
     `Applying stopped at change ${failed}: ${errorText(error)}.`,
-    ...(landed.length ? ["Landed:", ...landed] : ["Landed: nothing."]),
-    "Didn't land:",
-    ...numbered.slice(failed - 1),
+    ...group("Landed", numbered.slice(0, failed - 1)),
+    ...(partly
+      ? [
+          "Landed partly:",
+          stoppedAt,
+          ...partly.map((line) => `   ${line}`),
+          ...group("Didn't land", numbered.slice(failed)),
+        ]
+      : group("Didn't land", numbered.slice(failed - 1))),
   ];
 }
 
