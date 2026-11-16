@@ -1687,6 +1687,1069 @@ describe("a partial failure (#196)", () => {
 });
 
 /**
+ * Writes a proposal of the given changes, previews it over a store seeded
+ * with `seed` and returns what applying needs, and what preview printed.
+ * @param {unknown[]} changes
+ * @param {Record<string, Doc[]>} seed
+ */
+async function previewOf(changes, seed) {
+  const folder = await privateFolder();
+  const home = await privateFolder();
+  const path = await writeProposal(folder, { changes });
+  const store = createMemoryStore(seed);
+  const preview = await run(["preview", NAME], { store, folder, home });
+  return { folder, home, path, store, ...preview };
+}
+
+/** @param {{ folder: string, home: string, store: Store, output: string }} previewed */
+const applyIt = ({ folder, home, store, output }) =>
+  run(["apply", NAME, fingerprintOf(output)], { store, folder, home });
+
+/** The record `apply` wrote for NAME. */
+const recordIn = (/** @type {string} */ folder) =>
+  readFile(join(folder, "proposals", "2026-11-14-1500-proposal.md"), "utf8");
+
+/** A made-up custom exercise the library lacks, for a proposal to add (#197). */
+const YOKE_WALK = {
+  kind: "new-custom-exercise",
+  reason: "A loaded carry for your upper back; the library has none on a yoke.",
+  name: "Yoke Walk",
+  type: "weight-reps",
+  primary: ["traps", "forearms"],
+  secondary: ["abs", "traps"],
+  body: "lower",
+};
+
+describe("a new custom exercise (#197)", () => {
+  it("shows its details in the dry run, then saves it as the app would, with its own id", async () => {
+    const previewed = await previewOf([YOKE_WALK], SET_UP);
+
+    expect(previewed.code).toBe(0);
+    expect(previewed.output).toBe(
+      [
+        `Proposal ${NAME}, 1 change. Nothing is applied yet.`,
+        "",
+        "1. New custom exercise: Yoke Walk",
+        "   Why: A loaded carry for your upper back; the library has none on a yoke.",
+        "   - Type: Weight × reps",
+        "   - Primary: Traps, Forearms",
+        "   - Secondary: Abs",
+        "   - Body: Lower",
+        "",
+        `Fingerprint: ${fingerprintOf(previewed.output)}`,
+      ].join("\n"),
+    );
+    expect(await setUpIn(previewed.store)).toEqual(SET_UP);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(0);
+    expect(applied.output).toBe(
+      [
+        `Applied ${NAME}, 1 change:`,
+        "1. New custom exercise: Yoke Walk",
+        "Wrote proposals/2026-11-14-1500-proposal.md and removed the draft.",
+      ].join("\n"),
+    );
+    expect(await previewed.store.list("customExercises")).toEqual([
+      SLED_PUSH,
+      {
+        id: expect.stringMatching(/^custom-[0-9a-f-]{36}$/),
+        name: "Yoke Walk",
+        type: "weight-reps",
+        primary: ["traps", "forearms"],
+        secondary: ["abs"],
+        body: "lower",
+        custom: true,
+      },
+    ]);
+    expect(await recordIn(previewed.folder)).toBe(
+      [
+        "# Proposal applied · Nov 14, 2026 · 3:00 pm",
+        "",
+        `From drafts/${NAME}.`,
+        "",
+        "## New custom exercise: Yoke Walk",
+        "",
+        "A loaded carry for your upper back; the library has none on a yoke.",
+        "",
+        "- Type: Weight × reps",
+        "- Primary: Traps, Forearms",
+        "- Secondary: Abs",
+        "- Body: Lower",
+        "",
+      ].join("\n"),
+    );
+    expect(await readdir(previewed.home)).toEqual([]);
+  });
+
+  it.each([
+    [
+      "a library exercise's name",
+      { ...YOKE_WALK, name: " farmer's carry" },
+      "Farmer's Carry is already an exercise",
+    ],
+    [
+      "a custom exercise's name",
+      { ...YOKE_WALK, name: "SLED PUSH" },
+      "Sled Push is already an exercise",
+    ],
+    [
+      "no primary muscle group",
+      { ...YOKE_WALK, primary: [] },
+      "Pick at least one primary muscle group",
+    ],
+  ])("is refused with %s, with the core's reason", async (_, change, why) => {
+    const { code, output, store } = await previewOf([change], SET_UP);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why} (change 1).`);
+    expect(await setUpIn(store)).toEqual(SET_UP);
+  });
+
+  it.each([
+    [
+      "an id",
+      { ...YOKE_WALK, id: "custom-sled-push" },
+      "A new custom exercise has no id: saving gives it its own",
+    ],
+    [
+      "no name",
+      { ...YOKE_WALK, name: undefined },
+      "A new custom exercise has a name",
+    ],
+    [
+      "a type there isn't",
+      { ...YOKE_WALK, type: "plyometric" },
+      "A custom exercise's type is one of weight-reps, bodyweight-reps, assisted, timed, cardio",
+    ],
+    [
+      "a muscle group there isn't",
+      { ...YOKE_WALK, secondary: ["neck"] },
+      "A custom exercise's primary and secondary muscle groups are lists of chest, front-delts, side-delts, rear-delts, biceps, triceps, forearms, lats-upper-back, traps, lower-back, abs, obliques, glutes, quads, hamstrings, adductors, calves",
+    ],
+    [
+      "a body half there isn't",
+      { ...YOKE_WALK, body: "full" },
+      "A custom exercise's body half is upper or lower",
+    ],
+  ])("is refused when it has %s", async (_, change, why) => {
+    const { code, output, store } = await previewOf([change], SET_UP);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why} (change 1).`);
+    expect(await setUpIn(store)).toEqual(SET_UP);
+  });
+});
+
+/** Barbell Row's settings already in Forge, made-up, as the app saves them. */
+const ROW_SETTINGS = {
+  id: "barbell-row",
+  unit: "kg",
+  increment: 2,
+  rest: 120,
+  note: "Overhand grip",
+};
+
+/** The set-up with exercise settings in it. */
+const WITH_SETTINGS = { ...SET_UP, exerciseSettings: [ROW_SETTINGS] };
+
+/** @param {Store} store */
+async function setUpWithSettings(store) {
+  return {
+    ...(await setUpIn(store)),
+    exerciseSettings: await store.list("exerciseSettings"),
+  };
+}
+
+/** A made-up settings change for an exercise with none saved yet. */
+const CURL_SETTINGS = {
+  kind: "exercise-settings",
+  reason: "You log both dumbbells combined, so kg plates step it sensibly.",
+  exerciseId: "db-curl",
+  unit: "kg",
+  rest: 60,
+  note: "  Both dumbbells combined ",
+};
+
+describe("exercise settings (#197)", () => {
+  it("shows each setting before and after, defaults as defaults, then saves them as the app's exercise page would", async () => {
+    const previewed = await previewOf([CURL_SETTINGS], WITH_SETTINGS);
+
+    expect(previewed.code).toBe(0);
+    expect(previewed.output).toBe(
+      [
+        `Proposal ${NAME}, 1 change. Nothing is applied yet.`,
+        "",
+        "1. Exercise settings: DB Curl",
+        "   Why: You log both dumbbells combined, so kg plates step it sensibly.",
+        "   - Unit: lb (default) → kg",
+        "   - Increment: 5 lb (default) → 2.5 kg (default)",
+        "   - Rest: 90 s (default) → 60 s",
+        '   - Pinned note: none → "Both dumbbells combined"',
+        "",
+        `Fingerprint: ${fingerprintOf(previewed.output)}`,
+      ].join("\n"),
+    );
+    expect(await setUpWithSettings(previewed.store)).toEqual(WITH_SETTINGS);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(0);
+    // Nothing was saved for DB Curl before, so there's nothing to back up.
+    expect(applied.output).toBe(
+      [
+        `Applied ${NAME}, 1 change:`,
+        "1. Exercise settings: DB Curl",
+        "Wrote proposals/2026-11-14-1500-proposal.md and removed the draft.",
+      ].join("\n"),
+    );
+    expect(await previewed.store.list("exerciseSettings")).toEqual([
+      ROW_SETTINGS,
+      { id: "db-curl", unit: "kg", rest: 60, note: "Both dumbbells combined" },
+    ]);
+    expect(await readdir(previewed.home)).toEqual([]);
+  });
+
+  it("backs up the settings it changes, and leaves the ones it doesn't name as they were", async () => {
+    const previewed = await previewOf(
+      [
+        {
+          kind: "exercise-settings",
+          reason: "Your kg gym's smallest plates step 2.5 kg.",
+          exerciseId: "barbell-row",
+          increment: 2.5,
+          note: "",
+        },
+      ],
+      WITH_SETTINGS,
+    );
+    expect(previewed.output.split("\n").slice(2, -2)).toEqual([
+      "1. Exercise settings: Barbell Row",
+      "   Why: Your kg gym's smallest plates step 2.5 kg.",
+      "   - Increment: 2 kg → 2.5 kg (default)",
+      '   - Pinned note: "Overhand grip" → none',
+    ]);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(0);
+    expect(applied.output.split("\n")[0]).toBe(
+      `Backed up 1 document to ${backups(previewed.home)}.`,
+    );
+    expect(await previewed.store.list("exerciseSettings")).toEqual([
+      { id: "barbell-row", unit: "kg", rest: 120 },
+    ]);
+    expect(
+      JSON.parse(
+        await readFile(
+          join(backups(previewed.home), "exerciseSettings", "barbell-row.json"),
+          "utf8",
+        ),
+      ),
+    ).toEqual(ROW_SETTINGS);
+  });
+
+  it("refuses when the settings changed after the preview", async () => {
+    const previewed = await previewOf(
+      [{ ...CURL_SETTINGS, exerciseId: "barbell-row", unit: "lb" }],
+      WITH_SETTINGS,
+    );
+    expect(previewed.code).toBe(0);
+    const edited = { ...ROW_SETTINGS, rest: 180 };
+    await previewed.store.put("exerciseSettings", edited);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(1);
+    expect(applied.output).toBe("Not applied: changed since the preview.");
+    expect(await previewed.store.list("exerciseSettings")).toEqual([edited]);
+    expect(await readdir(previewed.home)).toEqual([]);
+  });
+
+  it("shows a cardio exercise's unit as its distance's", async () => {
+    const { code, output } = await previewOf(
+      [
+        {
+          kind: "exercise-settings",
+          reason: "The treadmill at your gym reads in km.",
+          exerciseId: "treadmill",
+          unit: "kg",
+        },
+      ],
+      WITH_SETTINGS,
+    );
+
+    expect(code).toBe(0);
+    expect(output.split("\n").slice(2, -2)).toEqual([
+      "1. Exercise settings: Treadmill",
+      "   Why: The treadmill at your gym reads in km.",
+      "   - Unit: mi (default) → km",
+    ]);
+  });
+
+  it.each([
+    [
+      "an exercise that isn't in Forge",
+      { ...CURL_SETTINGS, exerciseId: "made-up-press" },
+      "There's no exercise made-up-press in Forge",
+    ],
+    ["a unit there isn't", { ...CURL_SETTINGS, unit: "st" }, "Pick lb or kg"],
+    [
+      "an increment of 0",
+      { ...CURL_SETTINGS, increment: 0 },
+      "The increment must be more than 0",
+    ],
+    [
+      "a rest too short",
+      { ...CURL_SETTINGS, rest: 3 },
+      "Rest is 5 s to 15 min, or Off",
+    ],
+    [
+      "an increment for cardio",
+      { ...CURL_SETTINGS, exerciseId: "treadmill", increment: 0.5 },
+      "Treadmill is cardio: it has no increment",
+    ],
+    [
+      "a unit it already has",
+      { ...CURL_SETTINGS, exerciseId: "barbell-row", rest: 90 },
+      "Barbell Row's unit is already kg",
+    ],
+    [
+      "a rest it already has",
+      { ...CURL_SETTINGS, unit: undefined, rest: 90 },
+      "DB Curl's rest is already 90 s",
+    ],
+    [
+      "an increment it already has",
+      { ...CURL_SETTINGS, unit: undefined, increment: 5 },
+      "DB Curl's increment is already 5 lb",
+    ],
+    [
+      "a pinned note it already has",
+      {
+        kind: "exercise-settings",
+        reason: "Grip matters.",
+        exerciseId: "barbell-row",
+        note: "Overhand grip ",
+      },
+      'Barbell Row\'s pinned note is already "Overhand grip"',
+    ],
+    [
+      "a pinned note to remove when there's none",
+      { ...CURL_SETTINGS, note: " " },
+      "DB Curl has no pinned note to remove",
+    ],
+  ])("refuses a change naming %s, with the reason", async (_, change, why) => {
+    const { code, output, store } = await previewOf([change], WITH_SETTINGS);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why} (change 1).`);
+    expect(await setUpWithSettings(store)).toEqual(WITH_SETTINGS);
+  });
+
+  it.each([
+    [
+      "no exercise",
+      { ...CURL_SETTINGS, exerciseId: undefined },
+      'An exercise settings change names the exercise by its id, or a custom exercise made earlier in the proposal by { "custom": "<name>" }',
+    ],
+    [
+      "no settings",
+      { kind: "exercise-settings", reason: "Tidy.", exerciseId: "db-curl" },
+      "An exercise settings change names at least one of unit, increment, rest and note",
+    ],
+    [
+      "a field that isn't a setting",
+      { ...CURL_SETTINGS, rir: 2 },
+      "An exercise settings change has only unit, increment, rest and note, not rir",
+    ],
+    [
+      "an increment that isn't a number",
+      { ...CURL_SETTINGS, increment: "2.5" },
+      "An increment is a number",
+    ],
+    [
+      "a note that isn't text",
+      { ...CURL_SETTINGS, note: 4 },
+      "A pinned note is text; a blank one removes it",
+    ],
+  ])("is refused when it has %s", async (_, change, why) => {
+    const { code, output } = await previewOf([change], WITH_SETTINGS);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why} (change 1).`);
+  });
+});
+
+/** A made-up gym already in Forge, with three exercises ticked. */
+const HOME_GYM = {
+  id: "g-home",
+  name: "Home Gym",
+  exerciseIds: ["barbell-row", "lat-pulldown", "db-curl"],
+};
+
+/** The set-up with HOME_GYM in it too. */
+const WITH_HOME_GYM = { ...SET_UP, gyms: [...SET_UP.gyms, HOME_GYM] };
+
+/** A made-up change to HOME_GYM's exercises. */
+const HOME_TICKS = {
+  kind: "gym-exercises",
+  reason: "The pulldown went; a curl bar and a sled came in.",
+  id: "g-home",
+  tick: ["hammer-curl", "custom-sled-push"],
+  untick: ["lat-pulldown"],
+};
+
+describe("a gym's exercises (#197)", () => {
+  it("shows the ticks added and removed by exercise name, then makes them, leaving the gym's other ticks and its name as they were", async () => {
+    const previewed = await previewOf([HOME_TICKS], WITH_HOME_GYM);
+
+    expect(previewed.code).toBe(0);
+    expect(previewed.output).toBe(
+      [
+        `Proposal ${NAME}, 1 change. Nothing is applied yet.`,
+        "",
+        "1. Gym exercises: Home Gym",
+        "   Why: The pulldown went; a curl bar and a sled came in.",
+        "   Ticked",
+        "   - Hammer Curl",
+        "   - Sled Push",
+        "   Unticked",
+        "   - Lat Pulldown",
+        "",
+        `Fingerprint: ${fingerprintOf(previewed.output)}`,
+      ].join("\n"),
+    );
+    expect(await setUpIn(previewed.store)).toEqual(WITH_HOME_GYM);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(0);
+    expect(applied.output).toBe(
+      [
+        `Backed up 1 document to ${backups(previewed.home)}.`,
+        `Applied ${NAME}, 1 change:`,
+        "1. Gym exercises: Home Gym",
+        "Wrote proposals/2026-11-14-1500-proposal.md and removed the draft.",
+      ].join("\n"),
+    );
+    expect(await previewed.store.list("gyms")).toEqual([
+      SET_UP.gyms[0],
+      {
+        id: "g-home",
+        name: "Home Gym",
+        exerciseIds: [
+          "barbell-row",
+          "db-curl",
+          "hammer-curl",
+          "custom-sled-push",
+        ],
+      },
+    ]);
+    expect(
+      JSON.parse(
+        await readFile(
+          join(backups(previewed.home), "gyms", "g-home.json"),
+          "utf8",
+        ),
+      ),
+    ).toEqual(HOME_GYM);
+    expect(await recordIn(previewed.folder)).toBe(
+      [
+        "# Proposal applied · Nov 14, 2026 · 3:00 pm",
+        "",
+        `From drafts/${NAME}.`,
+        "",
+        "## Gym exercises: Home Gym",
+        "",
+        "The pulldown went; a curl bar and a sled came in.",
+        "",
+        "### Ticked",
+        "",
+        "- Hammer Curl",
+        "- Sled Push",
+        "",
+        "### Unticked",
+        "",
+        "- Lat Pulldown",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("refuses when the gym changed after the preview", async () => {
+    const previewed = await previewOf([HOME_TICKS], WITH_HOME_GYM);
+    const edited = { ...HOME_GYM, name: "Garage" };
+    await previewed.store.put("gyms", edited);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(1);
+    expect(applied.output).toBe("Not applied: changed since the preview.");
+    expect(await previewed.store.list("gyms")).toEqual([
+      SET_UP.gyms[0],
+      edited,
+    ]);
+    expect(await readdir(previewed.home)).toEqual([]);
+  });
+
+  it.each([
+    [
+      "a gym that isn't in Forge",
+      { ...HOME_TICKS, id: "g-gone" },
+      "There's no gym g-gone in Forge",
+    ],
+    [
+      "an exercise that isn't in Forge",
+      { ...HOME_TICKS, tick: ["made-up-press"] },
+      "There's no exercise made-up-press in Forge",
+    ],
+    [
+      "an exercise already ticked",
+      { ...HOME_TICKS, tick: ["hammer-curl", "barbell-row"] },
+      "Barbell Row is already ticked at Home Gym",
+    ],
+    [
+      "an exercise to untick that isn't ticked",
+      { ...HOME_TICKS, untick: ["barbell-bench-press"] },
+      "Barbell Bench Press isn't ticked at Home Gym",
+    ],
+    [
+      "an exercise twice",
+      { ...HOME_TICKS, tick: ["hammer-curl", "hammer-curl"] },
+      "Hammer Curl is named twice",
+    ],
+    [
+      "an exercise both ticked and unticked",
+      { ...HOME_TICKS, untick: ["hammer-curl"] },
+      "Hammer Curl is named twice",
+    ],
+  ])("refuses a change naming %s, with the reason", async (_, change, why) => {
+    const { code, output, store } = await previewOf([change], WITH_HOME_GYM);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why} (change 1).`);
+    expect(await setUpIn(store)).toEqual(WITH_HOME_GYM);
+  });
+
+  it.each([
+    [
+      "no gym id",
+      { ...HOME_TICKS, id: undefined },
+      "A gym exercises change names the gym by its id",
+    ],
+    [
+      "ticks that aren't a list",
+      { ...HOME_TICKS, tick: "hammer-curl" },
+      "A gym exercises change lists the exercises to tick and to untick",
+    ],
+    [
+      "nothing to tick or untick",
+      { ...HOME_TICKS, tick: [], untick: undefined },
+      "A gym exercises change ticks or unticks at least one exercise",
+    ],
+    [
+      "an exercise that isn't named by id or by name",
+      { ...HOME_TICKS, tick: [{ name: "Sled Push" }] },
+      'Each exercise is named by its id, or a custom exercise made earlier in the proposal by { "custom": "<name>" }',
+    ],
+  ])("is refused when it has %s", async (_, change, why) => {
+    const { code, output } = await previewOf([change], WITH_HOME_GYM);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why} (change 1).`);
+  });
+});
+
+/** A made-up new gym, as the /coach skill writes it. */
+const RIVERSIDE = {
+  kind: "new-gym",
+  reason: "Your new office has a gym; these are what it has.",
+  name: "Riverside",
+  exercises: ["barbell-row", "custom-sled-push", "lat-pulldown"],
+};
+
+describe("a new gym (#197)", () => {
+  it("shows the exercises it ticks by name, then makes the gym and ticks them in order, as the app's gym pages do", async () => {
+    const previewed = await previewOf([RIVERSIDE], SET_UP);
+
+    expect(previewed.code).toBe(0);
+    expect(previewed.output).toBe(
+      [
+        `Proposal ${NAME}, 1 change. Nothing is applied yet.`,
+        "",
+        "1. New gym: Riverside",
+        "   Why: Your new office has a gym; these are what it has.",
+        "   Ticked",
+        "   - Barbell Row",
+        "   - Sled Push",
+        "   - Lat Pulldown",
+        "",
+        `Fingerprint: ${fingerprintOf(previewed.output)}`,
+      ].join("\n"),
+    );
+    expect(await setUpIn(previewed.store)).toEqual(SET_UP);
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(0);
+    expect(applied.output).toBe(
+      [
+        `Applied ${NAME}, 1 change:`,
+        "1. New gym: Riverside",
+        "Wrote proposals/2026-11-14-1500-proposal.md and removed the draft.",
+      ].join("\n"),
+    );
+    expect(await previewed.store.list("gyms")).toEqual([
+      SET_UP.gyms[0],
+      {
+        id: expect.stringMatching(UUID),
+        name: "Riverside",
+        exerciseIds: ["barbell-row", "custom-sled-push", "lat-pulldown"],
+      },
+    ]);
+    expect(await readdir(previewed.home)).toEqual([]);
+  });
+
+  it("can be made with nothing ticked yet", async () => {
+    const { code, output } = await previewOf(
+      [{ ...RIVERSIDE, exercises: [] }],
+      SET_UP,
+    );
+
+    expect(code).toBe(0);
+    expect(output.split("\n").slice(2, -2)).toEqual([
+      "1. New gym: Riverside",
+      "   Why: Your new office has a gym; these are what it has.",
+      "   - No exercises ticked yet",
+    ]);
+  });
+
+  it.each([
+    [
+      "a gym already in Forge",
+      [{ ...RIVERSIDE, name: " made-up GYM" }],
+      "Made-up Gym is already a gym (change 1)",
+    ],
+    [
+      "an earlier change in the same proposal",
+      [RIVERSIDE, { ...RIVERSIDE, name: "riverside" }],
+      "Riverside is already a gym (change 2)",
+    ],
+    [
+      "nothing",
+      [{ ...RIVERSIDE, name: "  " }],
+      "A gym needs a name (change 1)",
+    ],
+  ])("refuses a new gym named like %s", async (_, changes, why) => {
+    const { code, output, store } = await previewOf(changes, SET_UP);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why}.`);
+    expect(await setUpIn(store)).toEqual(SET_UP);
+  });
+
+  it.each([
+    [
+      "an exercise that isn't in Forge",
+      { ...RIVERSIDE, exercises: ["barbell-row", "made-up-press"] },
+      "There's no exercise made-up-press in Forge",
+    ],
+    [
+      "an exercise twice",
+      { ...RIVERSIDE, exercises: ["barbell-row", "barbell-row"] },
+      "Barbell Row is named twice",
+    ],
+    [
+      "an id",
+      { ...RIVERSIDE, id: "g-1" },
+      "A new gym has no id: making it gives it its own",
+    ],
+    [
+      "no list of exercises",
+      { ...RIVERSIDE, exercises: "barbell-row" },
+      "A new gym has a name and a list of exercises",
+    ],
+  ])("is refused when it has %s", async (_, change, why) => {
+    const { code, output, store } = await previewOf([change], SET_UP);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why} (change 1).`);
+    expect(await setUpIn(store)).toEqual(SET_UP);
+  });
+});
+
+/** Refers to a custom exercise made earlier in the same proposal, by name. */
+const YOKE = { custom: "yoke walk" };
+
+/**
+ * A made-up proposal that adds YOKE_WALK and uses it, by name, in every
+ * kind of change that names exercises.
+ */
+const USING_YOKE = [
+  YOKE_WALK,
+  {
+    ...PUSH_PULL,
+    days: [
+      {
+        name: "Pull",
+        slots: [{ exerciseId: YOKE, sets: 3, repMin: 8, repMax: 12 }],
+      },
+    ],
+  },
+  {
+    ...CHANGE_STRENGTH,
+    days: [
+      {
+        ...CHANGE_STRENGTH.days[1],
+        slots: [
+          ...CHANGE_STRENGTH.days[1].slots,
+          {
+            exerciseId: { custom: "Yoke Walk" },
+            sets: 2,
+            repMin: 6,
+            repMax: 10,
+          },
+        ],
+      },
+    ],
+  },
+  { ...RIVERSIDE, exercises: ["barbell-row", YOKE] },
+  { ...HOME_TICKS, tick: [YOKE], untick: [] },
+  {
+    kind: "exercise-settings",
+    reason: "A yoke loads in big steps.",
+    exerciseId: YOKE,
+    increment: 20,
+  },
+];
+
+describe("a custom exercise made and used in one proposal (#197)", () => {
+  it("shows it by name wherever it's used, and applies in one go with every reference resolved to the id it's given", async () => {
+    const previewed = await previewOf(USING_YOKE, {
+      ...WITH_STRENGTH,
+      gyms: WITH_HOME_GYM.gyms,
+    });
+
+    expect(previewed.code).toBe(0);
+    expect(previewed.output).toBe(
+      [
+        `Proposal ${NAME}, 6 changes. Nothing is applied yet.`,
+        "",
+        "1. New custom exercise: Yoke Walk",
+        "   Why: A loaded carry for your upper back; the library has none on a yoke.",
+        "   - Type: Weight × reps",
+        "   - Primary: Traps, Forearms",
+        "   - Secondary: Abs",
+        "   - Body: Lower",
+        "2. New routine: Push Pull, version 1",
+        "   Why: A shorter week for when you travel.",
+        "   Pull",
+        "   - Yoke Walk: 3 × 8–12",
+        "3. Change routine: Strength → Strength Plus, version 2 → 3",
+        "   Why: Pull work moves to its own routine; arms get a day of their own.",
+        "   Lower (was Legs)",
+        "   - Barbell Back Squat: 3 × 5–8 · RIR 3",
+        "   - Sled Push: 4 × 10–15",
+        "   - Yoke Walk: 2 × 6–10 (added)",
+        "   Push (dropped)",
+        "   - Barbell Bench Press: 3 × 6–8 · RIR 2",
+        "   - Barbell Overhead Press: 3 × 6–10",
+        "   - Triceps Pushdown: 3 × 10–15",
+        "   Pull (dropped)",
+        "   - Barbell Row: 3 × 8–12",
+        "   - Lat Pulldown: 3 × 8–12",
+        "4. New gym: Riverside",
+        "   Why: Your new office has a gym; these are what it has.",
+        "   Ticked",
+        "   - Barbell Row",
+        "   - Yoke Walk",
+        "5. Gym exercises: Home Gym",
+        "   Why: The pulldown went; a curl bar and a sled came in.",
+        "   Ticked",
+        "   - Yoke Walk",
+        "6. Exercise settings: Yoke Walk",
+        "   Why: A yoke loads in big steps.",
+        "   - Increment: 10 lb (default) → 20 lb",
+        "",
+        `Fingerprint: ${fingerprintOf(previewed.output)}`,
+      ].join("\n"),
+    );
+
+    const applied = await applyIt(previewed);
+
+    expect(applied.code).toBe(0);
+    const { store } = previewed;
+    const yoke = (await store.list("customExercises")).find(
+      (e) => e.name === "Yoke Walk",
+    );
+    const id = /** @type {string} */ (yoke?.id);
+    expect(id).toMatch(/^custom-[0-9a-f-]{36}$/);
+    const routines = /** @type {any[]} */ (await store.list("routines"));
+    const pushPull = routines.find((r) => r.name === "Push Pull");
+    expect(pushPull.versions[0].days[0].slots).toEqual([
+      { exerciseId: id, sets: 3, repMin: 8, repMax: 12 },
+    ]);
+    const strength = routines.find((r) => r.id === "r-strength");
+    expect(strength.versions[2].days[0].slots.at(-1)).toEqual({
+      exerciseId: id,
+      sets: 2,
+      repMin: 6,
+      repMax: 10,
+    });
+    const gyms = /** @type {any[]} */ (await store.list("gyms"));
+    expect(gyms.find((g) => g.name === "Riverside").exerciseIds).toEqual([
+      "barbell-row",
+      id,
+    ]);
+    expect(gyms.find((g) => g.id === "g-home").exerciseIds).toEqual([
+      ...HOME_GYM.exerciseIds,
+      id,
+    ]);
+    expect(await store.list("exerciseSettings")).toEqual([
+      { id, unit: "lb", increment: 20, rest: 90 },
+    ]);
+  });
+
+  it.each([
+    [
+      "a custom exercise neither in the proposal nor in Forge",
+      [{ ...RIVERSIDE, exercises: [{ custom: "Zercher Carry" }] }],
+      "There's no custom exercise Zercher Carry made earlier in the proposal (change 1)",
+    ],
+    [
+      "a custom exercise the proposal makes later",
+      [{ ...RIVERSIDE, exercises: [YOKE] }, YOKE_WALK],
+      "There's no custom exercise yoke walk made earlier in the proposal (change 1)",
+    ],
+    [
+      "a custom exercise already in Forge",
+      [{ ...CURL_SETTINGS, exerciseId: { custom: "sled push" } }],
+      "Sled Push is already in Forge: name it by its id, custom-sled-push (change 1)",
+    ],
+    [
+      "a library exercise",
+      [
+        {
+          ...NEW_ROUTINE,
+          days: [
+            {
+              name: "Upper A",
+              slots: [
+                {
+                  exerciseId: { custom: "Barbell Row" },
+                  sets: 3,
+                  repMin: 8,
+                  repMax: 12,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      "Barbell Row is already in Forge: name it by its id, barbell-row (change 1)",
+    ],
+  ])("refuses a reference by name to %s", async (_, changes, why) => {
+    const { code, output, store } = await previewOf(changes, SET_UP);
+
+    expect(code).toBe(1);
+    expect(output).toBe(`Not applied: ${why}.`);
+    expect(await setUpIn(store)).toEqual(SET_UP);
+  });
+
+  it("refuses a slot naming its exercise neither by id nor by name", async () => {
+    const { code, output } = await previewOf(
+      [
+        {
+          ...NEW_ROUTINE,
+          days: [
+            {
+              name: "Upper A",
+              slots: [
+                {
+                  exerciseId: { custom: "Yoke Walk", id: "x" },
+                  sets: 3,
+                  repMin: 8,
+                  repMax: 12,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      SET_UP,
+    );
+
+    expect(code).toBe(1);
+    expect(output).toBe(
+      'Not applied: Each slot names its exercise by its id, or a custom exercise made earlier in the proposal by { "custom": "<name>" } (change 1).',
+    );
+  });
+});
+
+describe("a change of several writes landing partly (#197)", () => {
+  const SEED = {
+    ...WITH_STRENGTH,
+    gyms: WITH_HOME_GYM.gyms,
+    exerciseSettings: [ROW_SETTINGS],
+  };
+
+  it.each([
+    [
+      "ticking its second exercise",
+      4,
+      [
+        "Made the gym and ticked Barbell Row.",
+        "Didn't tick: Yoke Walk, Lat Pulldown.",
+      ],
+      ["barbell-row"],
+    ],
+    [
+      "ticking its first exercise",
+      3,
+      [
+        "Made the gym, with nothing ticked.",
+        "Didn't tick: Barbell Row, Yoke Walk, Lat Pulldown.",
+      ],
+      [],
+    ],
+  ])(
+    "says what a new gym wrote when %s fails, and writes nothing more",
+    async (_, failing, partly, ticked) => {
+      const previewed = await previewOf(
+        [
+          YOKE_WALK,
+          {
+            ...RIVERSIDE,
+            exercises: ["barbell-row", YOKE, "lat-pulldown"],
+          },
+          PUSH_PULL,
+        ],
+        SEED,
+      );
+
+      const applied = await run(
+        ["apply", NAME, fingerprintOf(previewed.output)],
+        {
+          store: failingOnWrite(previewed.store, failing),
+          folder: previewed.folder,
+          home: previewed.home,
+        },
+      );
+
+      expect(applied.code).toBe(1);
+      expect(applied.output).toBe(
+        [
+          "Applying stopped at change 2: Firestore answered 503 UNAVAILABLE.",
+          "Landed:",
+          "1. New custom exercise: Yoke Walk",
+          "Landed partly:",
+          "2. New gym: Riverside",
+          ...partly.map((line) => `   ${line}`),
+          "Didn't land:",
+          "3. New routine: Push Pull, version 1",
+          `The draft is kept, and no record is written to proposals/: ${previewed.path}`,
+        ].join("\n"),
+      );
+      const gyms = await previewed.store.list("gyms");
+      expect(gyms).toEqual([
+        ...WITH_HOME_GYM.gyms,
+        {
+          id: expect.stringMatching(UUID),
+          name: "Riverside",
+          exerciseIds: ticked,
+        },
+      ]);
+      expect(await previewed.store.list("routines")).toEqual(SEED.routines);
+      expect(await exists(previewed.path)).toBe(true);
+      expect(await readdir(previewed.folder)).toEqual(["drafts"]);
+    },
+  );
+
+  it("says what a gym's ticks wrote when one fails partway", async () => {
+    const previewed = await previewOf([HOME_TICKS], SEED);
+
+    const applied = await run(
+      ["apply", NAME, fingerprintOf(previewed.output)],
+      {
+        store: failingOnWrite(previewed.store, 2),
+        folder: previewed.folder,
+        home: previewed.home,
+      },
+    );
+
+    expect(applied.code).toBe(1);
+    expect(applied.output).toBe(
+      [
+        `Backed up 1 document to ${backups(previewed.home)}.`,
+        "Applying stopped at change 1: Firestore answered 503 UNAVAILABLE.",
+        "Landed: nothing.",
+        "Landed partly:",
+        "1. Gym exercises: Home Gym",
+        "   Ticked: Hammer Curl.",
+        "   Didn't tick: Sled Push.",
+        "   Didn't untick: Lat Pulldown.",
+        "Didn't land: nothing.",
+        `The draft is kept, and no record is written to proposals/: ${previewed.path}`,
+      ].join("\n"),
+    );
+    expect(await previewed.store.list("gyms")).toEqual([
+      SET_UP.gyms[0],
+      { ...HOME_GYM, exerciseIds: [...HOME_GYM.exerciseIds, "hammer-curl"] },
+    ]);
+  });
+
+  it.each([
+    [
+      "a new custom exercise",
+      [YOKE_WALK, PUSH_PULL],
+      2,
+      "Yoke Walk is already an exercise (change 1)",
+    ],
+    [
+      "a new gym",
+      [RIVERSIDE, PUSH_PULL],
+      2,
+      "Riverside is already a gym (change 1)",
+    ],
+    [
+      "a gym's ticks, partly",
+      [HOME_TICKS, PUSH_PULL],
+      2,
+      "Hammer Curl is already ticked at Home Gym (change 1)",
+    ],
+    [
+      "exercise settings",
+      [CURL_SETTINGS, PUSH_PULL],
+      2,
+      "DB Curl's unit is already kg (change 1)",
+    ],
+  ])(
+    "refuses a rerun of the same proposal once %s landed, rather than making it again",
+    async (_, changes, failing, why) => {
+      const previewed = await previewOf(changes, SEED);
+      await run(["apply", NAME, fingerprintOf(previewed.output)], {
+        store: failingOnWrite(previewed.store, failing),
+        folder: previewed.folder,
+        home: previewed.home,
+      });
+      const landed = await everythingIn(previewed.store);
+
+      const rerun = await run(["preview", NAME], {
+        store: previewed.store,
+        folder: previewed.folder,
+        home: previewed.home,
+      });
+
+      expect(rerun.code).toBe(1);
+      expect(rerun.output).toBe(`Not applied: ${why}.`);
+      expect(await everythingIn(previewed.store)).toEqual(landed);
+    },
+  );
+});
+
+/**
  * Every collection Forge keeps (each the core reads or writes), seeded with
  * made-up documents: the set-up a proposal may change, and the history and
  * settings it never may. A new collection belongs here too.
@@ -1733,18 +2796,42 @@ const EVERYTHING = {
 };
 
 /**
- * One proposal using every kind of change there is. #197 adds its kinds'
- * changes (new gym, gym exercises, new custom exercise, exercise settings)
- * to this list, and the documents they name to NAMED below; the test
+ * One proposal using every kind of change there is. A new kind adds a
+ * change to this list, and the documents it names to NAMED below; the test
  * itself needn't change.
  */
-const EVERY_KIND = [NEW_ROUTINE, CHANGE_STRENGTH];
+const EVERY_KIND = [
+  NEW_ROUTINE,
+  CHANGE_STRENGTH,
+  YOKE_WALK,
+  { ...RIVERSIDE, exercises: ["barbell-row", YOKE] },
+  {
+    kind: "gym-exercises",
+    reason: "The rack moved out; a yoke moved in.",
+    id: "g-1",
+    tick: [YOKE],
+    untick: ["barbell-row"],
+  },
+  {
+    kind: "exercise-settings",
+    reason: "Longer rests for heavier rows.",
+    exerciseId: "barbell-row",
+    rest: 180,
+  },
+];
 
 /**
  * The documents EVERY_KIND names: an existing one by collection and id, a
  * new one by collection and "new:" its name.
  */
-const NAMED = ["routines/new: Upper Lower", "routines/r-strength"];
+const NAMED = [
+  "customExercises/new: Yoke Walk",
+  "exerciseSettings/barbell-row",
+  "gyms/g-1",
+  "gyms/new: Riverside",
+  "routines/new: Upper Lower",
+  "routines/r-strength",
+];
 
 describe("what any proposal leaves alone (#196)", () => {
   /** @param {Store} store */

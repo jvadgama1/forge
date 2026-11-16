@@ -19,7 +19,7 @@ import { screen, typedNumber } from "./screen.js";
 const RESTS = [60, 90, 120, 180, 300];
 
 /** @param {number | "off"} rest as "Off", "90 s", "2 min" */
-const restText = (rest) =>
+export const restText = (rest) =>
   rest === "off" ? "Off" : rest < 120 ? `${rest} s` : `${rest / 60} min`;
 
 /**
