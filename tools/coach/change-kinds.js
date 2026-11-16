@@ -149,6 +149,16 @@ const changeRoutine = {
         throw new Error(
           `${before.name} has no day ${day.id} in its current version`,
         );
+    // A new day can't take a current day's name, so a rerun after a partial
+    // failure (#196) can't add a day that landed a second time: a day that
+    // continues names its id instead.
+    for (const day of days) {
+      if (day.id !== undefined) continue;
+      const wanted = day.name.trim().toLowerCase();
+      const taken = current.find((d) => d.name.toLowerCase() === wanted);
+      if (taken)
+        throw new Error(`${taken.name} is already a day of ${before.name}`);
+    }
     const name = /** @type {string | undefined} */ (change.name) ?? before.name;
     // Names are unique per kind (spec #191), so a rename can't take
     // another routine's.

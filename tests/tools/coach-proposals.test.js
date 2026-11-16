@@ -582,7 +582,13 @@ describe("npm run coach -- apply (#193)", () => {
 
     expect(code).toBe(1);
     expect(output).toBe(
-      `Applying stopped: Firestore answered 503 UNAVAILABLE (change 1). The draft is kept: ${path}`,
+      [
+        "Applying stopped at change 1: Firestore answered 503 UNAVAILABLE.",
+        "Landed: nothing.",
+        "Didn't land:",
+        "1. New routine: Upper Lower, version 1",
+        `The draft is kept, and no record is written to proposals/: ${path}`,
+      ].join("\n"),
     );
     expect(await exists(path)).toBe(true);
     expect(await readdir(folder)).toEqual(["drafts"]);
@@ -1305,7 +1311,11 @@ describe("a routine change: renames, moves, drift, backups and refusals (#195)",
     expect(applied.output).toBe(
       [
         `Backed up 1 document to ${backups(home)}.`,
-        `Applying stopped: Firestore answered 503 UNAVAILABLE (change 1). The draft is kept: ${path}`,
+        "Applying stopped at change 1: Firestore answered 503 UNAVAILABLE.",
+        "Landed: nothing.",
+        "Didn't land:",
+        "1. Change routine: Strength → Strength Plus, version 2 → 3",
+        `The draft is kept, and no record is written to proposals/: ${path}`,
       ].join("\n"),
     );
     expect(await store.list("routines")).toEqual([FULL_BODY, STRENGTH]);
@@ -1398,6 +1408,17 @@ describe("a routine change: renames, moves, drift, backups and refusals (#195)",
       "This changes nothing in Strength (change 1)",
     ],
     [
+      "a new day with a current day's name",
+      {
+        ...CHANGE_STRENGTH,
+        days: [
+          ...CHANGE_STRENGTH.days,
+          { name: " pull ", slots: [{ ...PUSH_PULL.days[0].slots[0] }] },
+        ],
+      },
+      "Pull is already a day of Strength (change 1)",
+    ],
+    [
       "a slot the core refuses",
       {
         ...CHANGE_STRENGTH,
@@ -1481,5 +1502,296 @@ describe("a routine change: renames, moves, drift, backups and refusals (#195)",
       expect(await store.list("routines")).toEqual([FULL_BODY, STRENGTH]);
       expect(await exists(path)).toBe(true);
     }
+  });
+});
+
+/**
+ * A store that refuses its `n`th write (a put or a remove), counting from
+ * 1, as Firestore might partway through `apply`; the writes before it
+ * land in `store`, and so would any after it.
+ * @param {Store} store
+ * @param {number} n
+ * @returns {Store}
+ */
+function failingOnWrite(store, n) {
+  let writes = 0;
+  /** @param {() => Promise<void>} write */
+  const counted = async (write) => {
+    if (++writes === n) throw new Error("Firestore answered 503 UNAVAILABLE");
+    await write();
+  };
+  return {
+    ...store,
+    put: (collection, doc) => counted(() => store.put(collection, doc)),
+    remove: (collection, id) => counted(() => store.remove(collection, id)),
+  };
+}
+
+/** A made-up new routine, to follow CHANGE_STRENGTH in a proposal. */
+const PUSH_PULL = {
+  kind: "new-routine",
+  reason: "A shorter week for when you travel.",
+  name: "Push Pull",
+  days: [
+    {
+      name: "Push",
+      slots: [
+        { exerciseId: "barbell-bench-press", sets: 3, repMin: 6, repMax: 8 },
+      ],
+    },
+  ],
+};
+
+describe("a partial failure (#196)", () => {
+  /**
+   * Writes a proposal of the given changes over WITH_STRENGTH, previews it
+   * and returns what applying needs.
+   * @param {unknown[]} changes
+   */
+  async function previewed(changes) {
+    const folder = await privateFolder();
+    const home = await privateFolder();
+    const path = await writeProposal(folder, { changes });
+    const store = createMemoryStore(WITH_STRENGTH);
+    const { output } = await run(["preview", NAME], { store, folder, home });
+    return { folder, home, path, store, fingerprint: fingerprintOf(output) };
+  }
+
+  it("says which changes landed and which didn't, writes nothing after the failure, and keeps the draft with no record", async () => {
+    const { folder, home, path, store, fingerprint } = await previewed([
+      NEW_ROUTINE,
+      CHANGE_STRENGTH,
+      PUSH_PULL,
+    ]);
+
+    const applied = await run(["apply", NAME, fingerprint], {
+      store: failingOnWrite(store, 2),
+      folder,
+      home,
+    });
+
+    expect(applied.code).toBe(1);
+    expect(applied.output).toBe(
+      [
+        `Backed up 1 document to ${backups(home)}.`,
+        "Applying stopped at change 2: Firestore answered 503 UNAVAILABLE.",
+        "Landed:",
+        "1. New routine: Upper Lower, version 1",
+        "Didn't land:",
+        "2. Change routine: Strength → Strength Plus, version 2 → 3",
+        "3. New routine: Push Pull, version 1",
+        `The draft is kept, and no record is written to proposals/: ${path}`,
+      ].join("\n"),
+    );
+    expect(await everythingIn(store)).toEqual({
+      ...WITH_STRENGTH,
+      routines: [FULL_BODY, STRENGTH, UPPER_LOWER],
+      bodyWeights: [],
+      coachingSessions: [],
+    });
+    expect(await exists(path)).toBe(true);
+    expect(await readdir(folder)).toEqual(["drafts"]);
+  });
+
+  it.each([
+    [
+      "a new routine",
+      [NEW_ROUTINE, PUSH_PULL],
+      "Upper Lower is already a routine (change 1)",
+    ],
+    [
+      "a routine change that adds a day",
+      [CHANGE_STRENGTH, PUSH_PULL],
+      "Arms is already a day of Strength Plus (change 1)",
+    ],
+  ])(
+    "refuses a rerun of the same proposal once %s landed, rather than making it twice",
+    async (_, changes, why) => {
+      const { folder, home, path, store, fingerprint } =
+        await previewed(changes);
+      await run(["apply", NAME, fingerprint], {
+        store: failingOnWrite(store, 2),
+        folder,
+        home,
+      });
+      const landed = await everythingIn(store);
+
+      const rerun = await run(["preview", NAME], { store, folder, home });
+
+      expect(rerun.code).toBe(1);
+      expect(rerun.output).toBe(`Not applied: ${why}.`);
+      expect(await everythingIn(store)).toEqual(landed);
+      expect(await exists(path)).toBe(true);
+    },
+  );
+
+  it("counts a change as landed once its write has, even if reading fails after it", async () => {
+    const { folder, home, path, store, fingerprint } = await previewed([
+      NEW_ROUTINE,
+    ]);
+    let written = false;
+    /** @type {Store} */
+    const flaky = {
+      ...store,
+      get: (collection, id) =>
+        written
+          ? Promise.reject(new Error("fetch failed"))
+          : store.get(collection, id),
+      list: (collection) =>
+        written
+          ? Promise.reject(new Error("fetch failed"))
+          : store.list(collection),
+      put: async (collection, doc) => {
+        await store.put(collection, doc);
+        written = true;
+      },
+    };
+
+    const applied = await run(["apply", NAME, fingerprint], {
+      store: flaky,
+      folder,
+      home,
+    });
+
+    expect(applied.code).toBe(0);
+    expect(applied.output).toBe(
+      [
+        `Applied ${NAME}, 1 change:`,
+        "1. New routine: Upper Lower, version 1",
+        "Wrote proposals/2026-11-14-1500-proposal.md and removed the draft.",
+      ].join("\n"),
+    );
+    expect(await store.list("routines")).toEqual([
+      FULL_BODY,
+      STRENGTH,
+      UPPER_LOWER,
+    ]);
+    expect(
+      await readFile(
+        join(folder, "proposals", "2026-11-14-1500-proposal.md"),
+        "utf8",
+      ),
+    ).toBe(RECORD);
+    expect(await exists(path)).toBe(false);
+  });
+});
+
+/**
+ * Every collection Forge keeps, each seeded with made-up documents: the
+ * set-up a proposal may change, and the history and settings it never may.
+ */
+const EVERYTHING = {
+  ...WITH_STRENGTH,
+  exerciseSettings: [
+    { id: "barbell-row", unit: "kg", increment: 2.5, rest: 120 },
+  ],
+  bodyWeights: [
+    {
+      id: "bw-1",
+      load: 82.5,
+      unit: "kg",
+      date: "2026-11-10",
+      loggedAt: "2026-11-10T13:00:00.000Z",
+    },
+  ],
+  coachingSessions: [
+    {
+      id: "cs-1",
+      savedAt: "2026-11-07T20:00:00.000Z",
+      verdict: "Steady week; pressing is moving.",
+      insights: [
+        {
+          title: "Bench",
+          body: "Up 2.5 kg in a fortnight.",
+          level: "training",
+        },
+      ],
+      commitments: [{ text: "Sleep before heavy days." }],
+      followUps: [],
+    },
+  ],
+  settings: [{ id: "user", lastGymId: "g-1", dashboardRange: "12w" }],
+  feedback: [
+    {
+      id: "f-1",
+      text: "The rest timer is hard to read.",
+      sentAt: "2026-11-01T18:00:00.000Z",
+      appVersion: { commit: "abc1234", date: "2026-10-30T12:00:00.000Z" },
+    },
+  ],
+};
+
+/**
+ * One proposal using every kind of change there is. #197 adds its kinds'
+ * changes (new gym, gym exercises, new custom exercise, exercise settings)
+ * to this list, and the documents they name to NAMED below; the test
+ * itself needn't change.
+ */
+const EVERY_KIND = [NEW_ROUTINE, CHANGE_STRENGTH];
+
+/**
+ * The documents EVERY_KIND names: an existing one by collection and id, a
+ * new one by collection and "new:" its name.
+ */
+const NAMED = ["routines/new: Upper Lower", "routines/r-strength"];
+
+describe("what any proposal leaves alone (#196)", () => {
+  /** @param {Store} store */
+  async function snapshot(store) {
+    /** @type {Record<string, Doc[]>} */
+    const all = {};
+    for (const collection of Object.keys(EVERYTHING))
+      all[collection] = await store.list(collection);
+    return all;
+  }
+
+  it("changes only the documents it names, deletes nothing, and leaves workouts, body weights, coaching sessions, app settings and feedback as they were", async () => {
+    const folder = await privateFolder();
+    const home = await privateFolder();
+    await writeProposal(folder, { changes: EVERY_KIND });
+    const store = createMemoryStore(EVERYTHING);
+    const { output } = await run(["preview", NAME], { store, folder, home });
+    const before = await snapshot(store);
+
+    const applied = await run(["apply", NAME, fingerprintOf(output)], {
+      store,
+      folder,
+      home,
+    });
+
+    expect(applied.code).toBe(0);
+    const after = await snapshot(store);
+    /** @type {string[]} */
+    const gone = [];
+    /** @type {string[]} */
+    const changed = [];
+    for (const [collection, docs] of Object.entries(after)) {
+      for (const was of before[collection])
+        if (!docs.some((doc) => doc.id === was.id))
+          gone.push(`${collection}/${was.id}`);
+      for (const doc of docs) {
+        const was = before[collection].find((d) => d.id === doc.id);
+        if (!was) changed.push(`${collection}/new: ${doc.name ?? doc.id}`);
+        else if (JSON.stringify(was) !== JSON.stringify(doc))
+          changed.push(`${collection}/${doc.id}`);
+      }
+    }
+    expect(gone).toEqual([]);
+    expect(changed.sort()).toEqual(NAMED);
+    const { workouts, bodyWeights, coachingSessions, settings, feedback } =
+      after;
+    expect({
+      workouts,
+      bodyWeights,
+      coachingSessions,
+      settings,
+      feedback,
+    }).toEqual({
+      workouts: [LAST_PUSH],
+      bodyWeights: EVERYTHING.bodyWeights,
+      coachingSessions: EVERYTHING.coachingSessions,
+      settings: [{ id: "user", lastGymId: "g-1", dashboardRange: "12w" }],
+      feedback: EVERYTHING.feedback,
+    });
   });
 });

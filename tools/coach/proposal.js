@@ -74,7 +74,8 @@ export async function preview(draft, deps) {
  * a change the core refuses leaves the store untouched, and every existing
  * document it changes is backed up before the first write. Then it writes
  * the record of the proposal to proposals/ and removes the draft, so it
- * can't be applied twice.
+ * can't be applied twice. If a write fails, it stops there and says which
+ * changes landed, keeping the draft (#196).
  * @param {string} draft
  * @param {string} given the fingerprint `preview` printed
  * @param {Deps} deps
@@ -91,7 +92,11 @@ export async function apply(draft, given, deps) {
     print("Not applied: changed since the preview.");
     return 1;
   }
-  if (!(await dryRun(changes, state.copy, deps))) return 1;
+  // The dry run describes what `apply` reports and records, so describing
+  // a change never reads the store after it's written: a read failing then
+  // can't make a change that landed look as if it didn't (#196).
+  const planned = await dryRun(changes, state.copy, deps);
+  if (!planned) return 1;
   // The documents as fingerprinted, so the backup is what the user saw.
   const existing = state.documents.filter(
     (d) => d.doc !== null && state.written.has(key(d)),
@@ -112,12 +117,13 @@ export async function apply(draft, given, deps) {
     );
     return 1;
   }
-  const made = await makeAll(changes, deps.store, now);
-  if ("failed" in made) {
+  const stopped = await writeAll(changes, deps.store, now);
+  if (stopped) {
     print(
       [
         ...backedUp,
-        `Applying stopped: ${errorText(made.error)} (change ${made.failed}). The draft is kept: ${path}`,
+        ...stoppedLines(planned, stopped.failed, stopped.error),
+        `The draft is kept, and no record is written to proposals/: ${path}`,
       ].join("\n"),
     );
     return 1;
@@ -125,9 +131,7 @@ export async function apply(draft, given, deps) {
   const applied = [
     ...backedUp,
     `Applied ${basename(draft)}, ${count(changes)}:`,
-    ...made.made.map(
-      ({ description }, i) => `${i + 1}. ${description.heading}`,
-    ),
+    ...planned.map(({ description }, i) => `${i + 1}. ${description.heading}`),
   ];
   /** @type {string} */
   let record;
@@ -135,7 +139,7 @@ export async function apply(draft, given, deps) {
     record = await writeRecord(
       folder,
       recordName(draft),
-      recordMarkdown(draft, made.made, now()),
+      recordMarkdown(draft, planned, now()),
     );
   } catch (error) {
     print(
@@ -284,34 +288,20 @@ async function readState(changes, { store, print }) {
 }
 
 /**
- * Makes every change over the copy of the set-up, printing the core's
- * reason for the first it refuses.
- * @param {Change[]} changes
- * @param {Store} copy
- * @param {Deps} deps
- */
-async function dryRun(changes, copy, { now, print }) {
-  const made = await makeAll(changes, copy, now);
-  if (!("failed" in made)) return made.made;
-  print(`Not applied: ${errorText(made.error)} (change ${made.failed}).`);
-  return undefined;
-}
-
-/**
  * @typedef {{ change: Change, description: Description }} Made
  */
 
 /**
- * Makes every change, in order, through the core over the given store,
- * stopping at the first it refuses or can't write.
+ * Makes every change, in order, through the core over the copy of the
+ * set-up, describing each, and prints the core's reason for the first it
+ * refuses.
  * @param {Change[]} changes
- * @param {Store} store
- * @param {() => Date} now
- * @returns {Promise<{ made: Made[] } | { made: Made[], failed: number, error: unknown }>}
- *   `failed` numbers the change that stopped it, from 1
+ * @param {Store} copy
+ * @param {Deps} deps
+ * @returns {Promise<Made[] | undefined>}
  */
-async function makeAll(changes, store, now) {
-  const forge = createForge({ store, library: SEED_LIBRARY, now });
+async function dryRun(changes, copy, { now, print }) {
+  const forge = createForge({ store: copy, library: SEED_LIBRARY, now });
   /** @type {Made[]} */
   const made = [];
   for (const [i, change] of changes.entries()) {
@@ -320,10 +310,59 @@ async function makeAll(changes, store, now) {
       const result = await kind.make(change, forge);
       made.push({ change, description: await kind.describe(result, forge) });
     } catch (error) {
-      return { made, failed: i + 1, error };
+      print(`Not applied: ${errorText(error)} (change ${i + 1}).`);
+      return undefined;
     }
   }
-  return { made };
+  return made;
+}
+
+/**
+ * Makes every change for real, in order, through the core over the store,
+ * stopping at the first write that fails: nothing more is written after
+ * it. A change has landed once its kind's `make` resolves. Every kind so
+ * far makes one write, so a change whose `make` throws wrote nothing; a
+ * kind that makes several (#197's new gym) must also say when its change
+ * landed partly.
+ * @param {Change[]} changes
+ * @param {Store} store
+ * @param {() => Date} now
+ * @returns {Promise<{ failed: number, error: unknown } | undefined>}
+ *   `failed` numbers the change it stopped at, from 1; nothing when every
+ *   change landed
+ */
+async function writeAll(changes, store, now) {
+  const forge = createForge({ store, library: SEED_LIBRARY, now });
+  for (const [i, change] of changes.entries()) {
+    try {
+      await CHANGE_KINDS[change.kind].make(change, forge);
+    } catch (error) {
+      return { failed: i + 1, error };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * What `apply` says when a write fails partway: the change it stopped at
+ * and why, then each change under whether it landed. The changes before
+ * it landed; it and every change after it didn't, since nothing more is
+ * written once one fails. The headings are the dry run's, as previewed.
+ * @param {Made[]} planned every change, as the dry run made it
+ * @param {number} failed the change that stopped it, from 1
+ * @param {unknown} error
+ */
+function stoppedLines(planned, failed, error) {
+  const numbered = planned.map(
+    ({ description }, i) => `${i + 1}. ${description.heading}`,
+  );
+  const landed = numbered.slice(0, failed - 1);
+  return [
+    `Applying stopped at change ${failed}: ${errorText(error)}.`,
+    ...(landed.length ? ["Landed:", ...landed] : ["Landed: nothing."]),
+    "Didn't land:",
+    ...numbered.slice(failed - 1),
+  ];
 }
 
 /**
