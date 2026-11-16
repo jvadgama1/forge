@@ -7,6 +7,7 @@
 // anywhere (ADR-0008). Each save and apply is a live write the coach runs
 // once the user approves it in the conversation (ADR-0009,
 // docs/agents/live-data.md). What it does is in run.js.
+import { homedir } from "node:os";
 import { FIREBASE_CONFIG, OWNER_UID } from "../../app/js/firebase-config.js";
 import { token } from "../firebase-login.js";
 import { createRestStore } from "../store/rest-store.js";
@@ -22,6 +23,7 @@ try {
     }),
     now: () => new Date(),
     folder: COACH_NOTES_FOLDER,
+    home: homedir(),
     print: (text) => console.log(text),
   });
 } catch (error) {
