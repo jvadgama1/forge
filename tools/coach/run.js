@@ -9,6 +9,7 @@ import { join, resolve } from "node:path";
 import { createForge } from "../../app/js/core/forge.js";
 import { SEED_LIBRARY } from "../../app/js/core/seed-library.js";
 import { fileNames, insightMarkdown, savedWhen } from "./insight-file.js";
+import { apply, preview } from "./proposal.js";
 
 /** @import { CoachingSession, CoachingSessionDraft, Store } from "../../app/js/core/types.js" */
 /** @import { Forge } from "../../app/js/core/forge.js" */
@@ -18,6 +19,14 @@ const USAGE = [
   "                                        refresh the insight files",
   "       npm run coach -- save <draft>    save one coaching session from a",
   "                                        draft in drafts/, then remove it",
+  "       npm run coach -- preview <proposal>",
+  "                                        show what a proposal in drafts/",
+  "                                        would change, and its fingerprint",
+  "       npm run coach -- apply <proposal> <fingerprint>",
+  "                                        make the proposal's changes if",
+  "                                        nothing changed since its preview,",
+  "                                        record it in proposals/, then",
+  "                                        remove it",
 ].join("\n");
 
 /**
@@ -44,6 +53,10 @@ export async function runCoach(args, deps) {
   if (command === "read" && args.length === 1) return read(forge, deps);
   if (command === "save" && draft && !rest.length)
     return save(draft, forge, deps);
+  if (command === "preview" && draft && !rest.length)
+    return preview(draft, deps);
+  if (command === "apply" && draft && rest.length === 1 && rest[0])
+    return apply(draft, rest[0], deps);
   deps.print(USAGE);
   return 1;
 }
