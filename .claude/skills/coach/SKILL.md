@@ -3,6 +3,7 @@ name: coach
 description: Run a coaching session over all the Forge data and the coach notes. Add a topic to lead on it.
 argument-hint: "[topic]"
 disable-model-invocation: true
+allowed-tools: Read(//c/Projects/Health/coach/**) Edit(//c/Projects/Health/coach/**) Write(//c/Projects/Health/coach/**)
 ---
 
 # Coach
@@ -22,6 +23,7 @@ Use the glossary's words exactly: _coaching session_ (never "session" alone), _i
   - `sessions/`: your private summary of each conversation.
   - `insights/`: a Markdown copy of each saved coaching session, written by the coach command. Read it; leave the writing to the command.
   - `drafts/`: the entry being approved.
+  - **Access**: reading and writing here needs no prompt, since this skill's `allowed-tools` grants the folder. Deleting a file here asks the user first, by design. Any other prompt or refusal for the folder means the grant no longer matches the folder in `tools/coach/coach-notes.js`: tell the user, who can approve the prompt and carry on, or stop to fix the grant.
 - **The scratchpad**: your Claude Code scratchpad directory. Your query scripts go here: code only, never a copy of the data.
 
 Name every file you write in the coach notes by local date and time, `YYYY-MM-DD-HHmm` (`2026-11-14-1500.md`), as `insights/` is.
@@ -55,7 +57,7 @@ Done when it prints `Deployed checkout ready at …`. If it prints anything else
 3. Read `profile.md`, `notebook.md` and the three newest files in `sessions/`. Any of them may not exist yet.
 4. Read every coaching session in the export (`coachingSessions`, newest first): its verdict, insights, commitments, follow-ups and corrections.
 
-Done when you have read every workout, body weight entry, routine version, coaching session and coach notes file there is, the whole history every time, and know which commitments are open (see _Commitments_). If a read of the coach notes is blocked, ask the user to run `/add-dir C:/Projects/Health/coach`.
+Done when you have read every workout, body weight entry, routine version, coaching session and coach notes file there is, the whole history every time, and know which commitments are open (see _Commitments_).
 
 ### 3. First coaching session: intake
 
