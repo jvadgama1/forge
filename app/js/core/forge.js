@@ -2115,8 +2115,7 @@ export function createForge({
     const plain = withoutPlannedPairs(days);
     /** @type {Routine} */
     const saved =
-      latest &&
-      JSON.stringify(withoutPlannedPairs(latest.days)) === JSON.stringify(plain)
+      latest && sameDays(withoutPlannedPairs(latest.days), plain)
         ? routine
         : {
             ...routine,
@@ -2131,6 +2130,32 @@ export function createForge({
           };
     await store.put("routines", saved);
     return saved;
+  }
+
+  /**
+   * Whether two lists of routine days hold the same days, whatever order
+   * their fields are in: a store can hand them back in any order, as
+   * Firestore's REST API does (#185), and a rename alone adds no version
+   * (#195).
+   * @param {RoutineDay[]} a
+   * @param {RoutineDay[]} b
+   */
+  function sameDays(a, b) {
+    return keysSorted(a) === keysSorted(b);
+  }
+
+  /**
+   * A value as JSON with every object's keys in sorted order.
+   * @param {unknown} value
+   */
+  function keysSorted(value) {
+    return JSON.stringify(value, (_, field) =>
+      typeof field === "object" && field !== null && !Array.isArray(field)
+        ? Object.fromEntries(
+            Object.entries(field).sort(([x], [y]) => (x < y ? -1 : 1)),
+          )
+        : field,
+    );
   }
 
   /**

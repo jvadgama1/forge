@@ -45,6 +45,9 @@ async function run(args, { store = createMemoryStore(), folder } = {}) {
     store,
     now: () => new Date("2026-11-14T20:00:00.000Z"),
     folder,
+    // Nothing these tests run backs anything up; a temporary folder all the
+    // same, so nothing could reach the real home folder.
+    home: await privateFolder(),
     print: (text) => printed.push(text),
   });
   return { code, output: printed.join("\n"), folder, store };

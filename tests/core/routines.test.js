@@ -90,6 +90,64 @@ describe("saving a routine (#14)", () => {
     expect(renamed.versions).toHaveLength(1);
   });
 
+  it("only renames when the stored days hold the same fields in another order", async () => {
+    // Firestore's REST API returns map fields in no stable order (#185), so
+    // the coach's store can hand back a slot's keys in any order (#195).
+    const store = createMemoryStore({
+      routines: [
+        {
+          id: "r-1",
+          name: "PPL",
+          versions: [
+            {
+              savedAt: "2026-10-01T12:00:00.000Z",
+              number: 1,
+              days: [
+                {
+                  slots: [
+                    {
+                      sets: 3,
+                      rir: 2,
+                      repMin: 6,
+                      repMax: 10,
+                      exerciseId: "bench-press",
+                    },
+                  ],
+                  name: "Push A",
+                  id: "d-1",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const f = createForge({ store, library });
+
+    const renamed = await f.saveRoutine({
+      id: "r-1",
+      name: "Push Pull Legs",
+      days: [
+        {
+          id: "d-1",
+          name: "Push A",
+          slots: [
+            {
+              exerciseId: "bench-press",
+              sets: 3,
+              repMin: 6,
+              repMax: 10,
+              rir: 2,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(renamed.name).toBe("Push Pull Legs");
+    expect(renamed.versions.map((v) => v.number)).toEqual([1]);
+  });
+
   it("refuses a routine that can't be followed", async () => {
     const { f } = setup();
     /** @param {Partial<RoutineDayDraft["slots"][number]>} slot */

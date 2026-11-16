@@ -37,6 +37,8 @@ const USAGE = [
  * @property {() => Date} now
  * @property {string} folder The private folder for coach notes; a draft
  *   named without a folder is in its drafts/.
+ * @property {string} home The maintainer's home folder, where `apply`
+ *   backs up the documents it changes (#195); tests pass a temporary one.
  * @property {(text: string) => void} print
  */
 

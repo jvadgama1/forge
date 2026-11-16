@@ -9,18 +9,20 @@
 // Each kind's rules are in change-kinds.js. `preview` makes every change
 // through the core over an in-memory copy of the set-up, so nothing reaches
 // the store, and prints what would change and a fingerprint. `apply` makes
-// the changes for real only while that fingerprint still matches.
+// the changes for real only while that fingerprint still matches, after
+// backing up every existing document they change (backup.js, #195).
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createForge } from "../../app/js/core/forge.js";
 import { SEED_LIBRARY } from "../../app/js/core/seed-library.js";
 import { createMemoryStore } from "../../app/js/store/memory-store.js";
+import { backUp } from "./backup.js";
 import { CHANGE_KINDS } from "./change-kinds.js";
 import { savedWhen } from "./insight-file.js";
 
 /** @import { Doc, Store } from "../../app/js/core/types.js" */
-/** @import { Change, Description } from "./change-kinds.js" */
+/** @import { Change, Description, DocRef } from "./change-kinds.js" */
 
 /**
  * @typedef {object} Deps
@@ -28,6 +30,8 @@ import { savedWhen } from "./insight-file.js";
  * @property {() => Date} now
  * @property {string} folder The private folder for coach notes; a proposal
  *   named without a folder is in its drafts/.
+ * @property {string} home The maintainer's home folder, where `apply`
+ *   backs up the documents it changes (#195); tests pass a temporary one.
  * @property {(text: string) => void} print
  */
 
@@ -67,9 +71,10 @@ export async function preview(draft, deps) {
  * Makes the proposal's changes in Forge, in order, if its fingerprint is
  * still the one given: neither the file nor the documents it depends on
  * have changed since the preview. It's checked whole over a copy first, so
- * a change the core refuses leaves the store untouched. Then it writes the
- * record of the proposal to proposals/ and removes the draft, so it can't
- * be applied twice.
+ * a change the core refuses leaves the store untouched, and every existing
+ * document it changes is backed up before the first write. Then it writes
+ * the record of the proposal to proposals/ and removes the draft, so it
+ * can't be applied twice.
  * @param {string} draft
  * @param {string} given the fingerprint `preview` printed
  * @param {Deps} deps
@@ -87,14 +92,38 @@ export async function apply(draft, given, deps) {
     return 1;
   }
   if (!(await dryRun(changes, state.copy, deps))) return 1;
+  // The documents as fingerprinted, so the backup is what the user saw.
+  const existing = state.documents.filter(
+    (d) => d.doc !== null && state.written.has(key(d)),
+  );
+  /** @type {string[]} */
+  let backedUp;
+  try {
+    const where = await backUp(
+      /** @type {{ collection: string, id: string, doc: Doc }[]} */ (existing),
+      { home: deps.home, name: proposalName(draft) },
+    );
+    backedUp = where
+      ? [`Backed up ${count(existing, "document")} to ${where}.`]
+      : [];
+  } catch (error) {
+    print(
+      `Not applied: couldn't back up the documents it changes (${errorText(error)}), so nothing is written.`,
+    );
+    return 1;
+  }
   const made = await makeAll(changes, deps.store, now);
   if ("failed" in made) {
     print(
-      `Applying stopped: ${errorText(made.error)} (change ${made.failed}). The draft is kept: ${path}`,
+      [
+        ...backedUp,
+        `Applying stopped: ${errorText(made.error)} (change ${made.failed}). The draft is kept: ${path}`,
+      ].join("\n"),
     );
     return 1;
   }
   const applied = [
+    ...backedUp,
     `Applied ${basename(draft)}, ${count(changes)}:`,
     ...made.made.map(
       ({ description }, i) => `${i + 1}. ${description.heading}`,
@@ -132,9 +161,16 @@ export async function apply(draft, given, deps) {
   return 0;
 }
 
-/** @param {unknown[]} changes */
-const count = (changes) =>
-  `${changes.length} change${changes.length === 1 ? "" : "s"}`;
+/**
+ * "1 change", "2 changes".
+ * @param {unknown[]} items
+ * @param {string} [word]
+ */
+const count = (items, word = "change") =>
+  `${items.length} ${word}${items.length === 1 ? "" : "s"}`;
+
+/** @param {{ collection: string, id: string }} ref */
+const key = ({ collection, id }) => `${collection}/${id}`;
 
 /**
  * Reads and parses a proposal draft and checks its shape, printing why
@@ -208,16 +244,29 @@ function checked(proposal) {
 
 /**
  * Reads what the proposal works on: a copy of the set-up for the dry run,
- * and the documents its changes depend on, for the fingerprint.
+ * and the documents its changes depend on or write over, for the
+ * fingerprint and the backup. `written` keys the ones they write over.
  * @param {Change[]} changes
  * @param {Deps} deps
  */
 async function readState(changes, { store, print }) {
+  /** @type {Map<string, DocRef>} */
+  const unique = new Map();
+  /** @type {Set<string>} */
+  const written = new Set();
+  for (const c of changes) {
+    const kind = CHANGE_KINDS[c.kind];
+    for (const ref of kind.dependsOn(c)) unique.set(key(ref), ref);
+    for (const ref of kind.writes(c)) {
+      unique.set(key(ref), ref);
+      written.add(key(ref));
+    }
+  }
+  const refs = [...unique.values()];
   try {
     const seed = Object.fromEntries(
       await Promise.all(SET_UP.map(async (c) => [c, await store.list(c)])),
     );
-    const refs = changes.flatMap((c) => CHANGE_KINDS[c.kind].dependsOn(c));
     const documents = await Promise.all(
       refs.map(async ({ collection, id }) => ({
         collection,
@@ -225,7 +274,7 @@ async function readState(changes, { store, print }) {
         doc: (await store.get(collection, id)) ?? null,
       })),
     );
-    return { copy: createMemoryStore(seed), documents };
+    return { copy: createMemoryStore(seed), documents, written };
   } catch (error) {
     print(
       `Couldn't read the data: ${errorText(error)}. Is the Firebase CLI logged in (npx firebase login)?`,
@@ -278,10 +327,17 @@ async function makeAll(changes, store, now) {
 }
 
 /**
- * The record's file name: the draft's, as Markdown.
+ * The proposal's name: its draft's, without ".json". Its record and its
+ * backup are named after it.
  * @param {string} draft
  */
-const recordName = (draft) => `${basename(draft).replace(/\.json$/i, "")}.md`;
+const proposalName = (draft) => basename(draft).replace(/\.json$/i, "");
+
+/**
+ * The record's file name: the proposal's, as Markdown.
+ * @param {string} draft
+ */
+const recordName = (draft) => `${proposalName(draft)}.md`;
 
 /**
  * Writes the record to proposals/, making the folder when missing. An
@@ -325,7 +381,8 @@ function recordMarkdown(draft, made, at) {
     blocks.push([`## ${description.heading}`], [change.reason.trim()]);
     for (const { title, lines } of description.groups) {
       if (title !== undefined) blocks.push([`### ${title}`]);
-      blocks.push(lines.map((line) => `- ${line}`));
+      // A routine day can have no slots, which is no list at all.
+      if (lines.length) blocks.push(lines.map((line) => `- ${line}`));
     }
   }
   return blocks.map((lines) => lines.join("\n")).join("\n\n") + "\n";
@@ -333,17 +390,15 @@ function recordMarkdown(draft, made, at) {
 
 /**
  * The fingerprint of a proposal: its file as written, and the documents
- * its changes depend on as they stand. Each document's keys are sorted
- * first, since Firestore's REST API returns map fields in no stable order.
+ * its changes depend on or write over as they stand. Each document's keys
+ * are sorted first, since Firestore's REST API returns map fields in no
+ * stable order.
  * @param {string} text
  * @param {{ collection: string, id: string, doc: Doc | null }[]} documents
  */
 function fingerprint(text, documents) {
   const keyed = new Map(
-    documents.map(({ collection, id, doc }) => [
-      `${collection}/${id}`,
-      canonical(doc),
-    ]),
+    documents.map((document) => [key(document), canonical(document.doc)]),
   );
   const sorted = [...keyed].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return createHash("sha256")
