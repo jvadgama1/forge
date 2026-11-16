@@ -1413,7 +1413,12 @@ describe("a routine change: renames, moves, drift, backups and refusals (#195)",
         ...CHANGE_STRENGTH,
         days: [
           ...CHANGE_STRENGTH.days,
-          { name: " pull ", slots: [{ ...PUSH_PULL.days[0].slots[0] }] },
+          {
+            name: " pull ",
+            slots: [
+              { exerciseId: "barbell-row", sets: 3, repMin: 8, repMax: 12 },
+            ],
+          },
         ],
       },
       "Pull is already a day of Strength (change 1)",
@@ -1604,6 +1609,11 @@ describe("a partial failure (#196)", () => {
       [CHANGE_STRENGTH, PUSH_PULL],
       "Arms is already a day of Strength Plus (change 1)",
     ],
+    [
+      "a routine change that adds no day",
+      [RENAME_STRENGTH, PUSH_PULL],
+      "This changes nothing in Strength Plus (change 1)",
+    ],
   ])(
     "refuses a rerun of the same proposal once %s landed, rather than making it twice",
     async (_, changes, why) => {
@@ -1677,8 +1687,9 @@ describe("a partial failure (#196)", () => {
 });
 
 /**
- * Every collection Forge keeps, each seeded with made-up documents: the
- * set-up a proposal may change, and the history and settings it never may.
+ * Every collection Forge keeps (each the core reads or writes), seeded with
+ * made-up documents: the set-up a proposal may change, and the history and
+ * settings it never may. A new collection belongs here too.
  */
 const EVERYTHING = {
   ...WITH_STRENGTH,
@@ -1751,7 +1762,6 @@ describe("what any proposal leaves alone (#196)", () => {
     await writeProposal(folder, { changes: EVERY_KIND });
     const store = createMemoryStore(EVERYTHING);
     const { output } = await run(["preview", NAME], { store, folder, home });
-    const before = await snapshot(store);
 
     const applied = await run(["apply", NAME, fingerprintOf(output)], {
       store,
@@ -1760,6 +1770,9 @@ describe("what any proposal leaves alone (#196)", () => {
     });
 
     expect(applied.code).toBe(0);
+    // Against the seed itself, so a write by preview would show too.
+    /** @type {Record<string, Doc[]>} */
+    const before = EVERYTHING;
     const after = await snapshot(store);
     /** @type {string[]} */
     const gone = [];
@@ -1787,10 +1800,10 @@ describe("what any proposal leaves alone (#196)", () => {
       settings,
       feedback,
     }).toEqual({
-      workouts: [LAST_PUSH],
+      workouts: EVERYTHING.workouts,
       bodyWeights: EVERYTHING.bodyWeights,
       coachingSessions: EVERYTHING.coachingSessions,
-      settings: [{ id: "user", lastGymId: "g-1", dashboardRange: "12w" }],
+      settings: EVERYTHING.settings,
       feedback: EVERYTHING.feedback,
     });
   });

@@ -95,8 +95,8 @@ export async function apply(draft, given, deps) {
   // The dry run describes what `apply` reports and records, so describing
   // a change never reads the store after it's written: a read failing then
   // can't make a change that landed look as if it didn't (#196).
-  const planned = await dryRun(changes, state.copy, deps);
-  if (!planned) return 1;
+  const previewed = await dryRun(changes, state.copy, deps);
+  if (!previewed) return 1;
   // The documents as fingerprinted, so the backup is what the user saw.
   const existing = state.documents.filter(
     (d) => d.doc !== null && state.written.has(key(d)),
@@ -122,7 +122,7 @@ export async function apply(draft, given, deps) {
     print(
       [
         ...backedUp,
-        ...stoppedLines(planned, stopped.failed, stopped.error),
+        ...stoppedLines(previewed, stopped.failed, stopped.error),
         `The draft is kept, and no record is written to proposals/: ${path}`,
       ].join("\n"),
     );
@@ -131,7 +131,7 @@ export async function apply(draft, given, deps) {
   const applied = [
     ...backedUp,
     `Applied ${basename(draft)}, ${count(changes)}:`,
-    ...planned.map(({ description }, i) => `${i + 1}. ${description.heading}`),
+    ...headings(previewed),
   ];
   /** @type {string} */
   let record;
@@ -139,7 +139,7 @@ export async function apply(draft, given, deps) {
     record = await writeRecord(
       folder,
       recordName(draft),
-      recordMarkdown(draft, planned, now()),
+      recordMarkdown(draft, previewed, now()),
     );
   } catch (error) {
     print(
@@ -344,18 +344,23 @@ async function writeAll(changes, store, now) {
 }
 
 /**
+ * Each change's heading, numbered: "1. New routine: Upper Lower, version 1".
+ * @param {Made[]} made
+ */
+const headings = (made) =>
+  made.map(({ description }, i) => `${i + 1}. ${description.heading}`);
+
+/**
  * What `apply` says when a write fails partway: the change it stopped at
  * and why, then each change under whether it landed. The changes before
  * it landed; it and every change after it didn't, since nothing more is
  * written once one fails. The headings are the dry run's, as previewed.
- * @param {Made[]} planned every change, as the dry run made it
+ * @param {Made[]} previewed every change, as the dry run made it
  * @param {number} failed the change that stopped it, from 1
  * @param {unknown} error
  */
-function stoppedLines(planned, failed, error) {
-  const numbered = planned.map(
-    ({ description }, i) => `${i + 1}. ${description.heading}`,
-  );
+function stoppedLines(previewed, failed, error) {
+  const numbered = headings(previewed);
   const landed = numbered.slice(0, failed - 1);
   return [
     `Applying stopped at change ${failed}: ${errorText(error)}.`,

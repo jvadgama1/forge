@@ -78,7 +78,7 @@ const newRoutine = {
     const name = /** @type {string} */ (change.name);
     // Names are unique per kind (spec #191), so a rerun can't duplicate a
     // routine; the core itself allows two of a name.
-    const taken = await routineNamed(name, forge);
+    const taken = named(await forge.listRoutines(), name);
     if (taken) throw new Error(`${taken.name} is already a routine`);
     return forge.saveRoutine({
       name,
@@ -154,15 +154,14 @@ const changeRoutine = {
     // continues names its id instead.
     for (const day of days) {
       if (day.id !== undefined) continue;
-      const wanted = day.name.trim().toLowerCase();
-      const taken = current.find((d) => d.name.toLowerCase() === wanted);
+      const taken = named(current, day.name);
       if (taken)
         throw new Error(`${taken.name} is already a day of ${before.name}`);
     }
     const name = /** @type {string | undefined} */ (change.name) ?? before.name;
     // Names are unique per kind (spec #191), so a rename can't take
     // another routine's.
-    const taken = await routineNamed(name, forge);
+    const taken = named(await forge.listRoutines(), name);
     if (taken && taken.id !== id)
       throw new Error(`${taken.name} is already a routine`);
     const after = await forge.saveRoutine({
@@ -282,15 +281,15 @@ function customExercisesIn(change) {
 }
 
 /**
- * The routine already called `name`, whatever its case and spacing.
+ * The one of `items` already called `name`, whatever its case and spacing:
+ * a routine among the routines, a day among a routine's days.
+ * @template {{ name: string }} T
+ * @param {T[]} items
  * @param {string} name
- * @param {Forge} forge
  */
-async function routineNamed(name, forge) {
+function named(items, name) {
   const wanted = name.trim().toLowerCase();
-  return (await forge.listRoutines()).find(
-    (r) => r.name.toLowerCase() === wanted,
-  );
+  return items.find((item) => item.name.toLowerCase() === wanted);
 }
 
 /**
