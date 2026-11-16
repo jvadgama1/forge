@@ -8,7 +8,7 @@
 import { FIREBASE_CONFIG, OWNER_UID } from "../../app/js/firebase-config.js";
 import { token } from "../firebase-login.js";
 import { createRestStore } from "../store/rest-store.js";
-import { COACH_NOTES } from "./coach-notes.js";
+import { COACH_NOTES_FOLDER } from "./coach-notes.js";
 import { runCoach } from "./run.js";
 
 try {
@@ -19,7 +19,7 @@ try {
       token,
     }),
     now: () => new Date(),
-    folder: COACH_NOTES,
+    folder: COACH_NOTES_FOLDER,
     print: (text) => console.log(text),
   });
 } catch (error) {
