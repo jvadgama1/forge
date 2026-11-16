@@ -163,3 +163,7 @@ What the coach always knows about the user (goals, age, experience, injuries and
 **Proposal**:
 A set of changes to the user's set-up (routines, gyms, custom exercises, exercise settings), each with a reason, written by the coach, that does nothing until the user approves its dry run. Part of phase 3.
 _Avoid_: Plan, build sheet, change list
+
+**Dry run**:
+What a proposal would change, shown change by change with each one's old and new values, before anything is written.
+_Avoid_: Preview (the coach command's name for it), diff
