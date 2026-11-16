@@ -144,6 +144,14 @@ const count = (changes) =>
  * @returns {Promise<{ path: string, text: string, changes: Change[] } | undefined>}
  */
 async function load(draft, { folder, print }) {
+  // Only a draft in drafts/: apply removes the file once applied, and auto
+  // mode's grant passes any argument (#192), so no path may reach past it.
+  if (basename(draft) !== draft || draft === "." || draft === "..") {
+    print(
+      `Not applied: name a proposal by its file name in drafts/, not ${draft}.`,
+    );
+    return undefined;
+  }
   const path = resolve(folder, "drafts", draft);
   /** @type {string} */
   let text;

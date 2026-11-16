@@ -681,6 +681,30 @@ describe("a proposal coach can't use (#193)", () => {
     );
   });
 
+  it.each([["../notes.json"], ["sub/proposal.json"]])(
+    "takes only a file name in drafts/, refusing %s",
+    async (draft) => {
+      const folder = await privateFolder();
+      await mkdir(join(folder, "drafts", "sub"), { recursive: true });
+      await writeFile(join(folder, "notes.json"), JSON.stringify(PROPOSAL));
+      await writeProposal(folder, PROPOSAL, join("sub", "proposal.json"));
+      const store = createMemoryStore(SET_UP);
+
+      for (const args of [
+        ["preview", draft],
+        ["apply", draft, "0a1b2c3d4e5f"],
+      ]) {
+        const { code, output } = await run(args, { store, folder });
+        expect(code).toBe(1);
+        expect(output).toBe(
+          `Not applied: name a proposal by its file name in drafts/, not ${draft}.`,
+        );
+      }
+      expect(await exists(join(folder, "notes.json"))).toBe(true);
+      expect(await setUpIn(store)).toEqual(SET_UP);
+    },
+  );
+
   it("reports a store that can't be read", async () => {
     const folder = await privateFolder();
     await writeProposal(folder, PROPOSAL);

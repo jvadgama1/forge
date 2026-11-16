@@ -1,8 +1,10 @@
 // What `npm run coach` does (#174), with the store, clock and private folder
 // passed in, so tests run it over a stand-in store and a temporary folder
 // and never the live project. It reads and saves through the Forge core,
-// with the rules the app uses (spec #170), and only ever adds a coaching
-// session: it has no way to change or delete one (story 46).
+// with the rules the app uses (spec #170). Saving only ever adds a coaching
+// session: it has no way to change or delete one (story 46). Proposals,
+// which change the user's set-up but never delete, are in proposal.js
+// (#193; spec #191).
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
