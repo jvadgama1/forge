@@ -8,10 +8,8 @@
 import { FIREBASE_CONFIG, OWNER_UID } from "../../app/js/firebase-config.js";
 import { token } from "../firebase-login.js";
 import { createRestStore } from "../store/rest-store.js";
+import { COACH_NOTES } from "./coach-notes.js";
 import { runCoach } from "./run.js";
-
-// The coach notes, outside the repo and never committed (ADR-0008).
-const FOLDER = "C:\\Projects\\Health\\coach";
 
 try {
   process.exitCode = await runCoach(process.argv.slice(2), {
@@ -21,7 +19,7 @@ try {
       token,
     }),
     now: () => new Date(),
-    folder: FOLDER,
+    folder: COACH_NOTES,
     print: (text) => console.log(text),
   });
 } catch (error) {

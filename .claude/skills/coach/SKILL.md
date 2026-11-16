@@ -3,6 +3,7 @@ name: coach
 description: Run a coaching session over all the Forge data and the coach notes. Add a topic to lead on it.
 argument-hint: "[topic]"
 disable-model-invocation: true
+allowed-tools: Read(//c/Projects/Health/coach/**) Edit(//c/Projects/Health/coach/**) Write(//c/Projects/Health/coach/**)
 ---
 
 # Coach
@@ -55,7 +56,7 @@ Done when it prints `Deployed checkout ready at …`. If it prints anything else
 3. Read `profile.md`, `notebook.md` and the three newest files in `sessions/`. Any of them may not exist yet.
 4. Read every coaching session in the export (`coachingSessions`, newest first): its verdict, insights, commitments, follow-ups and corrections.
 
-Done when you have read every workout, body weight entry, routine version, coaching session and coach notes file there is, the whole history every time, and know which commitments are open (see _Commitments_). If a read of the coach notes is blocked, ask the user to run `/add-dir C:/Projects/Health/coach`.
+Done when you have read every workout, body weight entry, routine version, coaching session and coach notes file there is, the whole history every time, and know which commitments are open (see _Commitments_). If Claude Code asks for or refuses access to the coach notes, the skill's `allowed-tools` no longer matches the folder: tell the user so, and continue only with their yes.
 
 ### 3. First coaching session: intake
 
