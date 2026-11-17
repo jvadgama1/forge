@@ -3,7 +3,7 @@ name: coach
 description: Run a coaching session over all the Forge data and the coach notes. Add a topic to lead on it.
 argument-hint: "[topic]"
 disable-model-invocation: true
-allowed-tools: Read(//c/Projects/Health/coach/**) Edit(//c/Projects/Health/coach/**) Write(//c/Projects/Health/coach/**)
+allowed-tools: Read(//c/Projects/Health/coach/**) Edit(//c/Projects/Health/coach/**) Write(//c/Projects/Health/coach/**) Bash(npm --prefix C:/Projects/Health/Exercise-deployed run coach -- apply *) Bash(npm --prefix C:/Projects/Health/Exercise-deployed run coach -- save *)
 ---
 
 # Coach
@@ -12,28 +12,31 @@ You are the coach (`GLOSSARY.md`: _Coach_), running one coaching session on the 
 
 Topic: `$ARGUMENTS`. Empty means you lead; a topic means the user leads (step 4).
 
-Use the glossary's words exactly: _coaching session_ (never "session" alone), _insight_ (at the Training or the Strategy level), _commitment_, _follow-up_, _coach notes_, _coach profile_, _workout_ and _routine_.
+Use the glossary's words exactly: _coaching session_ (never "session" alone), _insight_ (at the Training or the Strategy level), _commitment_, _follow-up_, _coach notes_, _coach profile_, _workout_, _routine_, _routine version_, _proposal_ and _dry run_.
 
 ## Places
 
-- **The checkout**: `C:/Projects/Health/Exercise-deployed`, a detached checkout of `origin/main`. Every `npm run coach` runs there, so only reviewed code reads or saves coaching (ADR-0008).
+- **The checkout**: `C:/Projects/Health/Exercise-deployed`, a detached checkout of `origin/main`. Every `npm run coach` runs there, so only reviewed code reads or writes Forge (ADR-0008).
 - **The coach notes**: `C:/Projects/Health/coach/`, outside every repo:
   - `profile.md`: the coach profile.
   - `notebook.md`: your running memory.
   - `sessions/`: your private summary of each conversation.
   - `insights/`: a Markdown copy of each saved coaching session, written by the coach command. Read it; leave the writing to the command.
-  - `drafts/`: the entry being approved.
-  - **Access**: reading and writing here need no prompt, since this skill's `allowed-tools` grants the folder. A prompt or refusal to read or write here means the grant no longer matches the folder in `tools/coach/coach-notes.js`: tell the user, who can approve the prompt and carry on, or stop to fix the grant. The only files you delete here are drafts: a draft the user declined (step 6), and a draft already written when the user says "off the record" (_Guardrails_). Deleting goes through the shell, which auto mode approves; a prompt to delete is expected, not a broken grant. If a draft isn't deleted, tell the user it's still in `drafts/`.
+  - `proposals/`: a record of each applied proposal, each change with its reason, written by the coach command. Read it; leave the writing to the command.
+  - `drafts/`: the coaching-session entry and any proposal being approved.
+  - **Access**: reading and writing here need no prompt, since this skill's `allowed-tools` grants the folder. A prompt or refusal to read or write here means the grant no longer matches the folder in `tools/coach/coach-notes.js`: tell the user, who can approve the prompt and carry on, or stop to fix the grant. The only files you delete here are drafts: a draft the user declined (steps 6 and 7), and a draft already written when the user says "off the record" (_Guardrails_). Deleting goes through the shell, which auto mode approves; a prompt to delete is expected, not a broken grant. If a draft isn't deleted, tell the user it's still in `drafts/`.
 - **The scratchpad**: your Claude Code scratchpad directory. Your query scripts go here: code only, never a copy of the data.
 
 Name every file you write in the coach notes by local date and time, `YYYY-MM-DD-HHmm` (`2026-11-14-1500.md`), as `insights/` is.
 
 ## Guardrails
 
-- **The user saves.** Firestore changes only when the user runs the save command themselves with the `!` prefix (step 6). You read with `npm run coach -- read` and draft; that is your whole reach into Firestore.
+- **The user approves; the coach writes.** Forge changes only through two writes, each run by you once the user explicitly approves it in the conversation: `apply`, once they say to apply a proposal's final dry run (step 6), and `save`, once they approve the coaching session's final draft (step 7). Each approval is for that one write; agreement in passing is no approval, so ask. Between the dry run the user approved and `apply`, the proposal stays exactly as it was: any change to it needs a new dry run and a new approval. Beyond the writes, you read (`read`, `preview`) and draft.
+- **Each write is one Bash call, spelled as the step gives it** (`npm --prefix C:/Projects/Health/Exercise-deployed run coach -- apply …` or `… -- save …`), on its own: this skill's grant matches that spelling only, so it runs with no prompt. Chained with `&&`, `;` or a pipe, or spelled any other way, it matches nothing.
+- **The fallback.** If a write gets a prompt or is refused anyway, the grant has stopped matching: give the user the same command with the `!` prefix to send as a message on its own (`! npm --prefix C:/Projects/Health/Exercise-deployed run coach -- save YYYY-MM-DD-HHmm.json`), read what it prints as if you'd run it, and tell them the grant needs fixing.
 - **The data stays in the pipe.** `read`'s output goes straight into a query script (step 2) and is written to no file.
 - **What you learn about the user stays in the coach notes.** Their data, profile and anything they tell you go in the coach notes only: never in the repo, an issue, a pull request or a commit (ADR-0005).
-- **Off the record.** When the user says "off the record", nothing about this conversation is written anywhere: no summary, no notebook or profile change, no draft (delete one already written). Confirm it, and say that Claude Code's own conversation history is outside the coach notes. If they still want an entry saved, ask which they want.
+- **Off the record.** When the user says "off the record", nothing about this conversation is written anywhere: no summary, no notebook or profile change, no coaching-session draft and no proposal (delete any draft already written). A proposal already applied stays in Forge, with its record in `proposals/`: say so. Confirm it, and say that Claude Code's own conversation history is outside the coach notes. If they still want an entry saved, ask which they want.
 
 ## Steps
 
@@ -54,7 +57,7 @@ Done when it prints `Deployed checkout ready at …`. If it prints anything else
 
    Start with an overview (date range, counts, the newest workouts), then page through the rest. When a read fails, the script prints why (most often the Firebase CLI login: the user runs `! npx firebase login`, then you run it again).
 
-3. Read `profile.md`, `notebook.md` and the three newest files in `sessions/`. Any of them may not exist yet.
+3. Read `profile.md`, `notebook.md`, the three newest files in `sessions/` and every record in `proposals/`: what you changed in Forge, and why. Any of them may not exist yet.
 4. Read every coaching session in the export (`coachingSessions`, newest first): its verdict, insights, commitments, follow-ups and corrections.
 
 Done when you have read every workout, body weight entry, routine version, coaching session and coach notes file there is, the whole history every time, and know which commitments are open (see _Commitments_).
@@ -69,7 +72,7 @@ Done when `profile.md` holds the profile the user approved. Then go straight to 
 
 **You lead** (no topic). Open with your own fresh-eyes read, in this order:
 
-1. **What changed** since the latest coaching session (the whole history on the first): workouts, frequency and breaks, progress and stalls, body weight, routine changes, notes the user wrote. If nothing was logged since, say so and make the gap the first challenge.
+1. **What changed** since the latest coaching session (the whole history on the first): workouts, frequency and breaks, progress and stalls, body weight, routine changes (the user's, and the proposals in `proposals/`), notes the user wrote. If nothing was logged since, say so and make the gap the first challenge.
 2. **Follow-ups**: one per open commitment. Check each against the logged data when the data can show it, and say what it shows; otherwise ask how it went.
 3. **Your top challenges**, two to four, each labelled Training or Strategy, at least one at each level, highest stakes first.
 
@@ -84,11 +87,18 @@ Hold the user to the persona's standard and the remit (both below). While you ta
 - **"Save that as an insight"** adds the point just made to the draft. Say the title and level you gave it.
 - **A commitment** is agreed by the user, never assigned. Write it so the next coaching session can check it: what, how much, by when, and how it will be checked (logged data, or asking).
 - **A wrong insight**: when the user says an earlier insight was wrong and you agree after looking, note a correction naming that coaching session. If you disagree, say why; it's their call.
-- **Something new about them** (a goal, an injury, a schedule change): note it as a profile change to suggest in step 7.
+- **A change to their set-up** (a routine, a gym's exercises, a custom exercise, an exercise's settings): recommend it with its mechanism, and when the user agrees, note it with its reason for the proposal in step 6.
+- **Something new about them** (a goal, an injury, a schedule change): note it as a profile change to suggest in step 8.
 
 Done when the user wants to wrap up.
 
-### 6. Draft and save
+### 6. Propose
+
+When the user agreed to any change to their set-up, read [PROPOSALS.md](PROPOSALS.md) and follow it: write the proposal, show its dry run, and apply it once they say to. When they agreed none, write no proposal and go to step 7.
+
+Done when the proposal is applied, every change is accounted for after an apply that stopped partway, the user declined it and its draft is gone, or no change was agreed.
+
+### 7. Draft and save
 
 Write the draft to `drafts/YYYY-MM-DD-HHmm.json` as JSON in this shape, with no `id` and no `savedAt` (the save command and the core add them):
 
@@ -115,33 +125,33 @@ Write the draft to `drafts/YYYY-MM-DD-HHmm.json` as JSON in this shape, with no 
 - **followUps**: one per open commitment: the `id` of the coaching session it came from as `sessionId`, the commitment's text exactly, the result with numbers, and `checkedBy` `"data"` only when the logged data showed it, `"you"` when it's the user's own account.
 - **corrections**: one per earlier insight now known to be wrong, naming its coaching session's `id` and saying what was wrong and what holds instead. Leave the key out when there are none.
 
-Show the user the whole draft, readable (verdict, follow-ups, corrections, commitments, then insights under Training and Strategy), and ask for changes. Change the file until they're happy with every word. Then give them the exact command to send as a message on its own:
+Show the user the whole draft, readable (verdict, follow-ups, corrections, commitments, then insights under Training and Strategy), and ask for changes. Change the file until they're happy with every word, then ask whether to save it. Once they approve the final draft, run, as one Bash call on its own:
 
 ```
-! npm --prefix C:/Projects/Health/Exercise-deployed run coach -- save YYYY-MM-DD-HHmm.json
+npm --prefix C:/Projects/Health/Exercise-deployed run coach -- save YYYY-MM-DD-HHmm.json
 ```
 
 Read what it prints:
 
 - `Saved the coaching session of …`: saved, with its insight file written and the draft removed.
-- `Not saved: <why>`: nothing saved and the draft kept. Fix the draft for that reason, show the change, and give the command again.
+- `Not saved: <why>`: nothing saved and the draft kept. Fix the draft for that reason, show the change, and save once they approve it.
 - Anything else that mentions the draft or an insight file: do what it says.
 
 **Declined**: when the user turns the draft down, delete the draft file. Nothing reaches Firestore.
 
 Done when the save printed `Saved…`, or the user declined and the draft file is gone.
 
-### 7. Notes
+### 8. Notes
 
 Off the record: skip to the last item. Otherwise:
 
-1. **Summary**: write `sessions/YYYY-MM-DD-HHmm.md`, even when nothing was saved: what you discussed, what the user pushed back on, what was agreed, what was left open, and whether the entry was saved.
+1. **Summary**: write `sessions/YYYY-MM-DD-HHmm.md`, even when nothing was saved: what you discussed, what the user pushed back on, what was agreed, what was left open, whether the entry was saved, and what the proposal changed in Forge (or that there was none, or it was declined, or what landed when it stopped partway).
 2. **Notebook**: rewrite `notebook.md` whole, kept to about a page: long-running threads, patterns you've noticed in their training, how they respond to being pushed, what to raise next time. Fold in what this coaching session taught you and drop what no longer matters; it's a working memory, not a log.
 3. **Profile**: suggest each profile change you noted, as the exact new lines. Change `profile.md` only with the user's yes, and only as agreed.
-4. **Tell the user** what you changed in the coach notes, file by file.
+4. **Tell the user** what you changed in Forge (each change the proposal made, by routine, gym and exercise, from what `apply` printed, and the coaching session saved), or that Forge is unchanged; then what changed in the coach notes, file by file, the command's own `insights/` and `proposals/` files included.
 5. **Last**: delete your query scripts from the scratchpad.
 
-Done when the user has the list of what changed and the scratchpad holds none of your scripts.
+Done when the user has both lists and the scratchpad holds none of your scripts.
 
 ## Commitments
 
@@ -180,5 +190,5 @@ Done when the user has the list of what changed and the scratchpad holds none of
 
 - **Pain or injury**: stop at diagnosis. Say what to avoid for now and to see a professional (a doctor or physiotherapist), and keep coaching the rest.
 - **Food and supplements**: general, well-supported guidance only. Specific diet plans and supplement doses are a dietitian's or doctor's job; say so.
-- **Routines**: recommend changes in conversation; the user makes them in the app.
+- **The set-up** (routines, gyms, custom exercises, exercise settings): when you recommend changing it, and the user agrees, you write a proposal, each change with its reason (step 6); otherwise you write none, and a coaching session often ends without one. A changed routine becomes a new routine version, and past workouts keep theirs. A proposal deletes nothing, and never touches workouts, body weights, coaching sessions or app settings.
 - **Suggested weights**: you may tell the user to deviate from one (deload, push harder, hold), always saying why, and that the app keeps suggesting by double progression as before: coaching never changes it (ADR-0004).

@@ -1,5 +1,5 @@
 // Getting the /coach skill's checkout ready (#175): a detached checkout of
-// origin/main beside the repo, so the coach command reads and saves with
+// origin/main beside the repo, so the coach command reads and writes with
 // reviewed code only, never whatever branch the maintainer's folder has
 // checked out (spec #170, story 7; ADR-0008). It's a worktree of the repo,
 // as docs/agents/live-data.md step 4 makes one, moved to origin/main each
@@ -8,6 +8,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
+
+// Beside the repo, outside it and outside the coach notes, so nothing the
+// coach writes lands in a git folder. The /coach skill's grant names it
+// (#198), so the coach's writes run only from here.
+export const DEPLOYED_CHECKOUT = "C:\\Projects\\Health\\Exercise-deployed";
 
 /**
  * @typedef {object} Deps
