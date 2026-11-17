@@ -1,5 +1,5 @@
 // Getting the /coach skill's checkout ready (#175): a detached checkout of
-// origin/main beside the repo, so the coach command reads and saves with
+// origin/main beside the repo, so the coach command reads and writes with
 // reviewed code only, never whatever branch the maintainer's folder has
 // checked out (spec #170, story 7; ADR-0008). It's a worktree of the repo,
 // as docs/agents/live-data.md step 4 makes one, moved to origin/main each

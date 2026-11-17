@@ -32,7 +32,7 @@ const folder =
 // The two write rules, word for word as the #192 probe pinned them in auto
 // mode (ADR-0009). A Bash rule is a prefix match on the whole command, so
 // any looser spelling would let through more than these two commands.
-const WRITES = [
+const WRITE_RULES = [
   "Bash(npm --prefix C:/Projects/Health/Exercise-deployed run coach -- apply *)",
   "Bash(npm --prefix C:/Projects/Health/Exercise-deployed run coach -- save *)",
 ];
@@ -44,7 +44,7 @@ const WRITES = [
  */
 function ungranted(rules) {
   return rules.filter((rule) => {
-    if (WRITES.includes(rule)) return false;
+    if (WRITE_RULES.includes(rule)) return false;
     const path = rule.match(/^(?:Read|Edit|Write)\((.*)\)$/)?.[1];
     return !path?.startsWith(`${folder}/`) || path.split("/").includes("..");
   });
@@ -63,13 +63,13 @@ describe("the /coach skill's allowed-tools", () => {
 
   it("grants the coach command's apply and save from the deployed checkout", () => {
     expect(allowedTools().filter((rule) => rule.startsWith("Bash"))).toEqual(
-      WRITES,
+      WRITE_RULES,
     );
   });
 
   it("names the checkout that npm run coach:ready keeps at origin/main", () => {
     const checkout = DEPLOYED_CHECKOUT.replaceAll("\\", "/");
-    for (const rule of WRITES)
+    for (const rule of WRITE_RULES)
       expect(rule).toContain(`npm --prefix ${checkout} run coach -- `);
   });
 

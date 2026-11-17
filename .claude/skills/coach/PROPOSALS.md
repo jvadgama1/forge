@@ -24,7 +24,7 @@ Write it to `drafts/YYYY-MM-DD-HHmm-proposal.json`, stamped like the coaching-se
 - **Exercises** are named by id: a library id (the checkout's `app/js/core/seed-library.js`) or a custom exercise's id from the export. A custom exercise this same proposal makes is named `{ "custom": "<name>" }`, and nothing else is: anything already in Forge goes by its id.
 - **Each change must change something**: every tick, untick and setting it names differs from how Forge has it now, and a routine change makes a new routine version or a new name.
 
-The kinds, and nothing else (no change deletes anything; unticking at a gym is the only removal, and it's reversible):
+The kinds, and nothing else:
 
 - **`new-routine`**: `name`, not already a routine's; `days`, each `{ "name", "slots" }`, a slot `{ "exerciseId", "sets", "repMin", "repMax", "rir" }` with `rir` (0 to 4; 4 means 4 or more) optional. No ids anywhere: saving gives them. Saved at version 1.
 - **`change-routine`**: the routine's `id`; `name` only to rename it; `days`, the new routine version's days in full, at least one. A day that continues names its current day `id`, so the rotation carries on from the day done last; a day with no `id` is new, and takes a name no current day has; a day left out is dropped from the new version only, and earlier versions keep it. A rename with the days unchanged adds no version.
@@ -44,7 +44,8 @@ npm --prefix C:/Projects/Health/Exercise-deployed run coach -- preview YYYY-MM-D
 ```
 
 - **`Not applied: <why>`**, often with `(change <n>)`: the app refused it, and there's no fingerprint. Fix that change for the reason given and run the dry run again. When the fix changes something you agreed, say so.
-- **Otherwise** it lists each change, numbered, with `Why:` and its old and new values, then `Fingerprint: <12 characters>`, which belongs to this file exactly as it stands.
+- **A dry run** lists each change, numbered, with `Why:` and its old and new values, then ends `Fingerprint: <12 characters>`, which belongs to this file exactly as it stands.
+- **Anything else** (`Couldn't read the data: …`, or the usage text): no dry run. A failed read is most often the Firebase CLI login: the user runs `! npx firebase login`, then you run it again.
 
 Show the user the dry run, readable rather than pasted:
 
@@ -58,7 +59,7 @@ Done when the user explicitly says to apply the dry run you showed last ("apply 
 
 ## 3. Apply
 
-Only on that explicit word for the dry run shown last. Agreeing with an idea, or "looks good" before you've asked, isn't it: ask. Leave the file exactly as it was for that dry run; then run, as one Bash call on its own:
+Only on that explicit word, as the skill's _Guardrails_ say, with the file exactly as it was for that dry run. Run, as one Bash call on its own:
 
 ```
 npm --prefix C:/Projects/Health/Exercise-deployed run coach -- apply YYYY-MM-DD-HHmm-proposal.json <fingerprint>
@@ -70,10 +71,13 @@ Read what it prints, and act on it:
 - **`Not applied: changed since the preview.`**: the file or the data it touches changed after the dry run (an edit on the phone, say). Nothing was written. Run the dry run again, show it, and ask again.
 - **Any other `Not applied: <why>`**: nothing was written. Fix the proposal for that reason, then dry run, show and ask again.
 - **`Applying stopped at change <n>: <why>.`**, then `Landed:`, `Landed partly:` and `Didn't land:`: some changes are in Forge and some aren't. Tell the user exactly which landed, which landed partly (what was and wasn't written), which didn't, and why it stopped. The draft is kept, and the same proposal won't apply again: write what's left as a new proposal, `drafts/YYYY-MM-DD-HHmm-proposal-2.json`, and dry run, show and ask as before. Leave the stopped draft in `drafts/`: it holds the reasons for what landed.
-- **Anything else** (it couldn't write the record, or couldn't remove the draft): it's applied, and the message says what to do. Do it, and tell the user.
+- **`Applied …`, then `Couldn't write its record …` or `… couldn't remove the draft …`**: applied, but the clean-up didn't finish. The message says what to do: do it, and tell the user.
+- **Anything else** (`Couldn't read the data: …`, the usage text, an error): nothing was applied. Fix the cause (a failed read: the user runs `! npx firebase login`), then run the dry run again and ask again, since the data may have changed.
 
 Done when the output says it applied, or every change is accounted for after a stop, or the user declined.
 
 ## Declined
 
-When the user turns the proposal down, delete the draft. Nothing reaches Forge.
+When the user turns the proposal down, delete the draft. Nothing reaches Firestore.
+
+Done when the draft is gone.
