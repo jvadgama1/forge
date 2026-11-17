@@ -9,6 +9,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 
+// Beside the repo, outside it and outside the coach notes, so nothing the
+// coach writes lands in a git folder. The /coach skill's grant names it
+// (#198), so the coach's writes run only from here.
+export const DEPLOYED_CHECKOUT = "C:\\Projects\\Health\\Exercise-deployed";
+
 /**
  * @typedef {object} Deps
  * @property {string} repo Any folder of the repo; only fetched from.

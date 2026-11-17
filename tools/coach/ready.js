@@ -4,16 +4,12 @@
 // deployed-checkout.js.
 import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import { getReady } from "./deployed-checkout.js";
-
-// Beside the repo, outside it and outside the coach notes, so nothing the
-// coach writes lands in a git folder.
-const CHECKOUT = "C:\\Projects\\Health\\Exercise-deployed";
+import { DEPLOYED_CHECKOUT, getReady } from "./deployed-checkout.js";
 
 try {
   process.exitCode = await getReady({
     repo: resolve(import.meta.dirname, "..", ".."),
-    checkout: CHECKOUT,
+    checkout: DEPLOYED_CHECKOUT,
     git: (cwd, args) =>
       execFileSync("git", args, { cwd, encoding: "utf8" }).trim(),
     npmCi: async (cwd) => {
